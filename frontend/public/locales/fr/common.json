@@ -1,0 +1,123 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "create": "Créer",
+    "search": "Rechercher",
+    "loading": "Chargement…",
+    "actions": "Actions",
+    "confirm_delete": "Confirmer la suppression ?",
+    "yes": "Oui",
+    "no": "Non",
+    "back": "Retour",
+    "view": "Voir",
+    "add": "Ajouter",
+    "total": "Total",
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "logout": "Déconnexion",
+    "settings": "Paramètres",
+    "error": "Erreur",
+    "success": "Succès"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "email": "Adresse e-mail",
+    "password": "Mot de passe",
+    "connecting": "Connexion…",
+    "invalid_credentials": "Identifiants invalides",
+    "login_success": "Connexion réussie"
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "invoices": "Factures",
+    "deliveries": "Livraisons",
+    "tasks": "Tâches",
+    "users": "Utilisateurs",
+    "company": "Entreprise",
+    "products": "Produits",
+    "clients": "Clients",
+    "templates": "Templates",
+    "notifications": "Rappels",
+    "my_tasks": "Mes tâches"
+  },
+  "dashboard": {
+    "welcome": "Bonjour",
+    "overview": "Aperçu de votre activité",
+    "quick_actions": "Actions rapides",
+    "total_revenue": "Chiffre d'affaires",
+    "paid_invoices": "Factures payées",
+    "pending": "En attente",
+    "completed_deliveries": "Livraisons terminées"
+  },
+  "invoice": {
+    "new": "Nouvelle facture",
+    "facture": "Facture",
+    "proforma": "Proforma",
+    "bon_livraison": "Bon de livraison",
+    "number": "N° Document",
+    "client": "Client",
+    "amount": "Montant",
+    "status": "Statut",
+    "date": "Date",
+    "paid": "Payée",
+    "unpaid": "Non payée",
+    "workflow": "Workflow",
+    "commande": "Commande",
+    "livraison": "Livraison",
+    "facturation": "Facturation",
+    "recouvrement": "Recouvrement"
+  },
+  "product": {
+    "name": "Nom du produit",
+    "reference": "Référence",
+    "unit": "Unité",
+    "purchase_price": "Prix d'achat",
+    "sale_price": "Prix de vente",
+    "margin": "Marge",
+    "validation_error": "Le prix de vente doit être supérieur au prix d'achat"
+  },
+  "task": {
+    "name": "Nom de la tâche",
+    "price": "Prix",
+    "status": "Statut",
+    "remarks": "Remarques",
+    "completed": "Terminée",
+    "not_completed": "Non terminée",
+    "pending": "En attente",
+    "assign_to": "Assigner à",
+    "due_date": "Date limite",
+    "delivery_date": "Date de livraison",
+    "earned": "Gagné"
+  },
+  "notification": {
+    "send_reminder": "Envoyer un rappel",
+    "email": "Email",
+    "whatsapp": "WhatsApp",
+    "sms": "SMS",
+    "sending": "Envoi en cours…",
+    "sent": "Rappel envoyé",
+    "failed": "Échec de l'envoi"
+  },
+  "template": {
+    "classic": "Classic",
+    "compact": "Compact",
+    "detailed": "Détaillé",
+    "corporate": "Corporate",
+    "table_focus": "Tableau Focus",
+    "set_default": "Définir par défaut",
+    "preview": "Aperçu",
+    "logo_position": "Position du logo",
+    "left": "Gauche",
+    "center": "Centre",
+    "right": "Droite"
+  },
+  "language": {
+    "fr": "Français",
+    "ar": "العربية",
+    "en": "English",
+    "select": "Langue"
+  }
+}

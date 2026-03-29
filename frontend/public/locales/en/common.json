@@ -1,0 +1,123 @@
+{
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "loading": "Loading…",
+    "actions": "Actions",
+    "confirm_delete": "Confirm deletion?",
+    "yes": "Yes",
+    "no": "No",
+    "back": "Back",
+    "view": "View",
+    "add": "Add",
+    "total": "Total",
+    "online": "Online",
+    "offline": "Offline",
+    "logout": "Logout",
+    "settings": "Settings",
+    "error": "Error",
+    "success": "Success"
+  },
+  "auth": {
+    "login": "Sign in",
+    "email": "Email address",
+    "password": "Password",
+    "connecting": "Signing in…",
+    "invalid_credentials": "Invalid credentials",
+    "login_success": "Successfully signed in"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "invoices": "Invoices",
+    "deliveries": "Deliveries",
+    "tasks": "Tasks",
+    "users": "Users",
+    "company": "Company",
+    "products": "Products",
+    "clients": "Clients",
+    "templates": "Templates",
+    "notifications": "Reminders",
+    "my_tasks": "My tasks"
+  },
+  "dashboard": {
+    "welcome": "Hello",
+    "overview": "Your activity overview",
+    "quick_actions": "Quick actions",
+    "total_revenue": "Total revenue",
+    "paid_invoices": "Paid invoices",
+    "pending": "Pending",
+    "completed_deliveries": "Completed deliveries"
+  },
+  "invoice": {
+    "new": "New invoice",
+    "facture": "Invoice",
+    "proforma": "Proforma",
+    "bon_livraison": "Delivery note",
+    "number": "Document No.",
+    "client": "Client",
+    "amount": "Amount",
+    "status": "Status",
+    "date": "Date",
+    "paid": "Paid",
+    "unpaid": "Unpaid",
+    "workflow": "Workflow",
+    "commande": "Order",
+    "livraison": "Delivery",
+    "facturation": "Invoicing",
+    "recouvrement": "Collection"
+  },
+  "product": {
+    "name": "Product name",
+    "reference": "Reference",
+    "unit": "Unit",
+    "purchase_price": "Purchase price",
+    "sale_price": "Sale price",
+    "margin": "Margin",
+    "validation_error": "Sale price must be greater than purchase price"
+  },
+  "task": {
+    "name": "Task name",
+    "price": "Price",
+    "status": "Status",
+    "remarks": "Remarks",
+    "completed": "Completed",
+    "not_completed": "Not completed",
+    "pending": "Pending",
+    "assign_to": "Assign to",
+    "due_date": "Due date",
+    "delivery_date": "Delivery date",
+    "earned": "Earned"
+  },
+  "notification": {
+    "send_reminder": "Send reminder",
+    "email": "Email",
+    "whatsapp": "WhatsApp",
+    "sms": "SMS",
+    "sending": "Sending…",
+    "sent": "Reminder sent",
+    "failed": "Send failed"
+  },
+  "template": {
+    "classic": "Classic",
+    "compact": "Compact",
+    "detailed": "Detailed",
+    "corporate": "Corporate",
+    "table_focus": "Table Focus",
+    "set_default": "Set as default",
+    "preview": "Preview",
+    "logo_position": "Logo position",
+    "left": "Left",
+    "center": "Center",
+    "right": "Right"
+  },
+  "language": {
+    "fr": "Français",
+    "ar": "العربية",
+    "en": "English",
+    "select": "Language"
+  }
+}

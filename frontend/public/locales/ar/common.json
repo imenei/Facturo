@@ -1,0 +1,123 @@
+{
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "create": "إنشاء",
+    "search": "بحث",
+    "loading": "جارٍ التحميل…",
+    "actions": "الإجراءات",
+    "confirm_delete": "تأكيد الحذف؟",
+    "yes": "نعم",
+    "no": "لا",
+    "back": "رجوع",
+    "view": "عرض",
+    "add": "إضافة",
+    "total": "الإجمالي",
+    "online": "متصل",
+    "offline": "غير متصل",
+    "logout": "تسجيل الخروج",
+    "settings": "الإعدادات",
+    "error": "خطأ",
+    "success": "نجاح"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "connecting": "جارٍ الاتصال…",
+    "invalid_credentials": "بيانات الاعتماد غير صالحة",
+    "login_success": "تم تسجيل الدخول بنجاح"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "invoices": "الفواتير",
+    "deliveries": "التوصيلات",
+    "tasks": "المهام",
+    "users": "المستخدمون",
+    "company": "الشركة",
+    "products": "المنتجات",
+    "clients": "العملاء",
+    "templates": "القوالب",
+    "notifications": "التذكيرات",
+    "my_tasks": "مهامي"
+  },
+  "dashboard": {
+    "welcome": "مرحباً",
+    "overview": "نظرة عامة على نشاطك",
+    "quick_actions": "إجراءات سريعة",
+    "total_revenue": "رقم الأعمال",
+    "paid_invoices": "الفواتير المدفوعة",
+    "pending": "في الانتظار",
+    "completed_deliveries": "التوصيلات المكتملة"
+  },
+  "invoice": {
+    "new": "فاتورة جديدة",
+    "facture": "فاتورة",
+    "proforma": "فاتورة أولية",
+    "bon_livraison": "وصل التسليم",
+    "number": "رقم الوثيقة",
+    "client": "العميل",
+    "amount": "المبلغ",
+    "status": "الحالة",
+    "date": "التاريخ",
+    "paid": "مدفوعة",
+    "unpaid": "غير مدفوعة",
+    "workflow": "سير العمل",
+    "commande": "الطلب",
+    "livraison": "التسليم",
+    "facturation": "الفوترة",
+    "recouvrement": "الاسترداد"
+  },
+  "product": {
+    "name": "اسم المنتج",
+    "reference": "المرجع",
+    "unit": "الوحدة",
+    "purchase_price": "سعر الشراء",
+    "sale_price": "سعر البيع",
+    "margin": "الهامش",
+    "validation_error": "يجب أن يكون سعر البيع أعلى من سعر الشراء"
+  },
+  "task": {
+    "name": "اسم المهمة",
+    "price": "السعر",
+    "status": "الحالة",
+    "remarks": "ملاحظات",
+    "completed": "مكتملة",
+    "not_completed": "غير مكتملة",
+    "pending": "في الانتظار",
+    "assign_to": "تعيين إلى",
+    "due_date": "تاريخ الاستحقاق",
+    "delivery_date": "تاريخ التسليم",
+    "earned": "المكتسب"
+  },
+  "notification": {
+    "send_reminder": "إرسال تذكير",
+    "email": "البريد الإلكتروني",
+    "whatsapp": "واتساب",
+    "sms": "رسالة نصية",
+    "sending": "جارٍ الإرسال…",
+    "sent": "تم إرسال التذكير",
+    "failed": "فشل الإرسال"
+  },
+  "template": {
+    "classic": "كلاسيكي",
+    "compact": "مضغوط",
+    "detailed": "تفصيلي",
+    "corporate": "مؤسسي",
+    "table_focus": "تركيز الجدول",
+    "set_default": "تعيين كافتراضي",
+    "preview": "معاينة",
+    "logo_position": "موضع الشعار",
+    "left": "يسار",
+    "center": "وسط",
+    "right": "يمين"
+  },
+  "language": {
+    "fr": "Français",
+    "ar": "العربية",
+    "en": "English",
+    "select": "اللغة"
+  }
+}

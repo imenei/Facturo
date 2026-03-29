@@ -1,0 +1,15 @@
+# Node
+node_modules/
+.next/
+.env
+package-lock.json
+yarn.lock
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Mac / Windows
+.DS_Store
+Thumbs.db

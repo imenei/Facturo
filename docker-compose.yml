@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: facturo_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: facturo
+      POSTGRES_PASSWORD: facturo_pass
+      POSTGRES_DB: facturo_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U facturo']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: facturo_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: facturo
+      DB_PASS: facturo_pass
+      DB_NAME: facturo_db
+      JWT_SECRET: ${JWT_SECRET:-super_secret_change_in_prod}
+      FRONTEND_URL: http://localhost:3000
+      NODE_ENV: production
+    ports:
+      - '4000:4000'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: facturo_web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres_data:
