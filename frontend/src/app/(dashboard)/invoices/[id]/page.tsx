@@ -1,16 +1,17 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import { generateInvoiceWord } from '@/lib/wordGenerator';
 import { useAuthStore } from '@/store/authStore';
+import PDFPreviewModal from '@/components/PDFPreviewModal';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
-  ArrowLeft, FileDown, FileText, Edit, Truck, CheckCircle,
-  XCircle, Loader2, Bell, Send, ChevronRight, Mail,
-  MessageCircle, Phone, AlertTriangle,
+  ArrowLeft, FileDown, FileText, Edit, CheckCircle,
+  XCircle, Loader2, Bell, ChevronRight, Mail,
+  MessageCircle, Phone, AlertTriangle, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -152,6 +153,7 @@ export default function InvoiceDetailPage() {
   const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const { user } = useAuthStore();
 
   const load = async () => {
@@ -190,6 +192,12 @@ export default function InvoiceDetailPage() {
       setInvoice((p: any) => ({ ...p, deliveryStatus: status }));
       toast.success('Livraison mise à jour');
     } catch { toast.error('Erreur'); }
+  };
+
+  const handleTemplateChange = async (templateType: string) => {
+    await api.put(`/invoices/${id}`, { templateType });
+    setInvoice((p: any) => ({ ...p, templateType }));
+    toast.success('Template enregistré');
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
@@ -235,13 +243,13 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => generateInvoicePDF(invoice, company)} className="btn-secondary text-sm">
-            <FileDown size={15} /> PDF
+          <button onClick={() => setShowPreview(true)} className="btn-primary text-sm">
+            <Eye size={15} /> Aperçu & PDF
           </button>
           <button onClick={() => generateInvoiceWord(invoice, company)} className="btn-secondary text-sm">
             <FileText size={15} /> Word
           </button>
-          <Link href={`/invoices/${id}/edit`} className="btn-primary text-sm">
+          <Link href={`/invoices/${id}/edit`} className="btn-secondary text-sm">
             <Edit size={15} /> Modifier
           </Link>
         </div>
@@ -374,6 +382,17 @@ export default function InvoiceDetailPage() {
           <h3 className="font-display font-600 text-slate-700 mb-2 text-sm">Notes</h3>
           <p className="text-sm text-slate-600 whitespace-pre-line">{invoice.notes}</p>
         </div>
+      )}
+
+      {/* PDF Preview Modal */}
+      {showPreview && (
+        <PDFPreviewModal
+          invoice={invoice}
+          company={company}
+          onClose={() => setShowPreview(false)}
+          onDownload={generateInvoicePDF}
+          onTemplateChange={handleTemplateChange}
+        />
       )}
     </div>
   );

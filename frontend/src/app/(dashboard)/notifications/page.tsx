@@ -23,11 +23,17 @@ export default function NotificationsPage() {
   }, []);
 
   const toggleChannel = (invoiceId: string, ch: 'email' | 'whatsapp' | 'sms') => {
-    setSelectedChannels((prev) => ({
-      ...prev,
-      [invoiceId]: { email: false, whatsapp: false, sms: false, ...prev[invoiceId], [ch]: !prev[invoiceId]?.[ch] },
-    }));
-  };
+  setSelectedChannels((prev) => ({
+    ...prev,
+    [invoiceId]: {
+      ...prev[invoiceId], // d'abord l'état existant
+      email: prev[invoiceId]?.email ?? false,
+      whatsapp: prev[invoiceId]?.whatsapp ?? false,
+      sms: prev[invoiceId]?.sms ?? false,
+      [ch]: !prev[invoiceId]?.[ch], // toggle
+    },
+  }));
+};
 
   const sendReminder = async (invoice: any) => {
     const channels = selectedChannels[invoice.id] || { email: true, whatsapp: false, sms: false };
