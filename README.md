@@ -1,4 +1,4 @@
-# 🚀 Facturo — Application de gestion commerciale & livraisons (PWA)
+#  Facturo — Application de gestion commerciale & livraisons (PWA)
 
 Application complète de facturation, gestion des livraisons et suivi des tâches.  
 **Stack :** Next.js 14 + NestJS + PostgreSQL + PWA (mode offline)
@@ -27,7 +27,7 @@ Application complète de facturation, gestion des livraisons et suivi des tâche
 
 ### 1. Base de données PostgreSQL
 
-**Option A — Docker (recommandé)**
+**Option A — Docker **
 ```bash
 docker run -d \
   --name facturo_postgres \
@@ -229,4 +229,10 @@ L'application fonctionne alors comme un logiciel natif sur ordinateur et smartph
 
 ## 📄 Licence
 
-Projet propriétaire — © 2024 Facturo
+Projet propriétaire — © 2026 Facturo
+
+
+
+
+
+
