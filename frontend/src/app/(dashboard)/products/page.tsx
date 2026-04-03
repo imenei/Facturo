@@ -1,13 +1,15 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
+import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { Plus, Edit2, Trash2, Loader2, ShoppingBag, X, Save, TrendingUp, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, X, Save, TrendingUp, Search } from 'lucide-react';
 
 const emptyForm = { name: '', description: '', reference: '', unit: '', purchasePrice: 0, salePrice: 0 };
 
 export default function ProductsPage() {
+  const { t } = useI18nStore();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -21,7 +23,9 @@ export default function ProductsPage() {
     try {
       const { data } = await api.get('/products', { params: q ? { search: q } : {} });
       setProducts(data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch {
+      toast.error(t('error_loading_products'));
+    }
     setLoading(false);
   };
 
@@ -37,7 +41,7 @@ export default function ProductsPage() {
 
   const validatePrices = () => {
     if (form.salePrice <= form.purchasePrice) {
-      setPriceError('Le prix de vente doit être supérieur au prix d\'achat');
+      setPriceError(t('sale_price_error'));
       return false;
     }
     setPriceError('');
@@ -51,19 +55,19 @@ export default function ProductsPage() {
     try {
       if (editProduct) await api.put(`/products/${editProduct.id}`, form);
       else await api.post('/products', form);
-      toast.success(editProduct ? 'Produit modifié' : 'Produit créé');
+      toast.success(editProduct ? t('product_updated') : t('product_created'));
       setShowForm(false);
       load();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Erreur');
+      toast.error(err?.response?.data?.message || t('error_saving_product'));
     }
     setSaving(false);
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Archiver "${name}" ?`)) return;
-    try { await api.delete(`/products/${id}`); toast.success('Produit archivé'); load(); }
-    catch { toast.error('Erreur'); }
+    if (!confirm(`${t('archive_product')} "${name}" ?`)) return;
+    try { await api.delete(`/products/${id}`); toast.success(t('product_archived')); load(); }
+    catch { toast.error(t('error_deleting_product')); }
   };
 
   const margin = (p: any) => {
@@ -76,50 +80,48 @@ export default function ProductsPage() {
     <div className="p-6 md:p-8 max-w-6xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-display font-700 text-slate-900">Produits</h1>
-          <p className="text-slate-500 text-sm mt-1">{products.length} produit{products.length > 1 ? 's' : ''}</p>
+          <h1 className="text-3xl font-display font-700 text-slate-900">{t('products')}</h1>
+          <p className="text-slate-500 text-sm mt-1">{products.length} {t('products_count')}</p>
         </div>
-        <button onClick={openNew} className="btn-primary"><Plus size={18} /> Nouveau produit</button>
+        <button onClick={openNew} className="btn-primary"><Plus size={18} /> {t('new_product')}</button>
       </div>
 
-      {/* Search */}
       <div className="card p-4 mb-6">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" placeholder="Rechercher par nom ou référence…" value={search}
+          <input className="input pl-9" placeholder={t('search_products')} value={search}
             onChange={(e) => { setSearch(e.target.value); load(e.target.value); }} />
         </div>
       </div>
 
-      {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg animate-slide-up">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="font-display font-700 text-slate-900">{editProduct ? 'Modifier' : 'Nouveau'} produit</h2>
+              <h2 className="font-display font-700 text-slate-900">{editProduct ? t('edit') : t('new')} {t('product')}</h2>
               <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
-                  <label className="label">Nom *</label>
-                  <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nom du produit" />
+                  <label className="label">{t('name')} *</label>
+                  <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('product_name_placeholder')} />
                 </div>
                 <div>
-                  <label className="label">Référence</label>
+                  <label className="label">{t('reference')}</label>
                   <input className="input" value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="REF-001" />
                 </div>
                 <div>
-                  <label className="label">Unité</label>
-                  <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="pièce, kg, litre…" />
+                  <label className="label">{t('unit')}</label>
+                  <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder={t('unit_placeholder')} />
                 </div>
                 <div>
-                  <label className="label">Prix d'achat (DZD) *</label>
+                  <label className="label">{t('purchase_price')} (DZD) *</label>
                   <input className="input" type="number" min={0} step="0.01" required value={form.purchasePrice}
                     onChange={(e) => { setForm({ ...form, purchasePrice: Number(e.target.value) }); setPriceError(''); }} />
                 </div>
                 <div>
-                  <label className="label">Prix de vente (DZD) *</label>
+                  <label className="label">{t('sale_price')} (DZD) *</label>
                   <input className={clsx('input', priceError && 'border-red-400 ring-red-200')} type="number" min={0} step="0.01" required value={form.salePrice}
                     onChange={(e) => { setForm({ ...form, salePrice: Number(e.target.value) }); setPriceError(''); }} />
                 </div>
@@ -129,19 +131,19 @@ export default function ProductsPage() {
                 {form.salePrice > form.purchasePrice && form.purchasePrice > 0 && (
                   <div className="col-span-2 bg-emerald-50 rounded-lg px-3 py-2 flex items-center gap-2 text-sm text-emerald-700">
                     <TrendingUp size={14} />
-                    Marge : {(Number(form.salePrice) - Number(form.purchasePrice)).toLocaleString('fr-DZ')} DZD
+                    {t('margin')} : {(Number(form.salePrice) - Number(form.purchasePrice)).toLocaleString('fr-DZ')} DZD
                     ({(((form.salePrice - form.purchasePrice) / form.purchasePrice) * 100).toFixed(1)}%)
                   </div>
                 )}
                 <div className="col-span-2">
-                  <label className="label">Description</label>
+                  <label className="label">{t('description')}</label>
                   <textarea className="input resize-none" rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
                 </div>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1 justify-center">Annuler</button>
+                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1 justify-center">{t('cancel')}</button>
                 <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center">
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <><Save size={16} /> {editProduct ? 'Enregistrer' : 'Créer'}</>}
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <><Save size={16} /> {editProduct ? t('save') : t('create')}</>}
                 </button>
               </div>
             </form>
@@ -149,7 +151,6 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Table */}
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
@@ -157,14 +158,14 @@ export default function ProductsPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['Produit', 'Référence', 'Unité', 'Prix achat', 'Prix vente', 'Marge', 'Actions'].map((h) => (
+                {[t('product'), t('reference'), t('unit'), t('purchase_price'), t('sale_price'), t('margin'), t('actions')].map((h) => (
                   <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {products.length === 0 && (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Aucun produit</td></tr>
+                <tr><td colSpan={7} className="text-center py-12 text-slate-400">{t('no_products')}</td></tr>
               )}
               {products.map((p) => {
                 const { m, pct } = margin(p);

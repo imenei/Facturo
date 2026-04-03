@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
+import I18nBootstrap from '@/components/I18nBootstrap';
 
 export const metadata: Metadata = {
   title: 'Facturo — Gestion commerciale & livraisons',
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta charSet="utf-8" />
       </head>
       <body>
+        <I18nBootstrap />
         {children}
         <Toaster
           position="top-right"

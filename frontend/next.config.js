@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
+const { i18n } = require('./next-i18next.config')
+
+/** @type {import('next').NextConfig} */
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
@@ -19,8 +22,13 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
+
+  i18n,   // ✅ on ajoute ici la traduction
+
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api',
+    NEXT_PUBLIC_API_URL:
+      process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api',
   },
 };
 

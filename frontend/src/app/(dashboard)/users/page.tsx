@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
+import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { Plus, Edit2, Trash2, Loader2, User, Mail, Phone, Shield, X, Save } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, X, Save } from 'lucide-react';
 
 const roleColors: Record<string, string> = {
   admin: 'bg-red-100 text-red-700',
@@ -14,6 +15,7 @@ const roleColors: Record<string, string> = {
 const emptyForm = { name: '', email: '', password: '', phone: '', role: 'commercial' as string };
 
 export default function UsersPage() {
+  const { t } = useI18nStore();
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -25,7 +27,7 @@ export default function UsersPage() {
     try {
       const { data } = await api.get('/users');
       setUsers(data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('error_loading_users')); }
     setLoading(false);
   };
 
@@ -42,71 +44,70 @@ export default function UsersPage() {
       if (editUser && !payload.password) delete (payload as any).password;
       if (editUser) await api.put(`/users/${editUser.id}`, payload);
       else await api.post('/users', payload);
-      toast.success(editUser ? 'Utilisateur modifié' : 'Utilisateur créé');
+      toast.success(editUser ? t('user_updated') : t('user_created'));
       setShowForm(false);
       load();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Erreur');
+      toast.error(err?.response?.data?.message || t('error_saving_user'));
     }
     setSaving(false);
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Désactiver ${name} ?`)) return;
+    if (!confirm(`${t('deactivate_user')} ${name} ?`)) return;
     try {
       await api.delete(`/users/${id}`);
-      toast.success('Utilisateur désactivé');
+      toast.success(t('user_deactivated'));
       load();
-    } catch { toast.error('Erreur'); }
+    } catch { toast.error(t('error_deactivating_user')); }
   };
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-display font-700 text-slate-900">Utilisateurs</h1>
-          <p className="text-slate-500 text-sm mt-1">{users.length} compte{users.length > 1 ? 's' : ''}</p>
+          <h1 className="text-3xl font-display font-700 text-slate-900">{t('users')}</h1>
+          <p className="text-slate-500 text-sm mt-1">{users.length} {t('accounts_count')}</p>
         </div>
-        <button onClick={openNew} className="btn-primary"><Plus size={18} /> Nouvel utilisateur</button>
+        <button onClick={openNew} className="btn-primary"><Plus size={18} /> {t('new_user')}</button>
       </div>
 
-      {/* Modal form */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-slide-up">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h2 className="font-display font-700 text-slate-900">{editUser ? 'Modifier' : 'Nouvel'} utilisateur</h2>
+              <h2 className="font-display font-700 text-slate-900">{editUser ? t('edit') : t('new')} {t('user')}</h2>
               <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="label">Nom complet <span className="text-red-500">*</span></label>
-                <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Prénom Nom" />
+                <label className="label">{t('full_name')} <span className="text-red-500">*</span></label>
+                <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('full_name_placeholder')} />
               </div>
               <div>
-                <label className="label">Email <span className="text-red-500">*</span></label>
+                <label className="label">{t('email')} <span className="text-red-500">*</span></label>
                 <input className="input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@exemple.com" />
               </div>
               <div>
-                <label className="label">{editUser ? 'Nouveau mot de passe (laisser vide = inchangé)' : 'Mot de passe *'}</label>
-                <input className="input" type="password" required={!editUser} minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" />
+                <label className="label">{editUser ? t('new_password_optional') : `${t('password')} *`}</label>
+                <input className="input" type="password" required={!editUser} minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="........" />
               </div>
               <div>
-                <label className="label">Téléphone</label>
+                <label className="label">{t('phone')}</label>
                 <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+213 5XX XXX XXX" />
               </div>
               <div>
-                <label className="label">Rôle <span className="text-red-500">*</span></label>
+                <label className="label">{t('role')} <span className="text-red-500">*</span></label>
                 <select className="input" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-                  <option value="commercial">Commercial</option>
-                  <option value="livreur">Livreur</option>
-                  <option value="admin">Admin / Gérant</option>
+                  <option value="commercial">{t('commercial')}</option>
+                  <option value="livreur">{t('delivery_person')}</option>
+                  <option value="admin">{t('admin_manager')}</option>
                 </select>
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1 justify-center">Annuler</button>
+                <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1 justify-center">{t('cancel')}</button>
                 <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center">
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <><Save size={16} /> {editUser ? 'Enregistrer' : 'Créer'}</>}
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <><Save size={16} /> {editUser ? t('save') : t('create')}</>}
                 </button>
               </div>
             </form>
@@ -114,7 +115,6 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Users grid */}
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
@@ -128,7 +128,7 @@ export default function UsersPage() {
                   </div>
                   <div>
                     <p className="font-600 text-slate-900 text-sm">{u.name}</p>
-                    <span className={clsx('badge text-xs', roleColors[u.role])}>{u.role}</span>
+                    <span className={clsx('badge text-xs', roleColors[u.role])}>{t(u.role)}</span>
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -137,11 +137,11 @@ export default function UsersPage() {
                 </div>
               </div>
               <div className="space-y-1.5 text-xs text-slate-500">
-                <div className="flex items-center gap-2"><Mail size={12} />{u.email}</div>
-                {u.phone && <div className="flex items-center gap-2"><Phone size={12} />{u.phone}</div>}
+                <div>{u.email}</div>
+                {u.phone && <div>{u.phone}</div>}
                 <div className="flex items-center gap-2">
                   <div className={clsx('w-1.5 h-1.5 rounded-full', u.isActive ? 'bg-emerald-400' : 'bg-slate-300')} />
-                  {u.isActive ? 'Actif' : 'Désactivé'}
+                  {u.isActive ? t('active') : t('deactivated')}
                 </div>
               </div>
             </div>
