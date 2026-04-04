@@ -466,6 +466,15 @@
     "generating_preview": "Generating preview…",
     "saving": "Saving…",
     "saved_on_download": "Will be saved on download",
-    "not_found": "Invoice not found"
+    "not_found": "Invoice not found",
+    "delivery_status_pending": "Pending",
+    "delivery_status_delivered": "Delivered",
+    "delivery_status_not_delivered": "Not delivered",
+    "total_deliveries": "Total",
+  "delivery_status_delivered_plural": "Delivered",
+  "delivery_status_not_delivered_plural": "Not delivered",
+  "task_status_pending": "Pending",
+  "task_status_completed": "Completed",
+  "task_status_not_completed": "Not completed"
   }
 }

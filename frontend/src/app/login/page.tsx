@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
+import LanguageSelector from '@/components/LanguageSelector';
 import toast from 'react-hot-toast';
 import { FileText, Eye, EyeOff, Loader2 } from 'lucide-react';
 
@@ -32,13 +33,18 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md animate-slide-up">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
           <div className="bg-brand-600 px-8 py-8 text-white">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <FileText size={20} className="text-white" />
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <FileText size={20} className="text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-display font-700">Facturo</h1>
+                  <p className="text-blue-200 text-sm">{t('business_management')}</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-display font-700">Facturo</h1>
-                <p className="text-blue-200 text-sm">{t('business_management')}</p>
+              <div className="min-w-[72px] rounded-xl bg-white/10 p-1">
+                <LanguageSelector compact />
               </div>
             </div>
             <p className="text-white/80 text-sm">{t('login_description')}</p>

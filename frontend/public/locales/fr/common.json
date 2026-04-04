@@ -470,6 +470,16 @@
     "generating_preview": "Génération de l'aperçu…",
     "saving": "Enregistrement…",
     "saved_on_download": "Sera sauvegardé au téléchargement",
-    "not_found": "Facture introuvable"
+    "not_found": "Facture introuvable",
+     "delivery_status_pending": "En attente",
+     "delivery_status_delivered": "Livrée",
+  "delivery_status_not_delivered": "Non livrée",
+  "total_deliveries": "Total",
+  "delivery_status_delivered_plural": "Livrées",
+  "delivery_status_not_delivered_plural": "Non livrées",
+  "task_status_pending": "En attente",
+  "task_status_completed": "Terminée",
+  "task_status_not_completed": "Non terminée"
   }
+ 
 }

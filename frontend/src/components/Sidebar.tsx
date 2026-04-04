@@ -42,14 +42,14 @@ const navItems = {
 export default function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  const { t } = useI18nStore();
+  const { t, locale } = useI18nStore();
   const isOnline = useOnlineStatus();
 
   if (!user) return null;
   const items = navItems[user.role as keyof typeof navItems] || [];
 
   return (
-    <aside className="w-64 bg-slate-950 text-white flex flex-col h-screen sticky top-0 shrink-0">
+    <aside key={locale} className="w-64 bg-slate-950 text-white flex flex-col h-screen sticky top-0 shrink-0">
       <div className="px-6 py-5 border-b border-slate-800">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">

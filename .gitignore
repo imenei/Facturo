@@ -1,7 +1,6 @@
 # Node
 node_modules/
 .next/
-.env.example
 package-lock.json
 yarn.lock
 

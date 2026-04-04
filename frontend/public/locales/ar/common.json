@@ -466,6 +466,15 @@
     "generating_preview": "جاري إنشاء المعاينة…",
     "saving": "جاري الحفظ…",
     "saved_on_download": "سيتم الحفظ عند التنزيل",
-    "not_found": "الفاتورة غير موجودة"
+    "not_found": "الفاتورة غير موجودة",
+    "delivery_status_pending": "قيد الانتظار",
+  "delivery_status_delivered": "تم التسليم",
+  "delivery_status_not_delivered": "لم يتم التسليم", "total_deliveries": "الإجمالي",
+  "delivery_status_delivered_plural": "تم التسليم",
+  "delivery_status_not_delivered_plural": "لم يتم التسليم",
+  "task_status_pending": "قيد الانتظار",
+  "task_status_completed": "مكتملة",
+  "task_status_not_completed": "غير مكتملة"
+
   }
 }
