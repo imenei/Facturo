@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { useI18nStore } from '@/store/i18nStore';
 import api from '@/lib/api';
 import { FileText, CheckSquare, Truck, DollarSign, TrendingUp, Clock, Loader2, Users, BarChart3, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
@@ -22,7 +23,12 @@ function StatCard({ icon: Icon, label, value, color, sub }: any) {
 
 function WorkflowBadge({ step }: { step: string }) {
   const steps = ['commande', 'livraison', 'facturation', 'recouvrement'];
-  const labels: Record<string, string> = { commande: 'Cmd', livraison: 'Liv', facturation: 'Fact', recouvrement: 'Recouv' };
+  const labels: Record<string, string> = { 
+    commande: 'Cmd', 
+    livraison: 'Liv', 
+    facturation: 'Fact', 
+    recouvrement: 'Recouv' 
+  };
   const currentIdx = steps.indexOf(step);
   return (
     <div className="flex items-center gap-0.5">
@@ -37,6 +43,7 @@ function WorkflowBadge({ step }: { step: string }) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const { t } = useI18nStore();
   const [overview, setOverview] = useState<any>(null);
   const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
   const [taskStats, setTaskStats] = useState<any>(null);
@@ -70,49 +77,51 @@ export default function DashboardPage() {
     load();
   }, [user]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <Loader2 size={32} className="animate-spin text-brand-500" />
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 size={32} className="animate-spin text-brand-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
       <div className="mb-8">
-        <h1 className="text-3xl font-display font-700 text-slate-900">Bonjour, {user?.name?.split(' ')[0]} 👋</h1>
-        <p className="text-slate-500 mt-1">Voici un aperçu de votre activité</p>
+        <h1 className="text-3xl font-display font-700 text-slate-900">{t('hello')}, {user?.name?.split(' ')[0]}</h1>
+        <p className="text-slate-500 mt-1">{t('activity_overview')}</p>
       </div>
 
       {user?.role === 'admin' && overview && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <StatCard icon={TrendingUp} label="Chiffre d'affaires" color="bg-brand-500"
+            <StatCard icon={TrendingUp} label={t("revenue")} color="bg-brand-500"
               value={`${Number(overview.revenue?.totalRevenue || 0).toLocaleString('fr-DZ')} DZD`}
-              sub={`${overview.revenue?.paidInvoicesCount || 0} facture(s) payée(s)`} />
-            <StatCard icon={AlertCircle} label="Impayés" color="bg-red-500"
+              sub={`${overview.revenue?.paidInvoicesCount || 0} ${t('paid_invoices_count')}`} />
+            <StatCard icon={AlertCircle} label={t('unpaid_amount')} color="bg-red-500"
               value={`${Number(overview.revenue?.unpaidRevenue || 0).toLocaleString('fr-DZ')} DZD`}
-              sub={`${overview.invoicesCount?.unpaid || 0} en attente`} />
-            <StatCard icon={FileText} label="Total factures" color="bg-slate-600"
+              sub={`${overview.invoicesCount?.unpaid || 0} ${t('pending')}`} />
+            <StatCard icon={FileText} label={t('total_invoices')} color="bg-slate-600"
               value={overview.invoicesCount?.total || 0}
-              sub={`${overview.invoicesCount?.draft || 0} brouillon(s)`} />
-            <StatCard icon={CheckSquare} label="Livraisons" color="bg-emerald-500"
+              sub={`${overview.invoicesCount?.draft || 0} ${t('draft_invoices')}`} />
+            <StatCard icon={CheckSquare} label={t('deliveries')} color="bg-emerald-500"
               value={`${overview.deliveries?.completed || 0} / ${overview.deliveries?.total || 0}`}
-              sub={`Taux: ${overview.deliveries?.completionRate || 0}%`} />
+              sub={`${t('rate')}: ${overview.deliveries?.completionRate || 0}%`} />
           </div>
 
           {topClients.length > 0 && (
             <div className="card p-6 mb-8">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 size={18} className="text-brand-500" />
-                <h2 className="font-display font-600 text-slate-900">CA par client</h2>
-                <Link href="/clients" className="ml-auto text-sm text-brand-600 hover:underline">Voir tous →</Link>
+                <h2 className="font-display font-600 text-slate-900">{t('revenue_by_client')}</h2>
+                <Link href="/clients" className="ml-auto text-sm text-brand-600 hover:underline">{t('view_all')} →</Link>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {topClients.map((c: any) => (
                   <div key={c.clientId || c.clientName} className="bg-slate-50 rounded-lg p-3">
                     <div className="font-medium text-slate-900 text-sm truncate">{c.clientName}</div>
                     <div className="text-brand-600 font-700 mt-1">{Number(c.totalRevenue || 0).toLocaleString('fr-DZ')}</div>
-                    <div className="text-xs text-slate-400">DZD · {c.invoiceCount} doc(s)</div>
+                    <div className="text-xs text-slate-400">DZD · {c.invoiceCount} {t('docs_count')}</div>
                   </div>
                 ))}
               </div>
@@ -123,16 +132,16 @@ export default function DashboardPage() {
 
       {user?.role === 'commercial' && overview && (
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <StatCard icon={FileText} label="Mes factures" color="bg-brand-500" value={overview.invoicesCount?.total || 0} />
-          <StatCard icon={CheckSquare} label="Payées" color="bg-emerald-500" value={overview.invoicesCount?.paid || 0} />
+          <StatCard icon={FileText} label={t('my_invoices')} color="bg-brand-500" value={overview.invoicesCount?.total || 0} />
+          <StatCard icon={CheckSquare} label={t('paid_invoices')} color="bg-emerald-500" value={overview.invoicesCount?.paid || 0} />
         </div>
       )}
 
       {user?.role === 'livreur' && taskStats && (
         <div className="grid grid-cols-3 gap-4 mb-8">
-          <StatCard icon={CheckSquare} label="Total tâches" color="bg-brand-500" value={taskStats.total || 0} />
-          <StatCard icon={CheckSquare} label="Terminées" color="bg-emerald-500" value={taskStats.completed || 0} />
-          <StatCard icon={DollarSign} label="Total gagné" color="bg-purple-500"
+          <StatCard icon={CheckSquare} label={t('total_tasks')} color="bg-brand-500" value={taskStats.total || 0} />
+          <StatCard icon={CheckSquare} label={t('completed_tasks')} color="bg-emerald-500" value={taskStats.completed || 0} />
+          <StatCard icon={DollarSign} label={t('total_earned')} color="bg-purple-500"
             value={`${Number(taskStats.totalEarned || 0).toLocaleString('fr-DZ')} DZD`} />
         </div>
       )}
@@ -140,8 +149,8 @@ export default function DashboardPage() {
       {recentInvoices.length > 0 && (
         <div className="card p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-600 text-slate-900">Dernières factures</h2>
-            <Link href="/invoices" className="text-sm text-brand-600 hover:underline">Voir tout →</Link>
+            <h2 className="font-display font-600 text-slate-900">{t('latest_invoices')}</h2>
+            <Link href="/invoices" className="text-sm text-brand-600 hover:underline">{t('view_all')} →</Link>
           </div>
           <div className="space-y-1">
             {recentInvoices.map((inv: any) => (
@@ -155,7 +164,7 @@ export default function DashboardPage() {
                   <div className="text-right">
                     <div className="font-medium text-sm">{Number(inv.total).toLocaleString('fr-DZ')} DZD</div>
                     <span className={`text-xs font-medium ${inv.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {inv.paymentStatus === 'paid' ? '✓ Payée' : '○ Impayée'}
+                      {inv.paymentStatus === 'paid' ? `✓ ${t('paid_status')}` : `○ ${t('unpaid_status_short')}`}
                     </span>
                   </div>
                 </div>
@@ -166,19 +175,19 @@ export default function DashboardPage() {
       )}
 
       <div className="card p-6">
-        <h2 className="font-display font-600 text-slate-900 mb-4">Actions rapides</h2>
+        <h2 className="font-display font-600 text-slate-900 mb-4">{t('quick_actions')}</h2>
         <div className="flex flex-wrap gap-3">
           {(user?.role === 'admin' || user?.role === 'commercial') && (
             <>
-              <Link href="/invoices/new" className="btn-primary"><FileText size={16} /> Nouvelle facture</Link>
-              <Link href="/invoices/new?type=proforma" className="btn-secondary"><FileText size={16} /> Proforma</Link>
-              <Link href="/invoices/new?type=bon_livraison" className="btn-secondary"><Truck size={16} /> Bon livraison</Link>
-              <Link href="/clients" className="btn-secondary"><Users size={16} /> Clients</Link>
+              <Link href="/invoices/new" className="btn-primary"><FileText size={16} /> {t('new_invoice')}</Link>
+              <Link href="/invoices/new?type=proforma" className="btn-secondary"><FileText size={16} /> {t('proforma')}</Link>
+              <Link href="/invoices/new?type=bon_livraison" className="btn-secondary"><Truck size={16} /> {t('delivery_note')}</Link>
+              <Link href="/clients" className="btn-secondary"><Users size={16} /> {t('clients')}</Link>
             </>
           )}
-          {user?.role === 'admin' && <Link href="/tasks" className="btn-secondary"><CheckSquare size={16} /> Tâches</Link>}
-          {user?.role === 'commercial' && <Link href="/notifications" className="btn-secondary"><Clock size={16} /> Rappels impayés</Link>}
-          {user?.role === 'livreur' && <Link href="/tasks" className="btn-primary"><CheckSquare size={16} /> Mes tâches</Link>}
+          {user?.role === 'admin' && <Link href="/tasks" className="btn-secondary"><CheckSquare size={16} /> {t('tasks')}</Link>}
+          {user?.role === 'commercial' && <Link href="/notifications" className="btn-secondary"><Clock size={16} /> {t('unpaid_reminders')}</Link>}
+          {user?.role === 'livreur' && <Link href="/tasks" className="btn-primary"><CheckSquare size={16} /> {t('my_tasks')}</Link>}
         </div>
       </div>
     </div>

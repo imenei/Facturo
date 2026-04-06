@@ -1,33 +1,52 @@
-#  Facturo — Application de gestion commerciale & livraisons (PWA)
+# Facturo - Application de gestion commerciale & livraisons (PWA)
 
-Application complète de facturation, gestion des livraisons et suivi des tâches.  
-**Stack :** Next.js 14 + NestJS + PostgreSQL + PWA (mode offline)
+Application complete de facturation, gestion des livraisons et suivi des taches.
+Stack: Next.js 14 + NestJS + PostgreSQL + PWA (mode offline)
 
----
+## Roles & acces
 
-## 🧑‍💼 Rôles & accès
+| Role | Acces |
+| --- | --- |
+| Admin / Gerant | Acces total: utilisateurs, factures, livraisons, taches, parametres |
+| Commercial | Creation de factures, proformas, bons de livraison; consultation de ses documents |
+| Livreur | Ses taches uniquement; marquer terminee/non terminee, ajouter des remarques |
 
-| Rôle | Accès |
-|------|-------|
-| **Admin / Gérant** | Accès total : utilisateurs, factures, livraisons, tâches, paramètres |
-| **Commercial** | Création de factures, proformas, bons de livraison — consultation de ses docs |
-| **Livreur** | Ses tâches uniquement — marquer terminée/non terminée, ajouter remarques |
-
----
-
-## 📦 Prérequis
+## Prerequis
 
 - Node.js 20+
-- PostgreSQL 14+ (ou Docker)
+- PostgreSQL 14+ ou Docker
 - npm 9+
 
----
+## Demarrage rapide (Development)
 
-## ⚡ Démarrage rapide (Development)
+Tu peux travailler sans Docker avec un PostgreSQL local administre depuis pgAdmin.
+Docker reste disponible dans le projet, mais il n'est pas obligatoire.
 
-### 1. Base de données PostgreSQL
+### 1. Base de donnees PostgreSQL
 
-**Option A — Docker **
+Option recommandee - PostgreSQL local + pgAdmin
+
+1. Installe PostgreSQL sur ta machine.
+2. Ouvre pgAdmin et connecte-toi a ton serveur local.
+3. Cree l'utilisateur et la base:
+
+```sql
+CREATE USER facturo WITH PASSWORD 'facturo_pass';
+CREATE DATABASE facturo_db OWNER facturo;
+```
+
+4. Verifie que `backend/.env` contient bien:
+
+```env
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_USER=facturo
+DB_PASS=facturo_pass
+DB_NAME=facturo_db
+```
+
+Option alternative - Docker
+
 ```bash
 docker run -d \
   --name facturo_postgres \
@@ -38,201 +57,112 @@ docker run -d \
   postgres:15-alpine
 ```
 
-**Option B — PostgreSQL local**
-```sql
-CREATE USER facturo WITH PASSWORD 'facturo_pass';
-CREATE DATABASE facturo_db OWNER facturo;
-```
-
----
-
 ### 2. Backend (NestJS)
 
 ```bash
 cd backend
-
-# Installer les dépendances
 npm install
-
-# Configurer l'environnement
-cp .env.example .env
-# Modifier .env si nécessaire
-
-# Lancer en développement
+Copy-Item .env.example .env
 npm run start:dev
 ```
 
-**Initialiser la base de données (seed) :**
+Initialiser la base de donnees:
+
 ```bash
 npx ts-node src/seed.ts
 ```
 
-Comptes créés :
-| Email | Mot de passe | Rôle |
-|-------|-------------|------|
+Comptes crees par le seed:
+
+| Email | Mot de passe | Role |
+| --- | --- | --- |
 | admin@facturo.dz | Admin@1234 | Admin |
 | commercial@facturo.dz | Commercial@1234 | Commercial |
 | livreur@facturo.dz | Livreur@1234 | Livreur |
 
-L'API tourne sur : **http://localhost:4000/api**
-
----
+L'API tourne sur `http://localhost:4000/api`.
 
 ### 3. Frontend (Next.js)
 
 ```bash
 cd frontend
-
-# Installer les dépendances
 npm install
-
-# Configurer l'environnement
-cp .env.local.example .env.local
-
-# Lancer en développement
+Copy-Item .env.local.example .env.local
 npm run dev
 ```
 
-L'application tourne sur : **http://localhost:3000**
+L'application tourne sur `http://localhost:3000`.
 
----
-
-## 🐳 Démarrage avec Docker Compose (Production)
+## Demarrage avec Docker Compose
 
 ```bash
-# À la racine du projet
 docker-compose up -d
-
-# Exécuter le seed (première fois)
 docker exec facturo_api npx ts-node src/seed.ts
 ```
 
----
+## Fonctionnalites
 
-## 🌐 Fonctionnalités
+- Creation de factures, proformas et bons de livraison
+- Export PDF et Word
+- Gestion des livraisons et des taches
+- Gestion des utilisateurs avec roles
+- Parametres entreprise
+- Mode offline (PWA)
 
-### 📄 Facturation
-- Création de **factures**, **proformas**, **bons de livraison**
-- Avec ou sans **TVA** (taux configurable)
-- Saisie manuelle des clients et articles
-- **Export PDF** et **Word (.docx)**
-- Numérotation automatique (FAC-2024-0001)
+## Structure du projet
 
-### 🚚 Livraisons
-- Suivi du statut : En attente / Livrée / Non livrée
-- Vue globale admin de toutes les livraisons
-- Statistiques en temps réel
-
-### ✅ Tâches livreurs
-- Création par l'admin avec prix défini
-- Assignation à un livreur
-- Marquage : Terminée / Non terminée
-- Ajout de remarques optionnelles
-- Calcul automatique du total gagné
-
-### 👥 Gestion des utilisateurs
-- CRUD complet (admin)
-- Activation / désactivation des comptes
-- 3 rôles : Admin, Commercial, Livreur
-
-### 🏢 Paramètres entreprise
-- Logo, signature, cachet (import image)
-- Informations légales (NIF, NIS, RC, AI, RIB)
-- Mentions légales pied de page
-
-### 📶 Mode Offline (PWA)
-- Les données sont mises en cache (IndexedDB)
-- Les actions hors-ligne sont mises en file d'attente
-- Synchronisation automatique au retour d'internet
-- Installable comme application native
-
----
-
-## 📁 Structure du projet
-
-```
+```text
 facturo/
-├── backend/                  # NestJS API
-│   ├── src/
-│   │   ├── auth/             # JWT Auth
-│   │   ├── users/            # Gestion utilisateurs
-│   │   ├── invoices/         # Factures / Proformas / BL
-│   │   ├── tasks/            # Tâches livreurs
-│   │   ├── company/          # Paramètres entreprise
-│   │   └── seed.ts           # Script d'initialisation
-│   ├── Dockerfile
-│   └── package.json
-│
-├── frontend/                 # Next.js 14 PWA
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── login/        # Page connexion
-│   │   │   └── (dashboard)/  # Pages protégées
-│   │   │       ├── dashboard/
-│   │   │       ├── invoices/
-│   │   │       ├── deliveries/
-│   │   │       ├── tasks/
-│   │   │       ├── users/
-│   │   │       └── company/
-│   │   ├── components/       # Composants réutilisables
-│   │   ├── lib/              # API, PDF, Word, IndexedDB
-│   │   ├── store/            # Zustand (auth)
-│   │   └── hooks/            # useOnlineStatus
-│   ├── public/
-│   │   └── manifest.json     # PWA manifest
-│   ├── Dockerfile
-│   └── package.json
-│
-└── docker-compose.yml
+|-- backend/
+|   |-- src/
+|   |   |-- auth/
+|   |   |-- users/
+|   |   |-- invoices/
+|   |   |-- tasks/
+|   |   |-- company/
+|   |   `-- seed.ts
+|   |-- Dockerfile
+|   `-- package.json
+|-- frontend/
+|   |-- src/
+|   |-- public/
+|   |-- Dockerfile
+|   `-- package.json
+`-- docker-compose.yml
 ```
 
----
+## Variables d'environnement
 
-## 🔒 Sécurité
+### Backend (`backend/.env`)
 
-- Authentification JWT (7 jours)
-- Mots de passe hashés bcrypt (salt=12)
-- Guards par rôle (RBAC)
-- CORS configuré
-- Validation des données (class-validator)
-
----
-
-## 📱 Installation PWA
-
-Ouvrez l'application dans Chrome/Edge → cliquez sur l'icône d'installation dans la barre d'adresse → "Installer Facturo".
-
-L'application fonctionne alors comme un logiciel natif sur ordinateur et smartphone.
-
----
-
-## 🛠️ Variables d'environnement
-
-### Backend (.env)
-| Variable | Défaut | Description |
-|----------|--------|-------------|
+| Variable | Defaut | Description |
+| --- | --- | --- |
 | PORT | 4000 | Port du serveur |
-| DB_HOST | localhost | Hôte PostgreSQL |
+| DB_HOST | 127.0.0.1 | Hote PostgreSQL |
 | DB_PORT | 5432 | Port PostgreSQL |
 | DB_USER | facturo | Utilisateur DB |
 | DB_PASS | facturo_pass | Mot de passe DB |
 | DB_NAME | facturo_db | Nom de la base |
-| JWT_SECRET | *(à changer)* | Clé secrète JWT |
+| JWT_SECRET | a changer | Cle secrete JWT |
 | FRONTEND_URL | http://localhost:3000 | URL du frontend |
 
-### Frontend (.env.local)
-| Variable | Défaut | Description |
-|----------|--------|-------------|
+### Frontend (`frontend/.env.local`)
+
+| Variable | Defaut | Description |
+| --- | --- | --- |
 | NEXT_PUBLIC_API_URL | http://localhost:4000/api | URL de l'API |
 
----
+## Utilisation avec pgAdmin
 
-## 📄 Licence
+pgAdmin sert a administrer PostgreSQL; il ne remplace pas PostgreSQL lui-meme.
+Pour Facturo sans Docker:
 
-Projet propriétaire — © 2026 Facturo
+1. Demarre ton serveur PostgreSQL local.
+2. Ouvre pgAdmin et cree la base `facturo_db` avec l'utilisateur `facturo`.
+3. Verifie `backend/.env`.
+4. Lance le backend avec `npm run start:dev`.
+5. Lance le frontend avec `npm run dev`.
 
+## Licence
 
-
-
-
-
+Projet proprietaire - (c) 2026 Facturo

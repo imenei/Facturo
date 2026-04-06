@@ -1,11 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
+import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { Bell, Mail, MessageCircle, Phone, Send, Loader2, Search, CheckCircle, XCircle } from 'lucide-react';
 
 export default function NotificationsPage() {
+  const { t } = useI18nStore();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -23,22 +25,22 @@ export default function NotificationsPage() {
   }, []);
 
   const toggleChannel = (invoiceId: string, ch: 'email' | 'whatsapp' | 'sms') => {
-  setSelectedChannels((prev) => ({
-    ...prev,
-    [invoiceId]: {
-      ...prev[invoiceId], // d'abord l'état existant
-      email: prev[invoiceId]?.email ?? false,
-      whatsapp: prev[invoiceId]?.whatsapp ?? false,
-      sms: prev[invoiceId]?.sms ?? false,
-      [ch]: !prev[invoiceId]?.[ch], // toggle
-    },
-  }));
-};
+    setSelectedChannels((prev) => ({
+      ...prev,
+      [invoiceId]: {
+        ...prev[invoiceId],
+        email: prev[invoiceId]?.email ?? false,
+        whatsapp: prev[invoiceId]?.whatsapp ?? false,
+        sms: prev[invoiceId]?.sms ?? false,
+        [ch]: !prev[invoiceId]?.[ch],
+      },
+    }));
+  };
 
   const sendReminder = async (invoice: any) => {
     const channels = selectedChannels[invoice.id] || { email: true, whatsapp: false, sms: false };
     if (!channels.email && !channels.whatsapp && !channels.sms) {
-      toast.error('Sélectionnez au moins un canal');
+      toast.error(t('select_at_least_one_channel'));
       return;
     }
     setSending(invoice.id);
@@ -46,9 +48,11 @@ export default function NotificationsPage() {
       const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`, { channels });
       setResults((prev) => ({ ...prev, [invoice.id]: data }));
       const success = Object.values(data).some((r: any) => r.success);
-      if (success) toast.success('Rappel envoyé');
-      else toast.error('Tous les envois ont échoué');
-    } catch { toast.error('Erreur lors de l\'envoi'); }
+      if (success) toast.success(t('reminder_sent_success'));
+      else toast.error(t('all_sends_failed'));
+    } catch {
+      toast.error(t('error_sending_reminder'));
+    }
     setSending(null);
   };
 
@@ -69,8 +73,8 @@ export default function NotificationsPage() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center"><Bell size={20} className="text-amber-600" /></div>
           <div>
-            <h1 className="text-3xl font-display font-700 text-slate-900">Rappels de paiement</h1>
-            <p className="text-slate-500 text-sm">{filtered.length} facture{filtered.length > 1 ? 's' : ''} impayée{filtered.length > 1 ? 's' : ''}</p>
+            <h1 className="text-3xl font-display font-700 text-slate-900">{t('payment_reminders')}</h1>
+            <p className="text-slate-500 text-sm">{filtered.length} {t('unpaid_invoices_count')}</p>
           </div>
         </div>
       </div>
@@ -78,13 +82,12 @@ export default function NotificationsPage() {
       <div className="card p-4 mb-4">
         <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" placeholder="Rechercher une facture ou un client…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className="input pl-9" placeholder={t('search_invoice_or_client')} value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
-      {/* Legend */}
       <div className="flex items-center gap-4 mb-4 text-xs text-slate-500">
-        <div className="flex items-center gap-1.5"><Mail size={12} className="text-brand-500" /> Email</div>
+        <div className="flex items-center gap-1.5"><Mail size={12} className="text-brand-500" /> {t('email')}</div>
         <div className="flex items-center gap-1.5"><MessageCircle size={12} className="text-emerald-500" /> WhatsApp</div>
         <div className="flex items-center gap-1.5"><Phone size={12} className="text-amber-500" /> SMS</div>
       </div>
@@ -96,7 +99,7 @@ export default function NotificationsPage() {
           {filtered.length === 0 && (
             <div className="card p-12 text-center">
               <CheckCircle size={40} className="text-emerald-400 mx-auto mb-3" />
-              <p className="text-slate-500">Aucune facture impayée — tout est à jour !</p>
+              <p className="text-slate-500">{t('no_unpaid_invoices')}</p>
             </div>
           )}
           {filtered.map((inv) => {
@@ -112,7 +115,7 @@ export default function NotificationsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-mono text-sm font-600 text-slate-900">{inv.number}</span>
                       {overdue && overdue > 0 && (
-                        <span className="badge bg-red-100 text-red-700 text-xs">En retard de {overdue}j</span>
+                        <span className="badge bg-red-100 text-red-700 text-xs">{t('overdue_by')} {overdue}j</span>
                       )}
                     </div>
                     <div className="font-display font-600 text-slate-900">{inv.clientName}</div>
@@ -121,20 +124,19 @@ export default function NotificationsPage() {
                       {inv.clientPhone && <span>· {inv.clientPhone}</span>}
                     </div>
                     <div className="text-sm font-700 text-brand-600 mt-1">{Number(inv.total).toLocaleString('fr-DZ')} DZD</div>
-                    {inv.dueDate && <div className="text-xs text-slate-400 mt-0.5">Échéance : {new Date(inv.dueDate).toLocaleDateString('fr-DZ')}</div>}
+                    {inv.dueDate && <div className="text-xs text-slate-400 mt-0.5">{t('due_date')} : {new Date(inv.dueDate).toLocaleDateString('fr-DZ')}</div>}
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap">
-                    {/* Channel toggles */}
                     <div className="flex items-center gap-1.5">
                       {[
-                        { key: 'email', icon: Mail, color: 'text-brand-500 border-brand-300 bg-brand-50', label: 'Email', disabled: !inv.clientEmail },
+                        { key: 'email', icon: Mail, color: 'text-brand-500 border-brand-300 bg-brand-50', label: t('email_short'), disabled: !inv.clientEmail },
                         { key: 'whatsapp', icon: MessageCircle, color: 'text-emerald-600 border-emerald-300 bg-emerald-50', label: 'WA', disabled: !inv.clientPhone },
                         { key: 'sms', icon: Phone, color: 'text-amber-600 border-amber-300 bg-amber-50', label: 'SMS', disabled: !inv.clientPhone },
                       ].map(({ key, icon: Icon, color, label, disabled }) => (
                         <button key={key} disabled={disabled}
                           onClick={() => toggleChannel(inv.id, key as any)}
-                          title={disabled ? 'Contact manquant' : label}
+                          title={disabled ? t('missing_contact') : label}
                           className={clsx('flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-all',
                             disabled ? 'opacity-30 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400' :
                             chs[key as keyof typeof chs] ? color + ' font-700 ring-1' : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
@@ -146,12 +148,11 @@ export default function NotificationsPage() {
 
                     <button onClick={() => sendReminder(inv)} disabled={isSending}
                       className="btn-primary text-sm py-2 px-4">
-                      {isSending ? <Loader2 size={14} className="animate-spin" /> : <><Send size={14} /> Envoyer</>}
+                      {isSending ? <Loader2 size={14} className="animate-spin" /> : <><Send size={14} /> {t('send')}</>}
                     </button>
                   </div>
                 </div>
 
-                {/* Results */}
                 {res && (
                   <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
                     {Object.entries(res).map(([ch, r]: any) => (

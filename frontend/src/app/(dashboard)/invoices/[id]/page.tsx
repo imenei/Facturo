@@ -5,6 +5,7 @@ import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import { generateInvoiceWord } from '@/lib/wordGenerator';
 import { useAuthStore } from '@/store/authStore';
+import { useI18nStore } from '@/store/i18nStore';
 import PDFPreviewModal from '@/components/PDFPreviewModal';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -29,11 +30,14 @@ const DELIVERY_COLORS: Record<string, string> = {
 };
 const WORKFLOW_STEPS = ['commande', 'livraison', 'facturation', 'recouvrement'];
 const WORKFLOW_LABELS: Record<string, string> = {
-  commande: 'Commande', livraison: 'Livraison', facturation: 'Facturation', recouvrement: 'Recouvrement',
+  commande: 'commande_step',
+  livraison: 'livraison_step',
+  facturation: 'facturation_step',
+  recouvrement: 'recouvrement_step',
 };
 
 /* ─── Workflow stepper ──────────────────────── */
-function WorkflowStepper({ current, invoiceId, onUpdate, canEdit }: any) {
+function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
   const [updating, setUpdating] = useState(false);
   const currentIdx = WORKFLOW_STEPS.indexOf(current);
 
@@ -43,8 +47,8 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit }: any) {
     try {
       await api.patch(`/invoices/${invoiceId}/workflow`, { step });
       onUpdate();
-      toast.success('Workflow mis à jour');
-    } catch { toast.error('Erreur'); }
+      toast.success(t('workflow_updated'));
+    } catch { toast.error(t('error_updating_workflow')); }
     setUpdating(false);
   };
 
@@ -66,7 +70,7 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit }: any) {
               )}
             >
               {done ? <CheckCircle size={11} /> : <div className="w-2 h-2 rounded-full bg-current opacity-40" />}
-              {WORKFLOW_LABELS[step]}
+              {t(WORKFLOW_LABELS[step])}
             </button>
             {i < WORKFLOW_STEPS.length - 1 && (
               <ChevronRight size={14} className={clsx('mx-0.5', done && i < currentIdx ? 'text-brand-400' : 'text-slate-300')} />
@@ -79,7 +83,7 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit }: any) {
 }
 
 /* ─── Reminder panel ────────────────────────── */
-function ReminderPanel({ invoice }: { invoice: any }) {
+function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => string }) {
   const [sending, setSending] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, any>>({});
 
@@ -92,13 +96,13 @@ function ReminderPanel({ invoice }: { invoice: any }) {
       setResults((p) => ({ ...p, ...data }));
       const r = data[channel];
       if (r?.success) toast.success(r.message);
-      else toast.error(r?.message || 'Échec');
-    } catch { toast.error('Erreur'); }
+      else toast.error(r?.message || t('reminder_failed'));
+    } catch { toast.error(t('error_sending_reminder')); }
     setSending(null);
   };
 
   const channels = [
-    { key: 'email', icon: Mail, label: 'Email', available: !!invoice.clientEmail, hint: invoice.clientEmail },
+    { key: 'email', icon: Mail, label: t('email'), available: !!invoice.clientEmail, hint: invoice.clientEmail },
     { key: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', available: !!invoice.clientPhone, hint: invoice.clientPhone },
     { key: 'sms', icon: Phone, label: 'SMS', available: !!invoice.clientPhone, hint: invoice.clientPhone },
   ] as const;
@@ -107,7 +111,7 @@ function ReminderPanel({ invoice }: { invoice: any }) {
     <div className="card p-5">
       <div className="flex items-center gap-2 mb-4">
         <Bell size={16} className="text-amber-500" />
-        <h3 className="font-display font-600 text-slate-900">Rappel de paiement</h3>
+        <h3 className="font-display font-600 text-slate-900">{t('payment_reminder')}</h3>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {channels.map(({ key, icon: Icon, label, available, hint }) => {
@@ -117,7 +121,7 @@ function ReminderPanel({ invoice }: { invoice: any }) {
               <button
                 onClick={() => send(key)}
                 disabled={!available || sending === key}
-                title={!available ? 'Contact manquant' : hint}
+                title={!available ? t('missing_contact') : hint}
                 className={clsx(
                   'w-full flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 text-xs font-medium transition-all',
                   !available ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
@@ -130,7 +134,7 @@ function ReminderPanel({ invoice }: { invoice: any }) {
               </button>
               {r && (
                 <p className={clsx('text-xs text-center leading-tight', r.success ? 'text-emerald-600' : 'text-red-500')}>
-                  {r.success ? '✓ Envoyé' : '✗ Échec'}
+                  {r.success ? `✓ ${t('sent')}` : `✗ ${t('failed')}`}
                 </p>
               )}
             </div>
@@ -139,7 +143,7 @@ function ReminderPanel({ invoice }: { invoice: any }) {
       </div>
       {!invoice.clientEmail && !invoice.clientPhone && (
         <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
-          <AlertTriangle size={12} /> Ajoutez un email ou téléphone client pour envoyer des rappels
+          <AlertTriangle size={12} /> {t('add_contact_for_reminders')}
         </p>
       )}
     </div>
@@ -149,6 +153,7 @@ function ReminderPanel({ invoice }: { invoice: any }) {
 /* ─── Main page ─────────────────────────────── */
 export default function InvoiceDetailPage() {
   const { id } = useParams();
+  const { t } = useI18nStore();
   const [invoice, setInvoice] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -161,7 +166,7 @@ export default function InvoiceDetailPage() {
       const [inv, comp] = await Promise.all([api.get(`/invoices/${id}`), api.get('/company')]);
       setInvoice(inv.data);
       setCompany(comp.data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('error_loading_invoice')); }
     setLoading(false);
   };
 
@@ -173,8 +178,8 @@ export default function InvoiceDetailPage() {
     try {
       await api.patch(`/invoices/${id}/payment-status`, { paymentStatus: next });
       setInvoice((p: any) => ({ ...p, paymentStatus: next }));
-      toast.success(next === 'paid' ? 'Facture marquée payée ✓' : 'Marquée non payée');
-    } catch { toast.error('Erreur'); }
+      toast.success(next === 'paid' ? t('invoice_marked_paid') : t('invoice_marked_unpaid'));
+    } catch { toast.error(t('error_updating_payment')); }
     setUpdatingPayment(false);
   };
 
@@ -182,26 +187,26 @@ export default function InvoiceDetailPage() {
     try {
       await api.put(`/invoices/${id}`, { status });
       setInvoice((p: any) => ({ ...p, status }));
-      toast.success('Statut mis à jour');
-    } catch { toast.error('Erreur'); }
+      toast.success(t('status_updated'));
+    } catch { toast.error(t('error_updating_status')); }
   };
 
   const updateDelivery = async (status: string) => {
     try {
       await api.patch(`/invoices/${id}/delivery-status`, { status });
       setInvoice((p: any) => ({ ...p, deliveryStatus: status }));
-      toast.success('Livraison mise à jour');
-    } catch { toast.error('Erreur'); }
+      toast.success(t('delivery_updated'));
+    } catch { toast.error(t('error_updating_delivery')); }
   };
 
   const handleTemplateChange = async (templateType: string) => {
     await api.put(`/invoices/${id}`, { templateType });
     setInvoice((p: any) => ({ ...p, templateType }));
-    toast.success('Template enregistré');
+    toast.success(t('template_saved'));
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
-  if (!invoice) return <div className="p-8 text-slate-500">Facture introuvable</div>;
+  if (!invoice) return <div className="p-8 text-slate-500">{t('invoice_not_found')}</div>;
 
   const isAdmin = user?.role === 'admin';
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
@@ -218,9 +223,9 @@ export default function InvoiceDetailPage() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-display font-700 text-slate-900">{invoice.number}</h1>
-              <span className={clsx('badge', STATUS_COLORS[invoice.status])}>{invoice.status}</span>
+              <span className={clsx('badge', STATUS_COLORS[invoice.status])}>{t(invoice.status)}</span>
               <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryStatus])}>
-                {invoice.deliveryStatus?.replace('_', ' ')}
+                {t(invoice.deliveryStatus?.replace('_', ' '))}
               </span>
               {/* Payment badge */}
               {invoice.type === 'facture' && (
@@ -231,26 +236,26 @@ export default function InvoiceDetailPage() {
                   )}>
                   {updatingPayment ? <Loader2 size={10} className="animate-spin" /> :
                     invoice.paymentStatus === 'paid' ? <CheckCircle size={11} /> : <XCircle size={11} />}
-                  {invoice.paymentStatus === 'paid' ? 'Payée' : 'Impayée'}
+                  {invoice.paymentStatus === 'paid' ? t('paid_status') : t('unpaid_status')}
                 </button>
               )}
             </div>
             <p className="text-slate-500 text-sm mt-1">
               {invoice.clientName} · {new Date(invoice.createdAt).toLocaleDateString('fr-DZ')}
-              {invoice.dueDate && ` · Échéance: ${new Date(invoice.dueDate).toLocaleDateString('fr-DZ')}`}
+              {invoice.dueDate && ` · ${t('due_date')}: ${new Date(invoice.dueDate).toLocaleDateString('fr-DZ')}`}
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setShowPreview(true)} className="btn-primary text-sm">
-            <Eye size={15} /> Aperçu & PDF
+            <Eye size={15} /> {t('preview_pdf')}
           </button>
           <button onClick={() => generateInvoiceWord(invoice, company)} className="btn-secondary text-sm">
             <FileText size={15} /> Word
           </button>
           <Link href={`/invoices/${id}/edit`} className="btn-secondary text-sm">
-            <Edit size={15} /> Modifier
+            <Edit size={15} /> {t('edit')}
           </Link>
         </div>
       </div>
@@ -258,12 +263,13 @@ export default function InvoiceDetailPage() {
       {/* Workflow stepper (mod #2) */}
       {invoice.workflowStep && (
         <div className="card p-5 mb-6">
-          <h3 className="text-sm font-600 text-slate-500 mb-3">Progression du dossier</h3>
+          <h3 className="text-sm font-600 text-slate-500 mb-3">{t('workflow_progress')}</h3>
           <WorkflowStepper
             current={invoice.workflowStep}
             invoiceId={invoice.id}
             onUpdate={load}
             canEdit={isAdmin}
+            t={t}
           />
         </div>
       )}
@@ -271,7 +277,7 @@ export default function InvoiceDetailPage() {
       <div className="grid md:grid-cols-2 gap-5 mb-6">
         {/* Client */}
         <div className="card p-5">
-          <h3 className="font-display font-600 text-slate-900 mb-3">Informations client</h3>
+          <h3 className="font-display font-600 text-slate-900 mb-3">{t('client_information')}</h3>
           <div className="space-y-1.5 text-sm text-slate-600">
             <p className="font-semibold text-slate-900 text-base">{invoice.clientName}</p>
             {invoice.clientAddress && <p className="text-slate-500">{invoice.clientAddress}</p>}
@@ -283,7 +289,7 @@ export default function InvoiceDetailPage() {
           {/* Link to client view */}
           {invoice.clientId && (
             <Link href={`/clients`} className="mt-3 text-xs text-brand-600 hover:underline flex items-center gap-1">
-              Voir tous les documents de ce client <ChevronRight size={12} />
+              {t('view_all_client_docs')} <ChevronRight size={12} />
             </Link>
           )}
         </div>
@@ -292,27 +298,27 @@ export default function InvoiceDetailPage() {
         {isAdmin ? (
           <div className="card p-5 space-y-4">
             <div>
-              <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">Statut document</p>
+              <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('document_status')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {['brouillon', 'emise', 'payee', 'annulee'].map((s) => (
                   <button key={s} onClick={() => updateStatus(s)}
                     className={clsx(
                       'text-xs px-3 py-1.5 rounded-lg border transition-all capitalize',
                       invoice.status === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'
-                    )}>{s}
+                    )}>{t(s)}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">Statut livraison</p>
+              <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('delivery_status')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {['en_attente', 'livree', 'non_livree'].map((s) => (
                   <button key={s} onClick={() => updateDelivery(s)}
                     className={clsx(
                       'text-xs px-3 py-1.5 rounded-lg border transition-all',
                       invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'
-                    )}>{s.replace('_', ' ')}
+                    )}>{t(s.replace('_', ' '))}
                   </button>
                 ))}
               </div>
@@ -320,26 +326,26 @@ export default function InvoiceDetailPage() {
           </div>
         ) : (
           /* Reminder panel for commercial on unpaid invoices */
-          isUnpaid && <ReminderPanel invoice={invoice} />
+          isUnpaid && <ReminderPanel invoice={invoice} t={t} />
         )}
       </div>
 
       {/* Reminder panel for admin on unpaid */}
-      {isAdmin && isUnpaid && <div className="mb-6"><ReminderPanel invoice={invoice} /></div>}
+      {isAdmin && isUnpaid && <div className="mb-6"><ReminderPanel invoice={invoice} t={t} /></div>}
 
       {/* Items table */}
       <div className="card overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="font-display font-600 text-slate-900">Articles</h3>
-          <span className="text-sm text-slate-400">{invoice.items?.length} article{invoice.items?.length !== 1 ? 's' : ''}</span>
+          <h3 className="font-display font-600 text-slate-900">{t('items')}</h3>
+          <span className="text-sm text-slate-400">{invoice.items?.length} {t('items_count')}</span>
         </div>
         <table className="w-full">
           <thead>
             <tr className="bg-slate-50">
-              <th className="text-left text-xs font-600 text-slate-500 px-5 py-3 uppercase">Désignation</th>
-              <th className="text-center text-xs font-600 text-slate-500 px-4 py-3 uppercase">Qté</th>
-              <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase">Prix unitaire</th>
-              <th className="text-right text-xs font-600 text-slate-500 px-5 py-3 uppercase">Total HT</th>
+              <th className="text-left text-xs font-600 text-slate-500 px-5 py-3 uppercase">{t('description')}</th>
+              <th className="text-center text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('quantity')}</th>
+              <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('unit_price')}</th>
+              <th className="text-right text-xs font-600 text-slate-500 px-5 py-3 uppercase">{t('total_excl_tax')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -361,7 +367,7 @@ export default function InvoiceDetailPage() {
         {/* Totals */}
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
-            <span>Sous-total HT</span>
+            <span>{t('subtotal_excl_tax')}</span>
             <span>{Number(invoice.subtotal).toLocaleString('fr-DZ')} DZD</span>
           </div>
           {invoice.hasTva && (
@@ -371,7 +377,7 @@ export default function InvoiceDetailPage() {
             </div>
           )}
           <div className="flex justify-between font-display font-700 text-xl text-slate-900 pt-2 border-t border-slate-200">
-            <span>TOTAL TTC</span>
+            <span>{t('total_incl_tax')}</span>
             <span className="text-brand-600">{Number(invoice.total).toLocaleString('fr-DZ')} DZD</span>
           </div>
         </div>
@@ -379,7 +385,7 @@ export default function InvoiceDetailPage() {
 
       {invoice.notes && (
         <div className="card p-5">
-          <h3 className="font-display font-600 text-slate-700 mb-2 text-sm">Notes</h3>
+          <h3 className="font-display font-600 text-slate-700 mb-2 text-sm">{t('notes')}</h3>
           <p className="text-sm text-slate-600 whitespace-pre-line">{invoice.notes}</p>
         </div>
       )}
