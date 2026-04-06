@@ -163,6 +163,42 @@ Pour Facturo sans Docker:
 4. Lance le backend avec `npm run start:dev`.
 5. Lance le frontend avec `npm run dev`.
 
+## Version desktop Windows
+
+La PWA actuelle est conservee. En plus, le projet contient maintenant une couche `desktop/`
+pour generer une vraie application Windows installable.
+
+Flux de build desktop:
+
+```bash
+cd C:\Users\ALEM\Facturo
+npm run build:backend
+npm run build:frontend
+npm run desktop:prepare
+```
+
+Cela prepare le runtime desktop dans `desktop/runtime`.
+
+Ensuite, pour generer un installateur Windows:
+
+```bash
+cd C:\Users\ALEM\Facturo\desktop
+npm install
+npm run build
+```
+
+Resultat attendu:
+
+- PWA toujours disponible dans le navigateur
+- application desktop Windows via Electron
+- installateur genere dans `desktop/dist`
+
+Notes:
+
+- la version desktop embarque le frontend et le backend de Facturo
+- PostgreSQL reste externe et doit etre disponible sur la machine cible, ou pointer vers un serveur PostgreSQL accessible
+- pendant le build desktop, le plugin PWA est desactive uniquement pour cette cible afin d'eviter les conflits de build Windows
+
 ## Licence
 
 Projet proprietaire - (c) 2026 Facturo

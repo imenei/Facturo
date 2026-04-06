@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
+import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -52,10 +53,11 @@ function ClientAvatar({ name, logoUrl, size = 'md' }: { name: string; logoUrl?: 
 }
 
 // Logo upload button for a client
-function LogoUploader({ clientId, currentLogo, onUpdated }: {
+function LogoUploader({ clientId, currentLogo, onUpdated, t }: {
   clientId: string;
   currentLogo?: string | null;
   onUpdated: (url: string | null) => void;
+  t: (key: string) => string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -71,9 +73,9 @@ function LogoUploader({ clientId, currentLogo, onUpdated }: {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       onUpdated(data.clientLogoUrl);
-      toast.success('Logo mis à jour');
+      toast.success(t('logo_updated'));
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Erreur upload');
+      toast.error(err?.response?.data?.message || t('error_uploading_logo'));
     }
     setUploading(false);
     if (fileRef.current) fileRef.current.value = '';
@@ -81,13 +83,13 @@ function LogoUploader({ clientId, currentLogo, onUpdated }: {
 
   const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Supprimer le logo de ce client ?')) return;
+    if (!confirm(t('confirm_remove_logo'))) return;
     setUploading(true);
     try {
       await api.patch(`/clients/${clientId}/logo-remove`);
       onUpdated(null);
-      toast.success('Logo supprimé');
-    } catch { toast.error('Erreur'); }
+      toast.success(t('logo_removed'));
+    } catch { toast.error(t('error_removing_logo')); }
     setUploading(false);
   };
 
@@ -97,17 +99,17 @@ function LogoUploader({ clientId, currentLogo, onUpdated }: {
         onClick={() => fileRef.current?.click()}
         disabled={uploading}
         className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-        title="Changer le logo"
+        title={t('change_logo')}
       >
         {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-        {currentLogo ? 'Changer' : 'Ajouter logo'}
+        {currentLogo ? t('change') : t('add_logo')}
       </button>
       {currentLogo && (
         <button
           onClick={handleRemove}
           disabled={uploading}
           className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-          title="Supprimer le logo"
+          title={t('remove_logo')}
         >
           <Trash2 size={13} />
         </button>
@@ -118,6 +120,7 @@ function LogoUploader({ clientId, currentLogo, onUpdated }: {
 }
 
 export default function ClientsPage() {
+  const { t } = useI18nStore();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -129,7 +132,7 @@ export default function ClientsPage() {
     try {
       const { data } = await api.get('/clients', { params: q ? { name: q } : {} });
       setClients(data);
-    } catch { toast.error('Erreur chargement'); }
+    } catch { toast.error(t('error_loading_clients')); }
     setLoading(false);
   };
 
@@ -141,7 +144,7 @@ export default function ClientsPage() {
     try {
       const { data } = await api.get(`/clients/${client.clientId}/documents`);
       setDocs(data);
-    } catch { toast.error('Erreur chargement documents'); }
+    } catch { toast.error(t('error_loading_documents')); }
     setLoadingDocs(false);
   };
 
@@ -189,7 +192,8 @@ export default function ClientsPage() {
                         headers: { 'Content-Type': 'multipart/form-data' },
                       });
                       updateClientLogo(selected.clientId, data.clientLogoUrl);
-                    } catch { toast.error('Erreur upload'); }
+                      toast.success(t('logo_updated'));
+                    } catch { toast.error(t('error_uploading_logo')); }
                     e.target.value = '';
                   }}
                 />
@@ -203,6 +207,7 @@ export default function ClientsPage() {
                   clientId={selected.clientId}
                   currentLogo={docs.clientLogoUrl}
                   onUpdated={(url) => updateClientLogo(selected.clientId, url)}
+                  t={t}
                 />
               </div>
               <p className="text-slate-500 text-sm mt-1">
@@ -215,10 +220,10 @@ export default function ClientsPage() {
         {/* Summary */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { label: 'Documents', value: docs.summary.totalDocuments, color: 'text-slate-900' },
-            { label: 'Factures', value: docs.summary.facturesCount, color: 'text-brand-600' },
-            { label: 'Payé', value: `${Number(docs.summary.totalPaid).toLocaleString('fr-FR')} DZD`, color: 'text-emerald-600' },
-            { label: 'Impayé', value: `${Number(docs.summary.totalUnpaid).toLocaleString('fr-FR')} DZD`, color: 'text-red-600' },
+            { label: t('documents'), value: docs.summary.totalDocuments, color: 'text-slate-900' },
+            { label: t('invoices'), value: docs.summary.facturesCount, color: 'text-brand-600' },
+            { label: t('paid'), value: `${Number(docs.summary.totalPaid).toLocaleString('fr-FR')} DZD`, color: 'text-emerald-600' },
+            { label: t('unpaid'), value: `${Number(docs.summary.totalUnpaid).toLocaleString('fr-FR')} DZD`, color: 'text-red-600' },
           ].map(({ label, value, color }) => (
             <div key={label} className="card p-4">
               <div className={`text-xl font-display font-700 ${color} truncate`}>{value}</div>
@@ -236,7 +241,7 @@ export default function ClientsPage() {
               <div className="card overflow-hidden">
                 <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-2">
                   <FileText size={16} className="text-brand-500" />
-                  <span className="font-600 text-slate-900">Factures ({docs.factures.length})</span>
+                  <span className="font-600 text-slate-900">{t('invoices')} ({docs.factures.length})</span>
                 </div>
                 <table className="w-full">
                   <tbody className="divide-y divide-slate-50">
@@ -247,11 +252,11 @@ export default function ClientsPage() {
                         <td className="px-4 py-3 text-sm font-medium text-slate-900">{Number(inv.total).toLocaleString('fr-FR')} DZD</td>
                         <td className="px-4 py-3">
                           <span className={clsx('badge', paymentBadge(inv.paymentStatus))}>
-                            {inv.paymentStatus === 'paid' ? 'Payée' : 'Non payée'}
+                            {inv.paymentStatus === 'paid' ? t('paid_status') : t('unpaid_status')}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">Voir →</Link>
+                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">{t('view')} →</Link>
                         </td>
                       </tr>
                     ))}
@@ -265,7 +270,7 @@ export default function ClientsPage() {
               <div className="card overflow-hidden">
                 <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-2">
                   <FileStack size={16} className="text-purple-500" />
-                  <span className="font-600 text-slate-900">Proformas ({docs.proformas.length})</span>
+                  <span className="font-600 text-slate-900">{t('proformas')} ({docs.proformas.length})</span>
                 </div>
                 <table className="w-full">
                   <tbody className="divide-y divide-slate-50">
@@ -275,7 +280,7 @@ export default function ClientsPage() {
                         <td className="px-4 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-FR')}</td>
                         <td className="px-4 py-3 text-sm font-medium">{Number(inv.total).toLocaleString('fr-FR')} DZD</td>
                         <td className="px-4 py-3">
-                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">Voir →</Link>
+                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">{t('view')} →</Link>
                         </td>
                       </tr>
                     ))}
@@ -289,7 +294,7 @@ export default function ClientsPage() {
               <div className="card overflow-hidden">
                 <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-2">
                   <Package size={16} className="text-amber-500" />
-                  <span className="font-600 text-slate-900">Bons de livraison ({docs.bonsLivraison.length})</span>
+                  <span className="font-600 text-slate-900">{t('delivery_notes')} ({docs.bonsLivraison.length})</span>
                 </div>
                 <table className="w-full">
                   <tbody className="divide-y divide-slate-50">
@@ -300,11 +305,11 @@ export default function ClientsPage() {
                         <td className="px-4 py-3 text-sm font-medium">{Number(inv.total).toLocaleString('fr-FR')} DZD</td>
                         <td className="px-4 py-3">
                           <span className={clsx('badge', inv.deliveryStatus === 'livree' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
-                            {inv.deliveryStatus?.replace('_', ' ')}
+                            {inv.deliveryStatus === 'livree' ? t('delivered') : t('not_delivered')}
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">Voir →</Link>
+                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">{t('view')} →</Link>
                         </td>
                       </tr>
                     ))}
@@ -314,7 +319,7 @@ export default function ClientsPage() {
             )}
 
             {docs.summary.totalDocuments === 0 && (
-              <div className="card p-12 text-center text-slate-400">Aucun document pour ce client</div>
+              <div className="card p-12 text-center text-slate-400">{t('no_documents_for_client')}</div>
             )}
           </div>
         )}
@@ -326,8 +331,8 @@ export default function ClientsPage() {
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto animate-fade-in">
       <div className="mb-6">
-        <h1 className="text-3xl font-display font-700 text-slate-900">Clients</h1>
-        <p className="text-slate-500 text-sm mt-1">Tous les documents regroupés par client</p>
+        <h1 className="text-3xl font-display font-700 text-slate-900">{t('clients')}</h1>
+        <p className="text-slate-500 text-sm mt-1">{t('clients_description')}</p>
       </div>
 
       <div className="card p-4 mb-6">
@@ -335,7 +340,7 @@ export default function ClientsPage() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             className="input pl-9"
-            placeholder="Rechercher un client…"
+            placeholder={t('search_clients_placeholder')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); load(e.target.value); }}
           />
@@ -349,7 +354,7 @@ export default function ClientsPage() {
           {clients.length === 0 && (
             <div className="card p-12 text-center text-slate-400">
               <Building2 size={36} className="mx-auto mb-3 opacity-30" />
-              Aucun client trouvé
+              {t('no_clients_found')}
             </div>
           )}
 
@@ -362,7 +367,7 @@ export default function ClientsPage() {
                   <ClientAvatar name={c.clientName} logoUrl={c.clientLogoUrl} size="md" />
                   {/* Upload overlay */}
                   <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Changer le logo">
+                    title={t('change_logo')}>
                     <Upload size={12} className="text-white" />
                     <input
                       type="file"
@@ -379,8 +384,8 @@ export default function ClientsPage() {
                             headers: { 'Content-Type': 'multipart/form-data' },
                           });
                           updateClientLogo(c.clientId, data.clientLogoUrl);
-                          toast.success('Logo mis à jour');
-                        } catch { toast.error('Erreur upload'); }
+                          toast.success(t('logo_updated'));
+                        } catch { toast.error(t('error_uploading_logo')); }
                         e.target.value = '';
                       }}
                     />
@@ -394,7 +399,7 @@ export default function ClientsPage() {
                 >
                   <div className="font-600 text-slate-900 truncate">{c.clientName}</div>
                   <div className="text-xs text-slate-400 mt-0.5 truncate">
-                    {[c.clientEmail, c.clientPhone].filter(Boolean).join(' · ') || 'Pas de contact'}
+                    {[c.clientEmail, c.clientPhone].filter(Boolean).join(' · ') || t('no_contact')}
                   </div>
                 </button>
 
@@ -402,7 +407,7 @@ export default function ClientsPage() {
                 <button onClick={() => selectClient(c)} className="flex items-center gap-4 shrink-0">
                   <div className="text-right">
                     <div className="text-sm font-600 text-slate-900">
-                      {Number(c.documentCount)} doc{Number(c.documentCount) > 1 ? 's' : ''}
+                      {Number(c.documentCount)} {Number(c.documentCount) > 1 ? t('docs_plural') : t('docs_singular')}
                     </div>
                     <div className="text-xs text-slate-400">
                       {Number(c.totalAmount || 0).toLocaleString('fr-FR')} DZD
@@ -417,7 +422,7 @@ export default function ClientsPage() {
       )}
 
       <p className="text-xs text-slate-400 text-center mt-6">
-        Survolez un logo pour le changer · Cliquez sur le nom pour voir les documents
+        {t('logo_hover_tip')}
       </p>
     </div>
   );

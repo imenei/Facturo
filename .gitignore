@@ -12,3 +12,12 @@ yarn-error.log*
 # Mac / Windows
 .DS_Store
 Thumbs.db
+desktop/runtime/
+desktop/dist/
+.env.local
+.env
+
+desktop/dist-portable-2/
+desktop/dist-portable/
+desktop/**/win-unpacked/
+*.exe
