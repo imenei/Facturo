@@ -40,6 +40,16 @@ export class Task {
   @Column({ nullable: true, type: 'date' })
   deliveryDate: Date;
 
+  // Client info — pour afficher logo au livreur
+  @Column({ nullable: true })
+  clientName: string;
+
+  @Column({ nullable: true, type: 'text' })
+  clientLogoUrl: string;
+
+  @Column({ nullable: true, type: 'text' })
+  clientAddress: string;
+
   @Column({ nullable: true })
   completedAt: Date;
 

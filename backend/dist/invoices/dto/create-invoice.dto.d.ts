@@ -12,6 +12,7 @@ export declare class CreateInvoiceDto {
     clientAddress?: string;
     clientNif?: string;
     clientNis?: string;
+    clientLogoUrl?: string;
     items: InvoiceItemDto[];
     hasTva: boolean;
     tvaRate?: number;

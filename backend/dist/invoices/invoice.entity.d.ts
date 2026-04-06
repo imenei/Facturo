@@ -34,6 +34,7 @@ export declare class Invoice {
     paymentStatus: PaymentStatus;
     workflowStep: WorkflowStep;
     clientId: string;
+    clientLogoUrl: string;
     deliveryDate: Date;
     templateType: string;
     clientName: string;

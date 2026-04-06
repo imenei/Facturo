@@ -20,11 +20,6 @@ export class InvoicesService {
     return `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
   }
 
-  private buildClientId(name: string, phone?: string): string {
-    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    return phone ? `${slug}-${phone.replace(/\D/g, '').slice(-6)}` : slug;
-  }
-
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
     const number = await this.generateNumber(dto.type);
     const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -49,6 +44,7 @@ export class InvoicesService {
       tvaAmount,
       total,
       clientId,
+      clientLogoUrl: dto.clientLogoUrl ?? undefined, // ✅ fix ts2769: no null
       paymentStatus: PaymentStatus.UNPAID,
       createdBy: { id: userId } as any,
     });
@@ -56,7 +52,6 @@ export class InvoicesService {
     return this.invoicesRepository.save(invoice);
   }
 
-  // Modification 6: advanced search with filters
   async findAll(
     user: { id: string; role: UserRole },
     filters?: { client?: string; date?: string; status?: string; type?: string; paymentStatus?: string },
@@ -89,7 +84,10 @@ export class InvoicesService {
     return qb.getMany();
   }
 
-  
+  private buildClientId(name: string, phone?: string): string {
+    const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    return phone ? `${slug}-${phone.replace(/\D/g, '').slice(-6)}` : slug;
+  }
 
   async findOne(id: string, user: { id: string; role: UserRole }): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({ where: { id }, relations: ['createdBy'] });
@@ -102,11 +100,16 @@ export class InvoicesService {
 
   async update(id: string, dto: UpdateInvoiceDto, user: { id: string; role: UserRole }): Promise<Invoice> {
     const invoice = await this.findOne(id, user);
+
     if (dto.items) {
-      dto['subtotal'] = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      dto['tvaAmount'] = dto.hasTva ? (dto['subtotal'] * (dto.tvaRate || 19)) / 100 : 0;
-      dto['total'] = dto['subtotal'] + dto['tvaAmount'];
+      // ✅ fix ts7053: calculs locaux au lieu d'indexer UpdateInvoiceDto
+      const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
+      const total = subtotal + tvaAmount;
+
+      Object.assign(invoice, { subtotal, tvaAmount, total });
     }
+
     Object.assign(invoice, dto);
     return this.invoicesRepository.save(invoice);
   }
@@ -118,12 +121,10 @@ export class InvoicesService {
     return this.invoicesRepository.save(invoice);
   }
 
-  // Modification 2: update payment status
   async updatePaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
     invoice.paymentStatus = paymentStatus;
-    // Sync with status if paid
     if (paymentStatus === PaymentStatus.PAID) {
       invoice.status = InvoiceStatus.PAYEE;
       invoice.workflowStep = WorkflowStep.RECOUVREMENT;
@@ -131,7 +132,6 @@ export class InvoicesService {
     return this.invoicesRepository.save(invoice);
   }
 
-  // Modification 2: advance workflow step
   async updateWorkflowStep(id: string, step: WorkflowStep): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');

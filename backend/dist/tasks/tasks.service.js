@@ -24,7 +24,14 @@ let TasksService = class TasksService {
     }
     async create(dto, adminId) {
         const task = this.tasksRepository.create({
-            ...dto,
+            name: dto.name,
+            description: dto.description,
+            price: dto.price,
+            dueDate: dto.dueDate || null,
+            deliveryDate: dto.deliveryDate || null,
+            clientName: dto.clientName || null,
+            clientLogoUrl: dto.clientLogoUrl || null,
+            clientAddress: dto.clientAddress || null,
             createdBy: { id: adminId },
             assignedTo: { id: dto.assignedToId },
         });

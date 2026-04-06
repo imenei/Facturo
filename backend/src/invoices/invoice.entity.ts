@@ -62,6 +62,10 @@ export class Invoice {
   @Column({ nullable: true })
   clientId: string; // normalized slug from clientName+phone
 
+  // Client logo URL — uploaded per client, stored on all their invoices
+  @Column({ nullable: true, type: 'text' })
+  clientLogoUrl: string;
+
   // Delivery date (modification 7 — nullable)
   @Column({ nullable: true, type: 'date' })
   deliveryDate: Date;

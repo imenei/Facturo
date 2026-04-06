@@ -10,6 +10,7 @@ export declare class ClientsController {
         clientEmail: string;
         clientPhone: string;
         clientAddress: string;
+        clientLogoUrl: string;
         summary: {
             totalDocuments: number;
             totalPaid: number;
@@ -21,5 +22,12 @@ export declare class ClientsController {
         factures: Invoice[];
         proformas: Invoice[];
         bonsLivraison: Invoice[];
+    }>;
+    uploadLogo(clientId: string, file: Express.Multer.File): Promise<{
+        success: boolean;
+        clientLogoUrl: string;
+    }>;
+    removeLogo(clientId: string): Promise<{
+        success: boolean;
     }>;
 }

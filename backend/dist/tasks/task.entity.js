@@ -63,6 +63,18 @@ __decorate([
 ], Task.prototype, "deliveryDate", void 0);
 __decorate([
     (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], Task.prototype, "clientName", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, type: 'text' }),
+    __metadata("design:type", String)
+], Task.prototype, "clientLogoUrl", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, type: 'text' }),
+    __metadata("design:type", String)
+], Task.prototype, "clientAddress", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
     __metadata("design:type", Date)
 ], Task.prototype, "completedAt", void 0);
 __decorate([

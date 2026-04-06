@@ -7,7 +7,6 @@ export declare class InvoicesService {
     private invoicesRepository;
     constructor(invoicesRepository: Repository<Invoice>);
     private generateNumber;
-    private buildClientId;
     create(dto: CreateInvoiceDto, userId: string): Promise<Invoice>;
     findAll(user: {
         id: string;
@@ -19,6 +18,7 @@ export declare class InvoicesService {
         type?: string;
         paymentStatus?: string;
     }): Promise<Invoice[]>;
+    private buildClientId;
     findOne(id: string, user: {
         id: string;
         role: UserRole;

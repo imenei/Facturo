@@ -6,7 +6,7 @@ export declare class UploadController {
         originalName: string;
         size: number;
     };
-    serveLogo(filename: string, res: Response): Response<any, Record<string, any>>;
+    serveLogo(filename: string, res: Response): Response<any, Record<string, any>> | undefined;
     deleteLogo(filename: string): {
         success: boolean;
         message: string;

@@ -13,12 +13,18 @@ export class TasksService {
 
   async create(dto: any, adminId: string): Promise<Task> {
     const task = this.tasksRepository.create({
-      ...dto,
-      createdBy: { id: adminId },
-      assignedTo: { id: dto.assignedToId },
-    });
-    
-return this.tasksRepository.save(task) as unknown as Promise<Task>;
+      name: dto.name,
+      description: dto.description,
+      price: dto.price,
+      dueDate: dto.dueDate || null,
+      deliveryDate: dto.deliveryDate || null,
+      clientName: dto.clientName || null,
+      clientLogoUrl: dto.clientLogoUrl || null,
+      clientAddress: dto.clientAddress || null,
+      createdBy: { id: adminId } as any,
+      assignedTo: { id: dto.assignedToId } as any,
+    }) as Task;
+    return this.tasksRepository.save(task);
   }
 
   async findAll(user: { id: string; role: UserRole }): Promise<Task[]> {

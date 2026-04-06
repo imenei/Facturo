@@ -15,6 +15,9 @@ export declare class Task {
     createdBy: User;
     dueDate: Date;
     deliveryDate: Date;
+    clientName: string;
+    clientLogoUrl: string;
+    clientAddress: string;
     completedAt: Date;
     createdAt: Date;
     updatedAt: Date;

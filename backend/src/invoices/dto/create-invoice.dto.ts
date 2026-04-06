@@ -4,21 +4,21 @@ import { InvoiceType } from '../invoice.entity';
 
 class InvoiceItemDto {
   @IsString()
-  description: string;
+  description!: string; // ✅
 
   @IsNumber()
-  quantity: number;
+  quantity!: number; // ✅
 
   @IsNumber()
-  unitPrice: number;
+  unitPrice!: number; // ✅
 }
 
 export class CreateInvoiceDto {
   @IsEnum(InvoiceType)
-  type: InvoiceType;
+  type!: InvoiceType; // ✅
 
   @IsString()
-  clientName: string;
+  clientName!: string; // ✅
 
   @IsOptional()
   @IsString()
@@ -40,13 +40,17 @@ export class CreateInvoiceDto {
   @IsString()
   clientNis?: string;
 
+  @IsOptional()
+  @IsString()
+  clientLogoUrl?: string; // ✅ fix ts2339
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemDto)
-  items: InvoiceItemDto[];
+  items!: InvoiceItemDto[]; // ✅
 
   @IsBoolean()
-  hasTva: boolean;
+  hasTva!: boolean; // ✅
 
   @IsOptional()
   @IsNumber()

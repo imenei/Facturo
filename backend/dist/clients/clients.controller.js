@@ -14,10 +14,18 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientsController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
+const multer_1 = require("multer");
+const path_1 = require("path");
+const uuid_1 = require("uuid");
 const invoice_entity_1 = require("../invoices/invoice.entity");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const logoStorage = (0, multer_1.diskStorage)({
+    destination: './uploads/logos',
+    filename: (req, file, cb) => cb(null, `client-${(0, uuid_1.v4)()}${(0, path_1.extname)(file.originalname)}`),
+});
 let ClientsController = class ClientsController {
     constructor(invoicesRepo) {
         this.invoicesRepo = invoicesRepo;
@@ -30,6 +38,7 @@ let ClientsController = class ClientsController {
             .addSelect('inv.clientEmail', 'clientEmail')
             .addSelect('inv.clientPhone', 'clientPhone')
             .addSelect('inv.clientAddress', 'clientAddress')
+            .addSelect('MAX(inv.clientLogoUrl)', 'clientLogoUrl')
             .addSelect('COUNT(*)', 'documentCount')
             .addSelect('SUM(inv.total)', 'totalAmount')
             .groupBy('inv.clientName')
@@ -63,24 +72,38 @@ let ClientsController = class ClientsController {
         const totalUnpaid = factures
             .filter((f) => f.paymentStatus === 'unpaid')
             .reduce((sum, f) => sum + Number(f.total), 0);
+        const clientLogoUrl = docs.find((d) => !!d.clientLogoUrl)?.['clientLogoUrl'] ?? null;
         return {
             clientId,
             clientName: docs[0]?.clientName || '',
             clientEmail: docs[0]?.clientEmail || '',
             clientPhone: docs[0]?.clientPhone || '',
             clientAddress: docs[0]?.clientAddress || '',
-            summary: {
-                totalDocuments: docs.length,
-                totalPaid,
-                totalUnpaid,
-                facturesCount: factures.length,
-                proformasCount: proformas.length,
-                bonsCount: bons.length,
-            },
+            clientLogoUrl,
+            summary: { totalDocuments: docs.length, totalPaid, totalUnpaid, facturesCount: factures.length, proformasCount: proformas.length, bonsCount: bons.length },
             factures,
             proformas,
             bonsLivraison: bons,
         };
+    }
+    async uploadLogo(clientId, file) {
+        if (!file)
+            throw new common_1.BadRequestException('Aucun fichier reçu');
+        const logoUrl = `/uploads/logos/${file.filename}`;
+        await this.invoicesRepo.createQueryBuilder()
+            .update(invoice_entity_1.Invoice)
+            .set({ clientLogoUrl: logoUrl })
+            .where('clientId = :clientId', { clientId })
+            .execute();
+        return { success: true, clientLogoUrl: logoUrl };
+    }
+    async removeLogo(clientId) {
+        await this.invoicesRepo.createQueryBuilder()
+            .update(invoice_entity_1.Invoice)
+            .set({ clientLogoUrl: null })
+            .where('clientId = :clientId', { clientId })
+            .execute();
+        return { success: true };
     }
 };
 exports.ClientsController = ClientsController;
@@ -100,6 +123,32 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], ClientsController.prototype, "getClientDocuments", null);
+__decorate([
+    (0, common_1.Patch)(':id/logo'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        storage: logoStorage,
+        fileFilter: (req, file, cb) => {
+            const ok = ['.jpg', '.jpeg', '.png', '.webp', '.svg'];
+            if (!ok.includes((0, path_1.extname)(file.originalname).toLowerCase())) {
+                return cb(new common_1.BadRequestException('Format non supporté'), false);
+            }
+            cb(null, true);
+        },
+        limits: { fileSize: 5 * 1024 * 1024 },
+    })),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ClientsController.prototype, "uploadLogo", null);
+__decorate([
+    (0, common_1.Patch)(':id/logo-remove'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ClientsController.prototype, "removeLogo", null);
 exports.ClientsController = ClientsController = __decorate([
     (0, common_1.Controller)('clients'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),

@@ -28,10 +28,6 @@ let InvoicesService = class InvoicesService {
         const count = await this.invoicesRepository.count({ where: { type } });
         return `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
     }
-    buildClientId(name, phone) {
-        const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-        return phone ? `${slug}-${phone.replace(/\D/g, '').slice(-6)}` : slug;
-    }
     async create(dto, userId) {
         const number = await this.generateNumber(dto.type);
         const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -53,6 +49,7 @@ let InvoicesService = class InvoicesService {
             tvaAmount,
             total,
             clientId,
+            clientLogoUrl: dto.clientLogoUrl ?? undefined,
             paymentStatus: invoice_entity_1.PaymentStatus.UNPAID,
             createdBy: { id: userId },
         });
@@ -83,6 +80,10 @@ let InvoicesService = class InvoicesService {
         }
         return qb.getMany();
     }
+    buildClientId(name, phone) {
+        const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        return phone ? `${slug}-${phone.replace(/\D/g, '').slice(-6)}` : slug;
+    }
     async findOne(id, user) {
         const invoice = await this.invoicesRepository.findOne({ where: { id }, relations: ['createdBy'] });
         if (!invoice)
@@ -95,9 +96,10 @@ let InvoicesService = class InvoicesService {
     async update(id, dto, user) {
         const invoice = await this.findOne(id, user);
         if (dto.items) {
-            dto['subtotal'] = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-            dto['tvaAmount'] = dto.hasTva ? (dto['subtotal'] * (dto.tvaRate || 19)) / 100 : 0;
-            dto['total'] = dto['subtotal'] + dto['tvaAmount'];
+            const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+            const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
+            const total = subtotal + tvaAmount;
+            Object.assign(invoice, { subtotal, tvaAmount, total });
         }
         Object.assign(invoice, dto);
         return this.invoicesRepository.save(invoice);

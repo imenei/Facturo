@@ -1,17 +1,20 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, Loader2, Save, ArrowLeft, LayoutTemplate, ShoppingBag } from 'lucide-react';
+import {
+  Plus, Trash2, Loader2, Save, ArrowLeft,
+  LayoutTemplate, ShoppingBag, Upload, X, Building2,
+} from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
 
 interface Item { description: string; quantity: number; unitPrice: number; }
 
 const TYPE_OPTIONS = [
-  { value: 'facture', label: '📄 Facture' },
-  { value: 'proforma', label: '📋 Proforma' },
+  { value: 'facture',       label: '📄 Facture' },
+  { value: 'proforma',      label: '📋 Proforma' },
   { value: 'bon_livraison', label: '📦 Bon de livraison' },
 ];
 
@@ -20,6 +23,92 @@ const TEMPLATE_LABELS: Record<string, string> = {
   corporate: '🏢 Corporate', table_focus: '📊 Tableau Focus',
 };
 
+// ── Client logo picker ────────────────────────────────────────────────────────
+function ClientLogoPicker({
+  value,
+  onChange,
+}: {
+  value: string;          // base64 or URL
+  onChange: (v: string) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const processFile = (file: File) => {
+    if (!file.type.startsWith('image/')) { toast.error('Fichier image requis'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Taille max : 5 Mo'); return; }
+    const reader = new FileReader();
+    reader.onload = () => onChange(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) processFile(f);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f) processFile(f);
+  };
+
+  if (value) {
+    return (
+      <div className="flex items-center gap-3">
+        {/* Preview */}
+        <div className="w-16 h-16 rounded-xl border-2 border-slate-200 overflow-hidden bg-white flex items-center justify-center shrink-0">
+          <img src={value} alt="Logo client" className="w-full h-full object-contain" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+          >
+            <Upload size={12} /> Changer
+          </button>
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg transition-colors"
+          >
+            <X size={12} /> Supprimer
+          </button>
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => fileRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+      className={clsx(
+        'flex flex-col items-center justify-center gap-2 w-full h-24 rounded-xl border-2 border-dashed cursor-pointer transition-all',
+        dragging
+          ? 'border-brand-400 bg-brand-50'
+          : 'border-slate-200 hover:border-brand-300 hover:bg-slate-50',
+      )}
+    >
+      <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+        <Building2 size={16} className="text-slate-400" />
+      </div>
+      <div className="text-center">
+        <p className="text-xs font-medium text-slate-600">Logo de l'entreprise cliente</p>
+        <p className="text-xs text-slate-400">Cliquez ou glissez une image (PNG, JPG, SVG)</p>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 export default function NewInvoicePage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -27,32 +116,55 @@ export default function NewInvoicePage() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [showProductPicker, setShowProductPicker] = useState<number | null>(null);
+  // Existing clients for autocomplete
+  const [existingClients, setExistingClients] = useState<any[]>([]);
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
 
   const [form, setForm] = useState({
     type: params.get('type') || 'facture',
     clientName: '', clientEmail: '', clientPhone: '',
     clientAddress: '', clientNif: '', clientNis: '',
+    clientLogoUrl: '',   // ← logo de l'entreprise cliente
     hasTva: false, tvaRate: 19,
     notes: '', dueDate: '',
-    deliveryDate: '',     // mod #7 — optionnelle
-    templateType: '',     // mod #12
+    deliveryDate: '',
+    templateType: '',
   });
 
   const [items, setItems] = useState<Item[]>([{ description: '', quantity: 1, unitPrice: 0 }]);
 
   useEffect(() => {
-    // Load templates and products
     Promise.all([
       api.get('/templates').catch(() => ({ data: [] })),
       api.get('/products').catch(() => ({ data: [] })),
-    ]).then(([tmpl, prod]) => {
+      api.get('/clients').catch(() => ({ data: [] })),
+    ]).then(([tmpl, prod, clients]) => {
       setTemplates(tmpl.data);
       setProducts(prod.data);
-      // Set default template
+      setExistingClients(clients.data);
       const def = tmpl.data.find((t: any) => t.isDefault);
       if (def) setForm((p) => ({ ...p, templateType: def.type }));
     });
   }, []);
+
+  // When user types client name, suggest existing clients
+  const clientSuggestions = form.clientName.length > 1
+    ? existingClients.filter((c) =>
+        c.clientName?.toLowerCase().includes(form.clientName.toLowerCase())
+      ).slice(0, 5)
+    : [];
+
+  const pickExistingClient = (c: any) => {
+    setForm((p) => ({
+      ...p,
+      clientName: c.clientName || '',
+      clientEmail: c.clientEmail || '',
+      clientPhone: c.clientPhone || '',
+      clientAddress: c.clientAddress || '',
+      clientLogoUrl: c.clientLogoUrl || '',
+    }));
+    setShowClientSuggestions(false);
+  };
 
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
   const tvaAmount = form.hasTva ? (subtotal * form.tvaRate) / 100 : 0;
@@ -76,10 +188,17 @@ export default function NewInvoicePage() {
     setSaving(true);
     try {
       const payload: any = { ...form, items };
-      if (!payload.deliveryDate) delete payload.deliveryDate;  // mod #7 — nullable
+      if (!payload.deliveryDate) delete payload.deliveryDate;
       if (!payload.dueDate) delete payload.dueDate;
-      await api.post('/invoices', payload);
+      if (!payload.clientLogoUrl) delete payload.clientLogoUrl;
+      const { data: newInvoice } = await api.post('/invoices', payload);
       toast.success('Document créé avec succès !');
+
+      // If logo was provided and client has a clientId, update logo on all their docs
+      if (form.clientLogoUrl && newInvoice?.clientId) {
+        api.patch(`/clients/${newInvoice.clientId}/logo-url`, { logoUrl: form.clientLogoUrl }).catch(() => {});
+      }
+
       router.push('/invoices');
     } catch (err: any) {
       if (err.message === 'OFFLINE_QUEUED') toast('Document mis en file hors-ligne', { icon: '📶' });
@@ -102,14 +221,16 @@ export default function NewInvoicePage() {
 
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Type + TVA + Template (mod #12) */}
+        {/* ── Type + Template + TVA ── */}
         <div className="card p-6">
           <h2 className="font-display font-600 text-slate-900 mb-4">Type de document</h2>
           <div className="grid grid-cols-3 gap-3 mb-5">
             {TYPE_OPTIONS.map((opt) => (
               <label key={opt.value} className={clsx(
                 'flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all text-sm font-medium',
-                form.type === opt.value ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 hover:border-slate-300'
+                form.type === opt.value
+                  ? 'border-brand-500 bg-brand-50 text-brand-700'
+                  : 'border-slate-200 hover:border-slate-300',
               )}>
                 <input type="radio" name="type" value={opt.value} checked={form.type === opt.value}
                   onChange={(e) => setForm({ ...form, type: e.target.value })} className="hidden" />
@@ -118,17 +239,20 @@ export default function NewInvoicePage() {
             ))}
           </div>
 
-          {/* Template selection (mod #12) */}
           {templates.length > 0 && (
             <div className="mb-4">
-              <label className="label flex items-center gap-1.5"><LayoutTemplate size={14} /> Template de mise en page</label>
+              <label className="label flex items-center gap-1.5">
+                <LayoutTemplate size={14} /> Template de mise en page
+              </label>
               <div className="flex flex-wrap gap-2">
                 {templates.map((t) => (
                   <button key={t.id} type="button"
                     onClick={() => setForm({ ...form, templateType: t.type })}
                     className={clsx(
                       'text-sm px-3 py-1.5 rounded-lg border transition-all',
-                      form.templateType === t.type ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      form.templateType === t.type
+                        ? 'border-brand-500 bg-brand-50 text-brand-700 font-medium'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300',
                     )}>
                     {TEMPLATE_LABELS[t.type] || t.name}
                     {t.isDefault && <span className="ml-1 text-xs text-slate-400">(défaut)</span>}
@@ -138,7 +262,6 @@ export default function NewInvoicePage() {
             </div>
           )}
 
-          {/* TVA */}
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.hasTva}
@@ -149,36 +272,107 @@ export default function NewInvoicePage() {
             {form.hasTva && (
               <div className="flex items-center gap-2">
                 <input type="number" className="input w-20" value={form.tvaRate}
-                  onChange={(e) => setForm({ ...form, tvaRate: Number(e.target.value) })} min={0} max={100} />
+                  onChange={(e) => setForm({ ...form, tvaRate: Number(e.target.value) })}
+                  min={0} max={100} />
                 <span className="text-sm text-slate-500">%</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Client */}
+        {/* ── Client ── */}
         <div className="card p-6">
           <h2 className="font-display font-600 text-slate-900 mb-4">Informations client</h2>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Logo picker — full width on top */}
             <div className="md:col-span-2">
-              <label className="label">Nom / Raison sociale <span className="text-red-500">*</span></label>
-              <input className="input" required value={form.clientName}
-                onChange={(e) => setForm({ ...form, clientName: e.target.value })} placeholder="Nom du client" />
+              <label className="label">Logo de l'entreprise cliente <span className="text-slate-400 font-normal">(optionnel)</span></label>
+              <ClientLogoPicker
+                value={form.clientLogoUrl}
+                onChange={(v) => setForm({ ...form, clientLogoUrl: v })}
+              />
             </div>
+
+            {/* Client name with autocomplete */}
+            <div className="md:col-span-2 relative">
+              <label className="label">Nom / Raison sociale <span className="text-red-500">*</span></label>
+              <input
+                className="input"
+                required
+                value={form.clientName}
+                placeholder="Nom ou raison sociale du client"
+                onChange={(e) => {
+                  setForm({ ...form, clientName: e.target.value });
+                  setShowClientSuggestions(true);
+                }}
+                onFocus={() => setShowClientSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowClientSuggestions(false), 150)}
+                autoComplete="off"
+              />
+
+              {/* Autocomplete dropdown — existing clients */}
+              {showClientSuggestions && clientSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 z-20 bg-white border border-slate-200 rounded-xl shadow-xl mt-1 overflow-hidden">
+                  <div className="px-3 py-1.5 text-xs text-slate-400 bg-slate-50 border-b border-slate-100">
+                    Clients existants
+                  </div>
+                  {clientSuggestions.map((c) => (
+                    <button
+                      key={c.clientId || c.clientName}
+                      type="button"
+                      onMouseDown={() => pickExistingClient(c)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-brand-50 transition-colors text-left"
+                    >
+                      {/* Mini logo */}
+                      <div className="w-8 h-8 rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0 flex items-center justify-center">
+                        {c.clientLogoUrl ? (
+                          <img
+                            src={c.clientLogoUrl.startsWith('data:') || c.clientLogoUrl.startsWith('http')
+                              ? c.clientLogoUrl
+                              : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${c.clientLogoUrl}`}
+                            alt=""
+                            className="w-full h-full object-contain"
+                          />
+                        ) : (
+                          <span className="text-xs font-700 text-slate-500 uppercase">
+                            {c.clientName?.charAt(0)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-slate-900 truncate">{c.clientName}</div>
+                        <div className="text-xs text-slate-400 truncate">
+                          {[c.clientPhone, c.clientEmail].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+                      {c.clientLogoUrl && (
+                        <span className="text-xs text-emerald-600 shrink-0">✓ logo</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="label">Email</label>
               <input className="input" type="email" value={form.clientEmail}
-                onChange={(e) => setForm({ ...form, clientEmail: e.target.value })} placeholder="client@exemple.com" />
+                onChange={(e) => setForm({ ...form, clientEmail: e.target.value })}
+                placeholder="client@exemple.com" />
             </div>
             <div>
               <label className="label">Téléphone</label>
               <input className="input" value={form.clientPhone}
-                onChange={(e) => setForm({ ...form, clientPhone: e.target.value })} placeholder="+213 5XX XXX XXX" />
+                onChange={(e) => setForm({ ...form, clientPhone: e.target.value })}
+                placeholder="+213 5XX XXX XXX" />
             </div>
             <div className="md:col-span-2">
               <label className="label">Adresse</label>
               <input className="input" value={form.clientAddress}
-                onChange={(e) => setForm({ ...form, clientAddress: e.target.value })} placeholder="Adresse complète" />
+                onChange={(e) => setForm({ ...form, clientAddress: e.target.value })}
+                placeholder="Adresse complète" />
             </div>
             <div>
               <label className="label">NIF</label>
@@ -193,7 +387,7 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
-        {/* Articles */}
+        {/* ── Articles ── */}
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display font-600 text-slate-900">Articles / Prestations</h2>
@@ -202,7 +396,6 @@ export default function NewInvoicePage() {
             </button>
           </div>
 
-          {/* Header */}
           <div className="hidden md:grid grid-cols-12 gap-2 text-xs font-600 text-slate-400 uppercase tracking-wide px-1 mb-1">
             <div className="col-span-6">Désignation</div>
             <div className="col-span-2 text-center">Qté</div>
@@ -212,21 +405,25 @@ export default function NewInvoicePage() {
 
           <div className="space-y-2">
             {items.map((item, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-lg p-2 group">
+              <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-lg p-2">
                 <div className="col-span-12 md:col-span-6 relative">
-                  <input className="input bg-white pr-8" placeholder="Description de l'article ou prestation"
+                  <input
+                    className="input bg-white pr-8"
+                    placeholder="Description de l'article ou prestation"
                     value={item.description}
-                    onChange={(e) => updateItem(i, 'description', e.target.value)} required />
-                  {/* Product picker button (mod #1) */}
+                    onChange={(e) => updateItem(i, 'description', e.target.value)}
+                    required
+                  />
                   {products.length > 0 && (
-                    <button type="button"
+                    <button
+                      type="button"
                       onClick={() => setShowProductPicker(showProductPicker === i ? null : i)}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-brand-500 rounded"
-                      title="Choisir un produit">
+                      title="Choisir un produit"
+                    >
                       <ShoppingBag size={14} />
                     </button>
                   )}
-                  {/* Product picker dropdown */}
                   {showProductPicker === i && (
                     <div className="absolute top-full left-0 right-0 z-20 bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto">
                       {products.map((p) => (
@@ -237,7 +434,7 @@ export default function NewInvoicePage() {
                             {p.reference && <div className="text-xs text-slate-400">{p.reference}</div>}
                           </div>
                           <div className="text-brand-600 font-medium text-xs shrink-0 ml-3">
-                            {Number(p.salePrice).toLocaleString('fr-DZ')} DZD
+                            {Number(p.salePrice).toLocaleString('fr-FR')} DZD
                           </div>
                         </button>
                       ))}
@@ -264,10 +461,9 @@ export default function NewInvoicePage() {
                     </button>
                   )}
                 </div>
-                {/* Line total hint */}
                 {item.quantity > 0 && item.unitPrice > 0 && (
                   <div className="col-span-12 text-right text-xs text-slate-400 -mt-1 pr-8">
-                    = {(item.quantity * item.unitPrice).toLocaleString('fr-DZ')} DZD
+                    = {(item.quantity * item.unitPrice).toLocaleString('fr-FR')} DZD
                   </div>
                 )}
               </div>
@@ -278,22 +474,22 @@ export default function NewInvoicePage() {
           <div className="mt-6 border-t pt-4 space-y-2">
             <div className="flex justify-between text-sm text-slate-600">
               <span>Sous-total HT</span>
-              <span className="font-medium">{subtotal.toLocaleString('fr-DZ')} DZD</span>
+              <span className="font-medium">{subtotal.toLocaleString('fr-FR')} DZD</span>
             </div>
             {form.hasTva && (
               <div className="flex justify-between text-sm text-slate-600">
                 <span>TVA ({form.tvaRate}%)</span>
-                <span className="font-medium">{tvaAmount.toLocaleString('fr-DZ')} DZD</span>
+                <span className="font-medium">{tvaAmount.toLocaleString('fr-FR')} DZD</span>
               </div>
             )}
             <div className="flex justify-between text-xl font-display font-700 text-slate-900 pt-2 border-t">
               <span>TOTAL TTC</span>
-              <span className="text-brand-600">{total.toLocaleString('fr-DZ')} DZD</span>
+              <span className="text-brand-600">{total.toLocaleString('fr-FR')} DZD</span>
             </div>
           </div>
         </div>
 
-        {/* Dates + Notes */}
+        {/* ── Dates + Notes ── */}
         <div className="card p-6">
           <h2 className="font-display font-600 text-slate-900 mb-4">Dates & remarques</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -302,7 +498,6 @@ export default function NewInvoicePage() {
               <input type="date" className="input" value={form.dueDate}
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </div>
-            {/* mod #7 — delivery date optional */}
             <div>
               <label className="label">Date de livraison <span className="text-slate-400 font-normal">(optionnelle)</span></label>
               <input type="date" className="input" value={form.deliveryDate}
@@ -317,13 +512,14 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* ── Actions ── */}
         <div className="flex gap-3 justify-end">
           <Link href="/invoices" className="btn-secondary">Annuler</Link>
           <button type="submit" disabled={saving} className="btn-primary px-8">
             {saving
               ? <><Loader2 size={16} className="animate-spin" /> Enregistrement…</>
-              : <><Save size={16} /> Enregistrer</>}
+              : <><Save size={16} /> Enregistrer</>
+            }
           </button>
         </div>
 

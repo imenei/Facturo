@@ -9,6 +9,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ClientsModule = void 0;
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
+const platform_express_1 = require("@nestjs/platform-express");
 const clients_controller_1 = require("./clients.controller");
 const invoice_entity_1 = require("../invoices/invoice.entity");
 let ClientsModule = class ClientsModule {
@@ -16,7 +17,10 @@ let ClientsModule = class ClientsModule {
 exports.ClientsModule = ClientsModule;
 exports.ClientsModule = ClientsModule = __decorate([
     (0, common_1.Module)({
-        imports: [typeorm_1.TypeOrmModule.forFeature([invoice_entity_1.Invoice])],
+        imports: [
+            typeorm_1.TypeOrmModule.forFeature([invoice_entity_1.Invoice]),
+            platform_express_1.MulterModule.register({ dest: './uploads' }),
+        ],
         controllers: [clients_controller_1.ClientsController],
     })
 ], ClientsModule);
