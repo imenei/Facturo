@@ -3,7 +3,6 @@ import autoTable from 'jspdf-autotable';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Fix: use space as thousands separator, not locale-specific char
 function fmt(n: number): string {
   const num = Number(n) || 0;
   return num.toLocaleString('fr-FR').replace(/\u202f/g, ' ').replace(/,/g, '.') + ' DZD';
@@ -18,33 +17,19 @@ function fDate(d: any) {
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-// Add logo to doc — handles base64 string or URL path
+// ✅ FIX: si pas de logo → rien n'est dessiné (ni placeholder, ni boîte grise)
 function addLogo(doc: jsPDF, company: any, x: number, y: number, w: number, h: number) {
   const src = company?.logo || company?.logoUrl;
-  if (!src) {
-    // Placeholder box
-    doc.setFillColor(235, 235, 235);
-    doc.rect(x, y, w, h, 'F');
-    doc.setFontSize(6.5);
-    doc.setTextColor(170, 170, 170);
-    doc.setFont('helvetica', 'normal');
-    doc.text('LOGO', x + w / 2, y + h / 2 + 2, { align: 'center' });
-    return;
-  }
+  if (!src) return; // Pas de logo → on ne dessine rien du tout
+
   try {
-    let imgData = src;
-    // Detect format
+    const imgData = src;
     const fmt2 = src.startsWith('data:image/png') ? 'PNG'
       : src.startsWith('data:image/webp') ? 'WEBP'
       : 'JPEG';
     doc.addImage(imgData, fmt2, x, y, w, h);
   } catch {
-    // Fallback placeholder if image fails
-    doc.setFillColor(235, 235, 235);
-    doc.rect(x, y, w, h, 'F');
-    doc.setFontSize(6.5);
-    doc.setTextColor(160, 160, 160);
-    doc.text('LOGO', x + w / 2, y + h / 2 + 2, { align: 'center' });
+    // Image invalide/corrompue → on ignore silencieusement, rien n'est affiché
   }
 }
 
@@ -153,7 +138,6 @@ function footerBlock(doc: jsPDF, invoice: any, company: any) {
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
 
-  // Notes
   if (invoice.notes) {
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7.5);
@@ -161,7 +145,6 @@ function footerBlock(doc: jsPDF, invoice: any, company: any) {
     doc.text(`Note : ${invoice.notes}`, 14, H - 30, { maxWidth: W - 28 });
   }
 
-  // Signature / stamp area
   const sigY = H - 38;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -175,51 +158,45 @@ function footerBlock(doc: jsPDF, invoice: any, company: any) {
     try { doc.addImage(sigSrc, 'JPEG', W - 54, sigY + 3, 38, 14); } catch {}
   }
 
-  // Footer line
   doc.setDrawColor(20, 20, 20);
   doc.setLineWidth(0.6);
   doc.line(14, H - 18, W - 14, H - 18);
 
-  // Legal mentions
-  // Legal mentions (GRAS + PRO)
-doc.setFont('helvetica', 'bold'); // ✅ gras
-doc.setFontSize(7); // un peu plus lisible
-doc.setTextColor(100, 100, 100);
+  // ✅ FIX: mentions légales seulement si company existe et footerText non vide
+  if (company) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
 
-const footerText = company?.legalMentions
-  || [company?.nif && `NIF : ${company.nif}`, company?.nis && `NIS : ${company.nis}`, company?.rc && `RC : ${company.rc}`]
-      .filter(Boolean)
-      .join('\n')
-  || '';
+    const footerText = company?.legalMentions
+      || [company?.nif && `NIF : ${company.nif}`, company?.nis && `NIS : ${company.nis}`, company?.rc && `RC : ${company.rc}`]
+          .filter(Boolean)
+          .join('\n')
+      || '';
 
-if (footerText) {
-  const lines = footerText.split('\n');
-
-  lines.forEach((line: string, i: number) => {
-    doc.text(line, W / 2, H - 12 + (i * 4), {
-      align: 'center',
-      maxWidth: W - 40,
-    });
-  });
-}
+    if (footerText) {
+      const lines = footerText.split('\n');
+      lines.forEach((line: string, i: number) => {
+        doc.text(line, W / 2, H - 12 + (i * 4), {
+          align: 'center',
+          maxWidth: W - 40,
+        });
+      });
+    }
+  }
 }
 
 // ─── TEMPLATE 1: CLASSIC ─────────────────────────────────────────────────────
 function renderClassic(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  // Logo top-left
   addLogo(doc, company, 14, 10, 32, 22);
-
-  // Company top-right
   companyBlock(doc, company, W - 14, 14, 'right');
 
-  // Bold separator
   doc.setDrawColor(10, 10, 10);
   doc.setLineWidth(0.8);
   doc.line(14, 36, W - 14, 36);
 
-  // Document type badge
   doc.setFillColor(240, 240, 240);
   doc.roundedRect(14, 40, 70, 10, 2, 2, 'F');
   doc.setFont('helvetica', 'bold');
@@ -227,13 +204,11 @@ function renderClassic(doc: jsPDF, invoice: any, company: any): number {
   doc.setTextColor(30, 30, 30);
   doc.text(tLabel(invoice.type), 49, 47, { align: 'center' });
 
-  // Document number
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   doc.text(`N° ${invoice.number}`, 14, 60);
 
-  // Dates right
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(70, 70, 70);
@@ -241,12 +216,10 @@ function renderClassic(doc: jsPDF, invoice: any, company: any): number {
   if (invoice.dueDate) doc.text(`Date d'échéance : ${fDate(invoice.dueDate)}`, W - 14, 58, { align: 'right' });
   if (invoice.deliveryDate) doc.text(`Date de livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 64, { align: 'right' });
 
-  // Light separator
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
   doc.line(14, 67, W - 14, 67);
 
-  // Client block
   clientBlock(doc, invoice, 14, 73);
 
   return itemsTable(doc, invoice, 108, [225, 225, 225], [20, 20, 20]);
@@ -256,7 +229,6 @@ function renderClassic(doc: jsPDF, invoice: any, company: any): number {
 function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  // Dark top strip
   doc.setFillColor(35, 35, 35);
   doc.rect(0, 0, W, 16, 'F');
   doc.setFont('helvetica', 'bold');
@@ -270,10 +242,8 @@ function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   doc.text(compInfo, W / 2, 10.5, { align: 'center' });
   doc.text(fDate(invoice.createdAt), W - 14, 10.5, { align: 'right' });
 
-  // Logo small top-right
   addLogo(doc, company, W - 14 - 18, 0, 18, 16);
 
-  // Title row
   doc.setFillColor(250, 250, 250);
   doc.rect(0, 16, W, 14, 'F');
   doc.setFont('helvetica', 'bold');
@@ -291,7 +261,6 @@ function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   doc.setLineWidth(0.3);
   doc.line(0, 30, W, 30);
 
-  // Client inline
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 100, 100);
@@ -317,7 +286,6 @@ function renderCompact(doc: jsPDF, invoice: any, company: any): number {
 function renderDetailed(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  // Header: logo left, title center, date right
   addLogo(doc, company, 14, 8, 28, 20);
 
   doc.setFont('helvetica', 'bold');
@@ -331,14 +299,11 @@ function renderDetailed(doc: jsPDF, invoice: any, company: any): number {
   doc.text(fDate(invoice.createdAt), W - 14, 14, { align: 'right' });
   if (invoice.dueDate) doc.text(`Éch. : ${fDate(invoice.dueDate)}`, W - 14, 19, { align: 'right' });
 
-  // Divider
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.7);
   doc.line(14, 32, W - 14, 32);
 
-  // Two-column: company | client
   const colW = (W - 28 - 6) / 2;
-  // Company box
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.3);
   doc.rect(14, 36, colW, 44);
@@ -350,7 +315,6 @@ function renderDetailed(doc: jsPDF, invoice: any, company: any): number {
   doc.text('ÉMETTEUR', 14 + colW / 2, 41, { align: 'center' });
   companyBlock(doc, company, 18, 50, 'left');
 
-  // Client box
   const cx2 = 14 + colW + 6;
   doc.rect(cx2, 36, colW, 44);
   doc.setFillColor(245, 245, 245);
@@ -361,7 +325,6 @@ function renderDetailed(doc: jsPDF, invoice: any, company: any): number {
   doc.text('DESTINATAIRE', cx2 + colW / 2, 41, { align: 'center' });
   clientBlock(doc, invoice, cx2 + 4, 50);
 
-  // Reference row
   doc.setFillColor(248, 248, 248);
   doc.rect(14, 84, W - 28, 12, 'F');
   doc.setDrawColor(220, 220, 220);
@@ -380,27 +343,22 @@ function renderDetailed(doc: jsPDF, invoice: any, company: any): number {
 function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  // Full-width dark banner
   doc.setFillColor(18, 18, 18);
   doc.rect(0, 0, W, 32, 'F');
 
-  // Logo centered in banner
   addLogo(doc, company, W / 2 - 16, 4, 32, 22);
 
-  // Company name below banner
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(10, 10, 10);
   doc.text((company?.name || 'Mon Entreprise').toUpperCase(), W / 2, 40, { align: 'center' });
 
-  // Sub-info line
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   const info = [company?.phone, company?.email, company?.address].filter(Boolean).join('   ·   ');
   doc.text(info, W / 2, 46, { align: 'center' });
 
-  // Legal sub-line
   const legal2 = [company?.nif && `NIF : ${company.nif}`, company?.nis && `NIS : ${company.nis}`, company?.rc && `RC : ${company.rc}`].filter(Boolean).join('   ·   ');
   if (legal2) {
     doc.setFontSize(6.5);
@@ -413,7 +371,6 @@ function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   doc.setLineWidth(0.2);
   doc.line(14, 56.5, W - 14, 56.5);
 
-  // Document title block
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
@@ -423,7 +380,6 @@ function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   doc.setTextColor(80, 80, 80);
   doc.text(`N° ${invoice.number}`, W / 2, 73, { align: 'center' });
 
-  // Two columns: company left, client right
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(130, 130, 130);
@@ -452,7 +408,6 @@ function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
 function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  // Minimal header
   addLogo(doc, company, 14, 8, 24, 18);
 
   doc.setFont('helvetica', 'bold');
@@ -465,7 +420,6 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   if (company?.phone) doc.text(company.phone, W - 14, 17, { align: 'right' });
   if (company?.nif) doc.text(`NIF : ${company.nif}`, W - 14, 22, { align: 'right' });
 
-  // Heavy title
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(0, 0, 0);
@@ -474,14 +428,12 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   doc.setTextColor(60, 60, 60);
   doc.text(`N° ${invoice.number}`, 14, 45);
 
-  // Double separator
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(2);
   doc.line(14, 50, W - 14, 50);
   doc.setLineWidth(0.4);
   doc.line(14, 52.5, W - 14, 52.5);
 
-  // Client + dates inline
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(10, 10, 10);
@@ -498,7 +450,6 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   if (invoice.dueDate) doc.text(`Échéance : ${fDate(invoice.dueDate)}`, W - 14, 65, { align: 'right' });
   if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 71, { align: 'right' });
 
-  // Wide table with row numbers
   const body = invoice.items.map((i: any, idx: number) => [
     { content: String(idx + 1), styles: { halign: 'center', textColor: [120, 120, 120] } },
     i.description,
