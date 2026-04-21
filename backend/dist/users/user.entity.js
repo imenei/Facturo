@@ -18,6 +18,7 @@ var UserRole;
     UserRole["ADMIN"] = "admin";
     UserRole["COMMERCIAL"] = "commercial";
     UserRole["LIVREUR"] = "livreur";
+    UserRole["TECHNICIEN"] = "technicien";
 })(UserRole || (exports.UserRole = UserRole = {}));
 let User = class User {
 };
@@ -42,6 +43,10 @@ __decorate([
     (0, typeorm_1.Column)({ nullable: true }),
     __metadata("design:type", String)
 ], User.prototype, "phone", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true }),
+    __metadata("design:type", String)
+], User.prototype, "specialty", void 0);
 __decorate([
     (0, typeorm_1.Column)({ type: 'enum', enum: UserRole, default: UserRole.COMMERCIAL }),
     __metadata("design:type", String)

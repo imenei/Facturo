@@ -12,30 +12,40 @@ import {
   UserSquare2, LayoutTemplate, Bell,
 } from 'lucide-react';
 
+
+
+import { Wrench } from 'lucide-react'; // ajouter à l'import lucide existant
+
 const navItems = {
   admin: [
-    { href: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-    { href: '/invoices', icon: FileText, labelKey: 'nav.invoices' },
-    { href: '/clients', icon: UserSquare2, labelKey: 'nav.clients' },
-    { href: '/deliveries', icon: Truck, labelKey: 'nav.deliveries' },
-    { href: '/tasks', icon: CheckSquare, labelKey: 'nav.tasks' },
-    { href: '/products', icon: ShoppingBag, labelKey: 'nav.products' },
-    { href: '/templates', icon: LayoutTemplate, labelKey: 'nav.templates' },
-    { href: '/users', icon: Users, labelKey: 'nav.users' },
-    { href: '/company', icon: Building2, labelKey: 'nav.company' },
+    { href: '/dashboard',    icon: LayoutDashboard, label: 'Tableau de bord' },
+    { href: '/invoices',     icon: FileText,         label: 'Factures' },
+    { href: '/clients',      icon: UserSquare2,      label: 'Clients' },
+    { href: '/deliveries',   icon: Truck,            label: 'Livraisons' },
+    { href: '/tasks',        icon: CheckSquare,      label: 'Tâches' },
+    { href: '/interventions',icon: Wrench,           label: 'Interventions' }, // ← NOUVEAU
+    { href: '/products',     icon: ShoppingBag,      label: 'Produits' },
+    { href: '/templates',    icon: LayoutTemplate,   label: 'Templates' },
+    { href: '/users',        icon: Users,            label: 'Utilisateurs' },
+    { href: '/company',      icon: Building2,        label: 'Entreprise' },
   ],
   commercial: [
-    { href: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-    { href: '/invoices', icon: FileText, labelKey: 'nav.invoices' },
-    { href: '/clients', icon: UserSquare2, labelKey: 'nav.clients' },
-    { href: '/invoices/new?type=proforma', icon: FileStack, labelKey: 'invoice.proforma' },
-    { href: '/invoices/new?type=bon_livraison', icon: Package, labelKey: 'invoice.bon_livraison' },
-    { href: '/products', icon: ShoppingBag, labelKey: 'nav.products' },
-    { href: '/notifications', icon: Bell, labelKey: 'nav.notifications' },
+    { href: '/dashboard',              icon: LayoutDashboard, label: 'Tableau de bord' },
+    { href: '/invoices',               icon: FileText,         label: 'Factures' },
+    { href: '/clients',                icon: UserSquare2,      label: 'Clients' },
+    { href: '/invoices/new?type=proforma',      icon: FileStack, label: 'Proforma' },
+    { href: '/invoices/new?type=bon_livraison', icon: Package,   label: 'Bon de livraison' },
+    { href: '/products',               icon: ShoppingBag,      label: 'Produits' },
+    { href: '/notifications',          icon: Bell,             label: 'Rappels' },
   ],
   livreur: [
-    { href: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-    { href: '/tasks', icon: CheckSquare, labelKey: 'nav.my_tasks' },
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Tableau de bord' },
+    { href: '/tasks',     icon: CheckSquare,     label: 'Mes tâches' },
+  ],
+  // ← NOUVEAU RÔLE TECHNICIEN
+  technicien: [
+    { href: '/dashboard',     icon: LayoutDashboard, label: 'Tableau de bord' },
+    { href: '/interventions', icon: Wrench,          label: 'Mes interventions' },
   ],
 };
 
@@ -72,7 +82,8 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {items.map(({ href, icon: Icon, labelKey }) => {
+        {items.map(({ href, icon: Icon, label }) => {
+
           const baseHref = href.split('?')[0];
           const active = pathname === baseHref || (baseHref !== '/dashboard' && pathname.startsWith(baseHref));
           return (
@@ -81,7 +92,7 @@ export default function Sidebar() {
               active ? 'bg-brand-600 text-white font-medium' : 'text-slate-400 hover:text-white hover:bg-slate-800'
             )}>
               <Icon size={18} />
-              {t(labelKey)}
+              {t(label)}
             </Link>
           );
         })}

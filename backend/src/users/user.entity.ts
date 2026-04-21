@@ -1,11 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity, PrimaryGeneratedColumn, Column,
+  CreateDateColumn, UpdateDateColumn, OneToMany,
+} from 'typeorm';
 import { Invoice } from '../invoices/invoice.entity';
 import { Task } from '../tasks/task.entity';
 
 export enum UserRole {
-  ADMIN = 'admin',
-  COMMERCIAL = 'commercial',
-  LIVREUR = 'livreur',
+  ADMIN       = 'admin',
+  COMMERCIAL  = 'commercial',
+  LIVREUR     = 'livreur',
+  TECHNICIEN  = 'technicien',   // ← nouveau rôle
 }
 
 @Entity('users')
@@ -24,6 +28,9 @@ export class User {
 
   @Column({ nullable: true })
   phone: string;
+
+  @Column({ nullable: true })
+  specialty: string;  // ex: "Électronique", "Réseau", "Informatique" — pour le technicien
 
   @Column({ type: 'enum', enum: UserRole, default: UserRole.COMMERCIAL })
   role: UserRole;

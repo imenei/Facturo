@@ -13,6 +13,7 @@ export declare class AuthController {
             email: string;
             name: string;
             phone: string;
+            specialty: string;
             role: import("../users/user.entity").UserRole;
             isActive: boolean;
             invoices: import("../invoices/invoice.entity").Invoice[];

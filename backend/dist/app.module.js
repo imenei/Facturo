@@ -7,6 +7,7 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
+const intervention_module_1 = require("./intervention/intervention.module");
 const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const config_1 = require("@nestjs/config");
@@ -33,9 +34,9 @@ exports.AppModule = AppModule = __decorate([
             typeorm_1.TypeOrmModule.forRoot({
                 type: 'postgres',
                 host: process.env.DB_HOST || 'localhost',
-                port: parseInt(process.env.DB_PORT ?? '5432', 10),
-                username: process.env.DB_USER || 'postgres',
-                password: process.env.DB_PASS || 'imene',
+                port: parseInt(process.env.DB_PORT) || 5432,
+                username: process.env.DB_USER || 'facturo',
+                password: process.env.DB_PASS || 'facturo_pass',
                 database: process.env.DB_NAME || 'facturo_db',
                 autoLoadEntities: true,
                 synchronize: process.env.NODE_ENV !== 'production',
@@ -53,6 +54,7 @@ exports.AppModule = AppModule = __decorate([
             templates_module_1.TemplatesModule,
             upload_module_1.UploadModule,
             gateway_module_1.GatewayModule,
+            intervention_module_1.InterventionsModule,
         ],
     })
 ], AppModule);

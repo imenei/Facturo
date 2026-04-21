@@ -1,10 +1,18 @@
 'use client';
+// frontend/src/app/(dashboard)/dashboard/page.tsx
+
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
 import api from '@/lib/api';
-import { FileText, CheckSquare, Truck, DollarSign, TrendingUp, Clock, Loader2, Users, BarChart3, AlertCircle } from 'lucide-react';
+import {
+  FileText, CheckSquare, Truck, DollarSign, TrendingUp,
+  Clock, Loader2, Users, BarChart3, AlertCircle, Wrench,
+  PlayCircle, Timer,
+} from 'lucide-react';
 import Link from 'next/link';
+
+// ── Composants partagés ───────────────────────────────────────────────────────
 
 function StatCard({ icon: Icon, label, value, color, sub }: any) {
   return (
@@ -23,17 +31,22 @@ function StatCard({ icon: Icon, label, value, color, sub }: any) {
 
 function WorkflowBadge({ step }: { step: string }) {
   const steps = ['commande', 'livraison', 'facturation', 'recouvrement'];
-  const labels: Record<string, string> = { 
-    commande: 'Cmd', 
-    livraison: 'Liv', 
-    facturation: 'Fact', 
-    recouvrement: 'Recouv' 
+  const labels: Record<string, string> = {
+    commande: 'Cmd',
+    livraison: 'Liv',
+    facturation: 'Fact',
+    recouvrement: 'Recouv',
   };
   const currentIdx = steps.indexOf(step);
   return (
     <div className="flex items-center gap-0.5">
       {steps.map((s, i) => (
-        <div key={s} className={`text-xs px-1.5 py-0.5 rounded font-medium ${i <= currentIdx ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+        <div
+          key={s}
+          className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+            i <= currentIdx ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-400'
+          }`}
+        >
           {labels[s]}
         </div>
       ))}
@@ -41,13 +54,23 @@ function WorkflowBadge({ step }: { step: string }) {
   );
 }
 
+// ── Page principale ───────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { t } = useI18nStore();
-  const [overview, setOverview] = useState<any>(null);
+
+  // États communs
+  const [overview, setOverview]             = useState<any>(null);
   const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
-  const [taskStats, setTaskStats] = useState<any>(null);
-  const [topClients, setTopClients] = useState<any[]>([]);
+  const [taskStats, setTaskStats]           = useState<any>(null);
+  const [topClients, setTopClients]         = useState<any[]>([]);
+
+  // États technicien
+  const [techStats, setTechStats] = useState<any>(null);
+  const [activeIvs, setActiveIvs] = useState<any[]>([]);
+  const [recentIvs, setRecentIvs] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,14 +85,26 @@ export default function DashboardPage() {
           setOverview(ov.data);
           setRecentInvoices(inv.data.slice(0, 5));
           setTopClients(clients.data.slice(0, 4));
+
         } else if (user?.role === 'commercial') {
           const inv = await api.get('/invoices');
           setRecentInvoices(inv.data.slice(0, 5));
           const paid = inv.data.filter((i: any) => i.paymentStatus === 'paid').length;
           setOverview({ invoicesCount: { total: inv.data.length, paid } });
+
         } else if (user?.role === 'livreur') {
           const ts = await api.get('/tasks/my-stats');
           setTaskStats(ts.data);
+
+        } else if (user?.role === 'technicien') {
+          const [st, active, recent] = await Promise.all([
+            api.get('/interventions/stats'),
+            api.get('/interventions', { params: { status: 'en_cours' } }),
+            api.get('/interventions', { params: { limit: 5 } }),
+          ]);
+          setTechStats(st.data);
+          setActiveIvs(active.data);
+          setRecentIvs(recent.data);
         }
       } catch {}
       setLoading(false);
@@ -87,26 +122,50 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-3xl font-display font-700 text-slate-900">{t('hello')}, {user?.name?.split(' ')[0]}</h1>
-        <p className="text-slate-500 mt-1">{t('activity_overview')}</p>
+
+      {/* ── Header commun à tous les rôles ── */}
+      <div className="mb-8 flex items-center gap-4">
+        <div className="w-14 h-14 rounded-2xl bg-brand-600 flex items-center justify-center text-white text-2xl font-700 uppercase shrink-0">
+          {user?.name?.charAt(0)}
+        </div>
+        <div>
+          <h1 className="text-3xl font-display font-700 text-slate-900">
+            {t('hello')}, {user?.name?.split(' ')[0]} 👋
+          </h1>
+          <p className="text-slate-500 mt-0.5">
+            {user?.role === 'technicien' && user?.specialty
+              ? `Spécialité : ${user.specialty}`
+              : t('activity_overview')}
+          </p>
+        </div>
       </div>
 
+      {/* ════════════════════════════════════════════════════════════
+          ADMIN — Stats + Top clients
+      ════════════════════════════════════════════════════════════ */}
       {user?.role === 'admin' && overview && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <StatCard icon={TrendingUp} label={t("revenue")} color="bg-brand-500"
+            <StatCard
+              icon={TrendingUp} label={t('revenue')} color="bg-brand-500"
               value={`${Number(overview.revenue?.totalRevenue || 0).toLocaleString('fr-DZ')} DZD`}
-              sub={`${overview.revenue?.paidInvoicesCount || 0} ${t('paid_invoices_count')}`} />
-            <StatCard icon={AlertCircle} label={t('unpaid_amount')} color="bg-red-500"
+              sub={`${overview.revenue?.paidInvoicesCount || 0} ${t('paid_invoices_count')}`}
+            />
+            <StatCard
+              icon={AlertCircle} label={t('unpaid_amount')} color="bg-red-500"
               value={`${Number(overview.revenue?.unpaidRevenue || 0).toLocaleString('fr-DZ')} DZD`}
-              sub={`${overview.invoicesCount?.unpaid || 0} ${t('pending')}`} />
-            <StatCard icon={FileText} label={t('total_invoices')} color="bg-slate-600"
+              sub={`${overview.invoicesCount?.unpaid || 0} ${t('pending')}`}
+            />
+            <StatCard
+              icon={FileText} label={t('total_invoices')} color="bg-slate-600"
               value={overview.invoicesCount?.total || 0}
-              sub={`${overview.invoicesCount?.draft || 0} ${t('draft_invoices')}`} />
-            <StatCard icon={CheckSquare} label={t('deliveries')} color="bg-emerald-500"
+              sub={`${overview.invoicesCount?.draft || 0} ${t('draft_invoices')}`}
+            />
+            <StatCard
+              icon={CheckSquare} label={t('deliveries')} color="bg-emerald-500"
               value={`${overview.deliveries?.completed || 0} / ${overview.deliveries?.total || 0}`}
-              sub={`${t('rate')}: ${overview.deliveries?.completionRate || 0}%`} />
+              sub={`${t('rate')}: ${overview.deliveries?.completionRate || 0}%`}
+            />
           </div>
 
           {topClients.length > 0 && (
@@ -114,13 +173,17 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 size={18} className="text-brand-500" />
                 <h2 className="font-display font-600 text-slate-900">{t('revenue_by_client')}</h2>
-                <Link href="/clients" className="ml-auto text-sm text-brand-600 hover:underline">{t('view_all')} →</Link>
+                <Link href="/clients" className="ml-auto text-sm text-brand-600 hover:underline">
+                  {t('view_all')} →
+                </Link>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {topClients.map((c: any) => (
                   <div key={c.clientId || c.clientName} className="bg-slate-50 rounded-lg p-3">
                     <div className="font-medium text-slate-900 text-sm truncate">{c.clientName}</div>
-                    <div className="text-brand-600 font-700 mt-1">{Number(c.totalRevenue || 0).toLocaleString('fr-DZ')}</div>
+                    <div className="text-brand-600 font-700 mt-1">
+                      {Number(c.totalRevenue || 0).toLocaleString('fr-DZ')}
+                    </div>
                     <div className="text-xs text-slate-400">DZD · {c.invoiceCount} {t('docs_count')}</div>
                   </div>
                 ))}
@@ -130,31 +193,148 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* ════════════════════════════════════════════════════════════
+          COMMERCIAL — Stats
+      ════════════════════════════════════════════════════════════ */}
       {user?.role === 'commercial' && overview && (
         <div className="grid grid-cols-2 gap-4 mb-8">
-          <StatCard icon={FileText} label={t('my_invoices')} color="bg-brand-500" value={overview.invoicesCount?.total || 0} />
+          <StatCard icon={FileText}    label={t('my_invoices')}   color="bg-brand-500"   value={overview.invoicesCount?.total || 0} />
           <StatCard icon={CheckSquare} label={t('paid_invoices')} color="bg-emerald-500" value={overview.invoicesCount?.paid || 0} />
         </div>
       )}
 
+      {/* ════════════════════════════════════════════════════════════
+          LIVREUR — Stats
+      ════════════════════════════════════════════════════════════ */}
       {user?.role === 'livreur' && taskStats && (
         <div className="grid grid-cols-3 gap-4 mb-8">
-          <StatCard icon={CheckSquare} label={t('total_tasks')} color="bg-brand-500" value={taskStats.total || 0} />
+          <StatCard icon={CheckSquare} label={t('total_tasks')}     color="bg-brand-500"   value={taskStats.total || 0} />
           <StatCard icon={CheckSquare} label={t('completed_tasks')} color="bg-emerald-500" value={taskStats.completed || 0} />
-          <StatCard icon={DollarSign} label={t('total_earned')} color="bg-purple-500"
-            value={`${Number(taskStats.totalEarned || 0).toLocaleString('fr-DZ')} DZD`} />
+          <StatCard
+            icon={DollarSign} label={t('total_earned')} color="bg-purple-500"
+            value={`${Number(taskStats.totalEarned || 0).toLocaleString('fr-DZ')} DZD`}
+          />
         </div>
       )}
 
+      {/* ════════════════════════════════════════════════════════════
+          TECHNICIEN — Stats
+      ════════════════════════════════════════════════════════════ */}
+      {user?.role === 'technicien' && techStats && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+          <StatCard icon={Wrench}      label="Total interventions" color="bg-brand-500"   value={techStats.total} />
+          <StatCard icon={PlayCircle}  label="En cours"            color="bg-blue-500"    value={techStats.inProgress} />
+          <StatCard icon={CheckSquare} label="Terminées"           color="bg-emerald-500" value={techStats.done} />
+          <StatCard icon={Clock}       label="En attente"          color="bg-amber-500"   value={techStats.pending} />
+          <StatCard
+            icon={Timer} label="Heures travaillées" color="bg-purple-500"
+            value={`${techStats.totalWorkedHours}h`}
+          />
+          <StatCard
+            icon={DollarSign} label={t('total_earned')} color="bg-slate-600"
+            value={`${Number(techStats.totalEarned || 0).toLocaleString('fr-DZ')} DZD`}
+          />
+        </div>
+      )}
+
+      {/* TECHNICIEN — Interventions en cours (live) */}
+      {user?.role === 'technicien' && activeIvs.length > 0 && (
+        <div className="card p-6 mb-6">
+          <h2 className="font-display font-600 text-slate-900 mb-4 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            Interventions en cours
+          </h2>
+          <div className="space-y-3">
+            {activeIvs.map((iv) => (
+              <Link
+                key={iv.id}
+                href={`/interventions/${iv.id}`}
+                className="flex items-center justify-between p-4 rounded-xl bg-blue-50 border border-blue-100 hover:border-blue-300 transition-all"
+              >
+                <div>
+                  <div className="font-mono text-xs text-blue-500 font-medium">{iv.ticketNumber}</div>
+                  <div className="font-display font-600 text-slate-900 mt-0.5">
+                    {iv.machineName} {iv.machineBrand && `(${iv.machineBrand})`}
+                  </div>
+                  <div className="text-sm text-slate-500">👤 {iv.clientName}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-400">Démarré le</div>
+                  <div className="text-sm text-slate-700">
+                    {iv.startedAt ? new Date(iv.startedAt).toLocaleDateString('fr-FR') : '—'}
+                  </div>
+                  <div className="text-brand-600 font-700 text-sm mt-1">
+                    {Number(iv.totalPrice).toLocaleString('fr-DZ')} DZD
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* TECHNICIEN — Dernières interventions */}
+      {user?.role === 'technicien' && recentIvs.length > 0 && (
+        <div className="card p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display font-600 text-slate-900">Dernières interventions</h2>
+            <Link href="/interventions" className="text-sm text-brand-600 hover:underline">
+              {t('view_all')} →
+            </Link>
+          </div>
+          <div className="space-y-1">
+            {recentIvs.map((iv: any) => (
+              <Link
+                key={iv.id}
+                href={`/interventions/${iv.id}`}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors gap-3 flex-wrap"
+              >
+                <div>
+                  <div className="font-mono text-sm font-medium text-slate-900">{iv.ticketNumber}</div>
+                  <div className="text-xs text-slate-500">
+                    {iv.machineName}{iv.machineBrand ? ` · ${iv.machineBrand}` : ''} · 👤 {iv.clientName}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="font-medium text-sm">
+                    {Number(iv.totalPrice || 0).toLocaleString('fr-DZ')} DZD
+                  </div>
+                  <span className={`text-xs font-medium ${
+                    iv.status === 'terminee' ? 'text-emerald-600' :
+                    iv.status === 'en_cours' ? 'text-blue-500'   :
+                    iv.status === 'annulee'  ? 'text-red-500'    :
+                                               'text-amber-500'
+                  }`}>
+                    {iv.status === 'terminee' ? '✓ Terminée'  :
+                     iv.status === 'en_cours' ? '▶ En cours'  :
+                     iv.status === 'annulee'  ? '✕ Annulée'   :
+                                                '○ En attente'}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════
+          Dernières factures — Admin / Commercial
+      ════════════════════════════════════════════════════════════ */}
       {recentInvoices.length > 0 && (
         <div className="card p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-display font-600 text-slate-900">{t('latest_invoices')}</h2>
-            <Link href="/invoices" className="text-sm text-brand-600 hover:underline">{t('view_all')} →</Link>
+            <Link href="/invoices" className="text-sm text-brand-600 hover:underline">
+              {t('view_all')} →
+            </Link>
           </div>
           <div className="space-y-1">
             {recentInvoices.map((inv: any) => (
-              <Link key={inv.id} href={`/invoices/${inv.id}`} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors gap-3 flex-wrap">
+              <Link
+                key={inv.id}
+                href={`/invoices/${inv.id}`}
+                className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 transition-colors gap-3 flex-wrap"
+              >
                 <div>
                   <div className="font-mono text-sm font-medium text-slate-900">{inv.number}</div>
                   <div className="text-xs text-slate-500">{inv.clientName}</div>
@@ -162,9 +342,15 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   {inv.workflowStep && <WorkflowBadge step={inv.workflowStep} />}
                   <div className="text-right">
-                    <div className="font-medium text-sm">{Number(inv.total).toLocaleString('fr-DZ')} DZD</div>
-                    <span className={`text-xs font-medium ${inv.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {inv.paymentStatus === 'paid' ? `✓ ${t('paid_status')}` : `○ ${t('unpaid_status_short')}`}
+                    <div className="font-medium text-sm">
+                      {Number(inv.total).toLocaleString('fr-DZ')} DZD
+                    </div>
+                    <span className={`text-xs font-medium ${
+                      inv.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-500'
+                    }`}>
+                      {inv.paymentStatus === 'paid'
+                        ? `✓ ${t('paid_status')}`
+                        : `○ ${t('unpaid_status_short')}`}
                     </span>
                   </div>
                 </div>
@@ -174,20 +360,75 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ════════════════════════════════════════════════════════════
+          Actions rapides — tous les rôles
+      ════════════════════════════════════════════════════════════ */}
       <div className="card p-6">
         <h2 className="font-display font-600 text-slate-900 mb-4">{t('quick_actions')}</h2>
         <div className="flex flex-wrap gap-3">
+
+          {/* Admin + Commercial */}
           {(user?.role === 'admin' || user?.role === 'commercial') && (
             <>
-              <Link href="/invoices/new" className="btn-primary"><FileText size={16} /> {t('new_invoice')}</Link>
-              <Link href="/invoices/new?type=proforma" className="btn-secondary"><FileText size={16} /> {t('proforma')}</Link>
-              <Link href="/invoices/new?type=bon_livraison" className="btn-secondary"><Truck size={16} /> {t('delivery_note')}</Link>
-              <Link href="/clients" className="btn-secondary"><Users size={16} /> {t('clients')}</Link>
+              <Link href="/invoices/new" className="btn-primary">
+                <FileText size={16} /> {t('new_invoice')}
+              </Link>
+              <Link href="/invoices/new?type=proforma" className="btn-secondary">
+                <FileText size={16} /> {t('proforma')}
+              </Link>
+              <Link href="/invoices/new?type=bon_livraison" className="btn-secondary">
+                <Truck size={16} /> {t('delivery_note')}
+              </Link>
+              <Link href="/clients" className="btn-secondary">
+                <Users size={16} /> {t('clients')}
+              </Link>
             </>
           )}
-          {user?.role === 'admin' && <Link href="/tasks" className="btn-secondary"><CheckSquare size={16} /> {t('tasks')}</Link>}
-          {user?.role === 'commercial' && <Link href="/notifications" className="btn-secondary"><Clock size={16} /> {t('unpaid_reminders')}</Link>}
-          {user?.role === 'livreur' && <Link href="/tasks" className="btn-primary"><CheckSquare size={16} /> {t('my_tasks')}</Link>}
+
+          {/* Admin uniquement */}
+          {user?.role === 'admin' && (
+            <>
+              <Link href="/tasks" className="btn-secondary">
+                <CheckSquare size={16} /> {t('tasks')}
+              </Link>
+              <Link href="/interventions" className="btn-secondary">
+                <Wrench size={16} /> Interventions
+              </Link>
+            </>
+          )}
+
+          {/* Commercial uniquement */}
+          {user?.role === 'commercial' && (
+            <Link href="/notifications" className="btn-secondary">
+              <Clock size={16} /> {t('unpaid_reminders')}
+            </Link>
+          )}
+
+          {/* Livreur */}
+          {user?.role === 'livreur' && (
+            <Link href="/tasks" className="btn-primary">
+              <CheckSquare size={16} /> {t('my_tasks')}
+            </Link>
+          )}
+
+          {/* Technicien */}
+          {user?.role === 'technicien' && (
+            <>
+              <Link href="/interventions" className="btn-primary">
+                <Wrench size={16} /> Mes interventions
+              </Link>
+              <Link href="/interventions/new" className="btn-secondary">
+                <PlayCircle size={16} /> Nouvelle intervention
+              </Link>
+              <Link href="/interventions?status=en_attente" className="btn-secondary">
+                <Clock size={16} /> En attente
+              </Link>
+              <Link href="/interventions?status=terminee" className="btn-secondary">
+                <CheckSquare size={16} /> Terminées
+              </Link>
+            </>
+          )}
+
         </div>
       </div>
     </div>

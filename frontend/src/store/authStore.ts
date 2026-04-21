@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../lib/api';
 
-export type UserRole = 'admin' | 'commercial' | 'livreur';
+export type UserRole = 'admin' | 'commercial' | 'livreur' | 'technicien';
 
 export interface User {
   id: string;
@@ -10,6 +10,7 @@ export interface User {
   name: string;
   phone?: string;
   role: UserRole;
+  specialty?: string; // champ spécifique au technicien
 }
 
 interface AuthState {
