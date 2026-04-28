@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: 'Application de facturation, gestion commerciale et suivi des livraisons',
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Facturo' },
-  icons: { icon: '/icons/icon-192.png', apple: '/icons/icon-192.png' },
+  icons: { icon: '/icons/icon-512.png', apple: '/icons/icon-192.png' },
 };
 
 export const viewport: Viewport = {

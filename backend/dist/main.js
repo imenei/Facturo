@@ -5,11 +5,14 @@ const common_1 = require("@nestjs/common");
 const app_module_1 = require("./app.module");
 const path_1 = require("path");
 const fs_1 = require("fs");
+const express_1 = require("express");
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
     const uploadsDir = (0, path_1.join)(process.cwd(), 'uploads', 'logos');
     if (!(0, fs_1.existsSync)(uploadsDir))
         (0, fs_1.mkdirSync)(uploadsDir, { recursive: true });
+    app.use((0, express_1.json)({ limit: '20mb' }));
+    app.use((0, express_1.urlencoded)({ extended: true, limit: '20mb' }));
     app.enableCors({
         origin: process.env.FRONTEND_URL || 'http://localhost:3000',
         credentials: true,

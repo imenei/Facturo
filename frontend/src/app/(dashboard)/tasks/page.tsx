@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
   Plus, CheckCircle, XCircle, Clock, Loader2,
-  Edit2, Save, X, MapPin, Calendar,
+  Edit2, Save, X, MapPin, Calendar, Trash2,
 } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000';
@@ -82,7 +82,17 @@ function ClientLogo({
 
 // ── TaskCard ──────────────────────────────────────────────────────────────────
 
-function TaskCard({ task, onUpdate, isLivreur, t }: { task: any; onUpdate: () => void; isLivreur: boolean; t: (key: string) => string }) {
+function TaskCard({
+  task,
+  onUpdate,
+  isLivreur,
+  t,
+}: {
+  task: any;
+  onUpdate: () => void;
+  isLivreur: boolean;
+  t: (key: string) => string;
+}) {
   const [editing, setEditing] = useState(false);
   const [remarks, setRemarks] = useState(task.remarks || '');
   const [saving, setSaving] = useState(false);
@@ -117,6 +127,20 @@ function TaskCard({ task, onUpdate, isLivreur, t }: { task: any; onUpdate: () =>
       toast.success(t('remark_saved'));
     } catch {
       toast.error(t('error_saving_remark'));
+    }
+    setSaving(false);
+  };
+
+  const deleteTask = async () => {
+    if (!window.confirm(t('confirm_delete'))) return;
+
+    setSaving(true);
+    try {
+      await api.delete(`/tasks/${task.id}`);
+      onUpdate();
+      toast.success(t('success'));
+    } catch {
+      toast.error(t('error_deleting'));
     }
     setSaving(false);
   };
@@ -170,6 +194,17 @@ function TaskCard({ task, onUpdate, isLivreur, t }: { task: any; onUpdate: () =>
             <span className="font-display font-700 text-brand-600 text-sm">
               {Number(task.price).toLocaleString('fr-FR')} DZD
             </span>
+            {!isLivreur && (
+              <button
+                type="button"
+                onClick={deleteTask}
+                disabled={saving}
+                className="inline-flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-lg transition-all"
+              >
+                <Trash2 size={12} />
+                {t('delete')}
+              </button>
+            )}
           </div>
         </div>
 

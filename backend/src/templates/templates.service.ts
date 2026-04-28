@@ -75,9 +75,14 @@ export class TemplatesService {
   }
 
   async setDefault(id: string): Promise<DocumentTemplate> {
-    // Unset all defaults
-    await this.templatesRepo.update({}, { isDefault: false });
     const t = await this.findOne(id);
+    // Unset defaults only on existing active templates to avoid empty criteria updates.
+    await this.templatesRepo
+      .createQueryBuilder()
+      .update(DocumentTemplate)
+      .set({ isDefault: false })
+      .where('isDefault = :isDefault', { isDefault: true })
+      .execute();
     t.isDefault = true;
     return this.templatesRepo.save(t);
   }

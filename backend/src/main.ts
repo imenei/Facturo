@@ -4,11 +4,16 @@ import { AppModule } from './app.module';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { json, urlencoded } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // Ensure uploads directory exists
   const uploadsDir = join(process.cwd(), 'uploads', 'logos');
   if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+
+  // Allow larger JSON/form payloads for logos and rich template/company settings.
+  app.use(json({ limit: '20mb' }));
+  app.use(urlencoded({ extended: true, limit: '20mb' }));
 
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',

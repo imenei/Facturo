@@ -78,8 +78,13 @@ let TemplatesService = class TemplatesService {
         return this.templatesRepo.save(t);
     }
     async setDefault(id) {
-        await this.templatesRepo.update({}, { isDefault: false });
         const t = await this.findOne(id);
+        await this.templatesRepo
+            .createQueryBuilder()
+            .update(template_entity_1.DocumentTemplate)
+            .set({ isDefault: false })
+            .where('isDefault = :isDefault', { isDefault: true })
+            .execute();
         t.isDefault = true;
         return this.templatesRepo.save(t);
     }

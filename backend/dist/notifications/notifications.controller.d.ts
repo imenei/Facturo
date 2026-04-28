@@ -8,7 +8,10 @@ export declare class NotificationsController {
             whatsapp?: boolean;
             sms?: boolean;
         };
-    }): Promise<any>;
+    }): Promise<Record<string, {
+        success: boolean;
+        message: string;
+    }>>;
     sendEmail(invoiceId: string): Promise<{
         success: boolean;
         message: string;
