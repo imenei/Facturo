@@ -26,6 +26,27 @@ export declare class StatsController {
         completionRate: string;
         totalEarnings: number;
     }>;
+    getUnpaidByClient(): Promise<any[]>;
+    getMonthlyRevenue(): Promise<any[]>;
+    getRevenueByUser(): Promise<any[]>;
+    getTopProducts(): Promise<{
+        name: string;
+        qty: number;
+        revenue: number;
+    }[]>;
+    getOverdueInvoices(): Promise<Invoice[]>;
+    getMarginStats(): Promise<{
+        totalMargin: number;
+        totalRevenue: number;
+        marginRate: string;
+    }>;
+    getDeliveryPerformance(): Promise<{
+        total: number;
+        completed: number;
+        onTime: number;
+        late: number;
+        onTimeRate: string;
+    }>;
     getOverview(): Promise<{
         revenue: {
             totalRevenue: number;

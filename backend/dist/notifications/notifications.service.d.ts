@@ -3,11 +3,17 @@ import { Invoice } from '../invoices/invoice.entity';
 export declare class NotificationsService {
     private invoicesRepo;
     private readonly logger;
+    private transporter;
     constructor(invoicesRepo: Repository<Invoice>);
-    private getMailConfig;
-    private createTransporter;
     private formatAmount;
+    getEmailTemplate(): {
+        subject: string;
+        body: string;
+    };
+    saveEmailTemplate(subject: string, body: string): void;
+    resetEmailTemplate(): void;
     private buildEmailHtml;
+    private buildEmailSubject;
     sendEmailReminder(invoiceId: string): Promise<{
         success: boolean;
         message: string;
@@ -24,8 +30,5 @@ export declare class NotificationsService {
         email?: boolean;
         whatsapp?: boolean;
         sms?: boolean;
-    }): Promise<Record<string, {
-        success: boolean;
-        message: string;
-    }>>;
+    }): Promise<any>;
 }

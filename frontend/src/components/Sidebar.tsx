@@ -9,33 +9,38 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, FileText, Truck, CheckSquare, Users, Building2,
   LogOut, Wifi, WifiOff, Package, FileStack, ShoppingBag,
-  UserSquare2, LayoutTemplate, Bell,
+  UserSquare2, LayoutTemplate, Bell, Wrench,
 } from 'lucide-react';
 
 const navItems = {
   admin: [
-    { href: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-    { href: '/invoices', icon: FileText, labelKey: 'nav.invoices' },
-    { href: '/clients', icon: UserSquare2, labelKey: 'nav.clients' },
-    { href: '/deliveries', icon: Truck, labelKey: 'nav.deliveries' },
-    { href: '/tasks', icon: CheckSquare, labelKey: 'nav.tasks' },
-    { href: '/products', icon: ShoppingBag, labelKey: 'nav.products' },
-    { href: '/templates', icon: LayoutTemplate, labelKey: 'nav.templates' },
-    { href: '/users', icon: Users, labelKey: 'nav.users' },
-    { href: '/company', icon: Building2, labelKey: 'nav.company' },
+    { href: '/dashboard',    icon: LayoutDashboard, label: 'nav.dashboard' },
+    { href: '/invoices',     icon: FileText,        label: 'nav.invoices' },
+    { href: '/clients',      icon: UserSquare2,     label: 'nav.clients' },
+    { href: '/deliveries',   icon: Truck,           label: 'nav.deliveries' },
+    { href: '/tasks',        icon: CheckSquare,     label: 'nav.tasks' },
+    { href: '/interventions',icon: Wrench,          label: 'nav.interventions' },
+    { href: '/products',     icon: ShoppingBag,     label: 'nav.products' },
+    { href: '/templates',    icon: LayoutTemplate,  label: 'nav.templates' },
+    { href: '/users',        icon: Users,           label: 'nav.users' },
+    { href: '/company',      icon: Building2,       label: 'nav.company' },
   ],
   commercial: [
-    { href: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-    { href: '/invoices', icon: FileText, labelKey: 'nav.invoices' },
-    { href: '/clients', icon: UserSquare2, labelKey: 'nav.clients' },
-    { href: '/invoices/new?type=proforma', icon: FileStack, labelKey: 'invoice.proforma' },
-    { href: '/invoices/new?type=bon_livraison', icon: Package, labelKey: 'invoice.bon_livraison' },
-    { href: '/products', icon: ShoppingBag, labelKey: 'nav.products' },
-    { href: '/notifications', icon: Bell, labelKey: 'nav.notifications' },
+    { href: '/dashboard',              icon: LayoutDashboard, label: 'nav.dashboard' },
+    { href: '/invoices',               icon: FileText,        label: 'nav.invoices' },
+    { href: '/clients',                icon: UserSquare2,     label: 'nav.clients' },
+    { href: '/invoices/new?type=proforma',      icon: FileStack, label: 'nav.proforma' },
+    { href: '/invoices/new?type=bon_livraison', icon: Package,   label: 'nav.delivery_note' },
+    { href: '/products',               icon: ShoppingBag,     label: 'nav.products' },
+    { href: '/notifications',          icon: Bell,            label: 'nav.notifications' },
   ],
   livreur: [
-    { href: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
-    { href: '/tasks', icon: CheckSquare, labelKey: 'nav.my_tasks' },
+    { href: '/dashboard', icon: LayoutDashboard, label: 'nav.dashboard' },
+    { href: '/tasks',     icon: CheckSquare,     label: 'nav.my_tasks' },
+  ],
+  technicien: [
+    { href: '/dashboard',     icon: LayoutDashboard, label: 'nav.dashboard' },
+    { href: '/interventions', icon: Wrench,          label: 'nav.my_interventions' },
   ],
 };
 
@@ -72,7 +77,8 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {items.map(({ href, icon: Icon, labelKey }) => {
+        {items.map(({ href, icon: Icon, label }) => {
+
           const baseHref = href.split('?')[0];
           const active = pathname === baseHref || (baseHref !== '/dashboard' && pathname.startsWith(baseHref));
           return (
@@ -81,7 +87,7 @@ export default function Sidebar() {
               active ? 'bg-brand-600 text-white font-medium' : 'text-slate-400 hover:text-white hover:bg-slate-800'
             )}>
               <Icon size={18} />
-              {t(labelKey)}
+              {t(label)}
             </Link>
           );
         })}

@@ -32,11 +32,23 @@ let TasksController = class TasksController {
     getMyStats(req) {
         return this.tasksService.getLivreurStats(req.user.id);
     }
+    getByLivreur(livreurId, from, to) {
+        return this.tasksService.getTasksByLivreur(livreurId, from, to);
+    }
     findOne(id, req) {
         return this.tasksService.findOne(id, req.user);
     }
     update(id, dto, req) {
         return this.tasksService.update(id, dto, req.user);
+    }
+    startDelivery(id, req) {
+        return this.tasksService.startDelivery(id, req.user);
+    }
+    finishDelivery(id, req) {
+        return this.tasksService.finishDelivery(id, req.user);
+    }
+    addExtraFees(id, body) {
+        return this.tasksService.addExtraFees(id, body);
     }
     remove(id) {
         return this.tasksService.remove(id);
@@ -68,6 +80,16 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], TasksController.prototype, "getMyStats", null);
 __decorate([
+    (0, common_1.Get)('by-livreur/:livreurId'),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('livreurId')),
+    __param(1, (0, common_1.Query)('from')),
+    __param(2, (0, common_1.Query)('to')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", void 0)
+], TasksController.prototype, "getByLivreur", null);
+__decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Request)()),
@@ -84,6 +106,33 @@ __decorate([
     __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], TasksController.prototype, "update", null);
+__decorate([
+    (0, common_1.Patch)(':id/start-delivery'),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.LIVREUR),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], TasksController.prototype, "startDelivery", null);
+__decorate([
+    (0, common_1.Patch)(':id/finish-delivery'),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.LIVREUR),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], TasksController.prototype, "finishDelivery", null);
+__decorate([
+    (0, common_1.Patch)(':id/extra-fees'),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], TasksController.prototype, "addExtraFees", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),

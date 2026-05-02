@@ -17,6 +17,7 @@ export declare class InvoicesService {
         status?: string;
         type?: string;
         paymentStatus?: string;
+        number?: string;
     }): Promise<Invoice[]>;
     private buildClientId;
     findOne(id: string, user: {

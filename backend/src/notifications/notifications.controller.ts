@@ -1,4 +1,4 @@
-import { Controller, Post, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Put, Delete, Param, Body, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -33,5 +33,26 @@ export class NotificationsController {
   @Post('send-reminder/:invoiceId/sms')
   sendSms(@Param('invoiceId') invoiceId: string) {
     return this.notificationsService.sendSmsReminder(invoiceId);
+  }
+
+  // MOD 8b: Get current email template
+  @Get('email-template')
+  getEmailTemplate() {
+    return this.notificationsService.getEmailTemplate();
+  }
+
+  // MOD 8b: Save custom email template
+  @Put('email-template')
+  saveEmailTemplate(@Body() body: { subject: string; body: string }) {
+    this.notificationsService.saveEmailTemplate(body.subject, body.body);
+    return { success: true, message: 'Modèle enregistré' };
+  }
+
+  // MOD 8b: Reset email template to default
+  @Delete('email-template')
+  @Roles(UserRole.ADMIN)
+  resetEmailTemplate() {
+    this.notificationsService.resetEmailTemplate();
+    return { success: true, message: 'Modèle réinitialisé au défaut' };
   }
 }

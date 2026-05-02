@@ -14,6 +14,7 @@ import { ClientsModule } from './clients/clients.module';
 import { TemplatesModule } from './templates/templates.module';
 import { UploadModule } from './upload/upload.module';
 import { GatewayModule } from './gateway/gateway.module';
+import { InterventionsModule } from './intervention/intervention.module';
 
 @Module({
   imports: [
@@ -21,11 +22,15 @@ import { GatewayModule } from './gateway/gateway.module';
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT ?? '5432', 10), // ✅ fix ts2345
-      username: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASS || 'imene',
+      port: parseInt(process.env.DB_PORT) || 5432,
+      username: process.env.DB_USER || 'facturo',
+      password: process.env.DB_PASS || 'facturo_pass',
       database: process.env.DB_NAME || 'facturo_db',
       autoLoadEntities: true,
+      // MOD 6: synchronize will auto-add new columns (startedDeliveryAt, finishedDeliveryAt,
+      //         extraFees, finalPrice, deliveryDurationMinutes) to tasks table
+      // MOD 7: synchronize will auto-add totalMargin, lastModifiedBy to invoices table
+      // In production use migrations instead of synchronize
       synchronize: process.env.NODE_ENV !== 'production',
     }),
     AuthModule,
@@ -41,6 +46,7 @@ import { GatewayModule } from './gateway/gateway.module';
     TemplatesModule,
     UploadModule,
     GatewayModule,
+    InterventionsModule,
   ],
 })
 export class AppModule {}

@@ -33,13 +33,20 @@ let InvoicesService = class InvoicesService {
         const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
         const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
         const total = subtotal + tvaAmount;
-        const items = dto.items.map((item, i) => ({
-            id: String(i + 1),
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            total: item.quantity * item.unitPrice,
-        }));
+        const items = dto.items.map((item, i) => {
+            const purchasePrice = item.purchasePrice ?? 0;
+            const margin = (item.unitPrice - purchasePrice) * item.quantity;
+            return {
+                id: String(i + 1),
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                purchasePrice,
+                margin,
+                total: item.quantity * item.unitPrice,
+            };
+        });
+        const totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
         const clientId = this.buildClientId(dto.clientName, dto.clientPhone);
         const invoice = this.invoicesRepository.create({
             ...dto,
@@ -48,6 +55,7 @@ let InvoicesService = class InvoicesService {
             subtotal,
             tvaAmount,
             total,
+            totalMargin,
             clientId,
             clientLogoUrl: dto.clientLogoUrl ?? undefined,
             paymentStatus: invoice_entity_1.PaymentStatus.UNPAID,
@@ -59,12 +67,18 @@ let InvoicesService = class InvoicesService {
         const qb = this.invoicesRepository
             .createQueryBuilder('inv')
             .leftJoinAndSelect('inv.createdBy', 'createdBy')
+            .leftJoinAndSelect('inv.lastModifiedBy', 'lastModifiedBy')
             .orderBy('inv.createdAt', 'DESC');
         if (user.role !== user_entity_1.UserRole.ADMIN) {
             qb.where('createdBy.id = :userId', { userId: user.id });
         }
         if (filters?.client) {
             qb.andWhere('LOWER(inv.clientName) LIKE :client', { client: `%${filters.client.toLowerCase()}%` });
+        }
+        if (filters?.number) {
+            qb.andWhere('UPPER(inv.number) LIKE :number', {
+                number: `%${filters.number.toUpperCase()}%`,
+            });
         }
         if (filters?.date) {
             qb.andWhere('DATE(inv.createdAt) = :date', { date: filters.date });
@@ -85,7 +99,10 @@ let InvoicesService = class InvoicesService {
         return phone ? `${slug}-${phone.replace(/\D/g, '').slice(-6)}` : slug;
     }
     async findOne(id, user) {
-        const invoice = await this.invoicesRepository.findOne({ where: { id }, relations: ['createdBy'] });
+        const invoice = await this.invoicesRepository.findOne({
+            where: { id },
+            relations: ['createdBy', 'lastModifiedBy'],
+        });
         if (!invoice)
             throw new common_1.NotFoundException('Facture non trouvée');
         if (user.role !== user_entity_1.UserRole.ADMIN && invoice.createdBy.id !== user.id) {
@@ -99,8 +116,23 @@ let InvoicesService = class InvoicesService {
             const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
             const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
             const total = subtotal + tvaAmount;
-            Object.assign(invoice, { subtotal, tvaAmount, total });
+            const items = dto.items.map((item, i) => {
+                const purchasePrice = item.purchasePrice ?? 0;
+                const margin = (item.unitPrice - purchasePrice) * item.quantity;
+                return {
+                    id: String(i + 1),
+                    description: item.description,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    purchasePrice,
+                    margin,
+                    total: item.quantity * item.unitPrice,
+                };
+            });
+            const totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
+            Object.assign(invoice, { subtotal, tvaAmount, total, items, totalMargin });
         }
+        invoice.lastModifiedBy = { id: user.id };
         Object.assign(invoice, dto);
         return this.invoicesRepository.save(invoice);
     }

@@ -19,6 +19,12 @@ export declare class Task {
     clientLogoUrl: string;
     clientAddress: string;
     completedAt: Date;
+    startedDeliveryAt: Date;
+    finishedDeliveryAt: Date;
+    deliveryDurationMinutes: number;
+    extraFees: number;
+    extraFeesNote: string;
+    finalPrice: number;
     createdAt: Date;
     updatedAt: Date;
 }

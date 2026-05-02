@@ -139,6 +139,10 @@ __decorate([
     __metadata("design:type", Number)
 ], Invoice.prototype, "total", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true }),
+    __metadata("design:type", Number)
+], Invoice.prototype, "totalMargin", void 0);
+__decorate([
     (0, typeorm_1.Column)({ nullable: true, type: 'text' }),
     __metadata("design:type", String)
 ], Invoice.prototype, "notes", void 0);
@@ -150,6 +154,10 @@ __decorate([
     (0, typeorm_1.ManyToOne)(() => user_entity_1.User, (user) => user.invoices, { eager: true }),
     __metadata("design:type", user_entity_1.User)
 ], Invoice.prototype, "createdBy", void 0);
+__decorate([
+    (0, typeorm_1.ManyToOne)(() => user_entity_1.User, { eager: true, nullable: true }),
+    __metadata("design:type", user_entity_1.User)
+], Invoice.prototype, "lastModifiedBy", void 0);
 __decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)

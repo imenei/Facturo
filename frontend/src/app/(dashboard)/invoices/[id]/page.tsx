@@ -13,10 +13,10 @@ import {
   ArrowLeft, FileDown, FileText, Edit, CheckCircle,
   XCircle, Loader2, Bell, ChevronRight, Mail,
   MessageCircle, Phone, AlertTriangle, Eye,
+  ShieldCheck, Briefcase, Lock, TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
 
-/* ─── constants ─────────────────────────────── */
 const STATUS_COLORS: Record<string, string> = {
   brouillon: 'bg-slate-100 text-slate-600',
   emise: 'bg-blue-100 text-blue-700',
@@ -36,7 +36,6 @@ const WORKFLOW_LABELS: Record<string, string> = {
   recouvrement: 'recouvrement_step',
 };
 
-/* ─── Workflow stepper ──────────────────────── */
 function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
   const [updating, setUpdating] = useState(false);
   const currentIdx = WORKFLOW_STEPS.indexOf(current);
@@ -59,16 +58,13 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
         const isNext = i === currentIdx + 1;
         return (
           <div key={step} className="flex items-center">
-            <button
-              onClick={() => advance(step)}
-              disabled={!canEdit || updating || i > currentIdx + 1}
+            <button onClick={() => advance(step)} disabled={!canEdit || updating || i > currentIdx + 1}
               className={clsx(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                 done ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500',
                 isNext && canEdit && 'ring-2 ring-brand-300 ring-offset-1 cursor-pointer hover:bg-brand-50',
-                !canEdit || (i > currentIdx + 1) ? 'cursor-default' : 'cursor-pointer',
-              )}
-            >
+                !canEdit || i > currentIdx + 1 ? 'cursor-default' : 'cursor-pointer',
+              )}>
               {done ? <CheckCircle size={11} /> : <div className="w-2 h-2 rounded-full bg-current opacity-40" />}
               {t(WORKFLOW_LABELS[step])}
             </button>
@@ -82,7 +78,6 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
   );
 }
 
-/* ─── Reminder panel ────────────────────────── */
 function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => string }) {
   const [sending, setSending] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, any>>({});
@@ -102,10 +97,10 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   };
 
   const channels = [
-    { key: 'email', icon: Mail, label: t('email'), available: !!invoice.clientEmail, hint: invoice.clientEmail },
-    { key: 'whatsapp', icon: MessageCircle, label: 'WhatsApp', available: !!invoice.clientPhone, hint: invoice.clientPhone },
-    { key: 'sms', icon: Phone, label: 'SMS', available: !!invoice.clientPhone, hint: invoice.clientPhone },
-  ] as const;
+    { key: 'email' as const, icon: Mail, label: t('email'), available: !!invoice.clientEmail, hint: invoice.clientEmail },
+    { key: 'whatsapp' as const, icon: MessageCircle, label: 'WhatsApp', available: !!invoice.clientPhone, hint: invoice.clientPhone },
+    { key: 'sms' as const, icon: Phone, label: 'SMS', available: !!invoice.clientPhone, hint: invoice.clientPhone },
+  ];
 
   return (
     <div className="card p-5">
@@ -118,16 +113,14 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
           const r = results[key];
           return (
             <div key={key} className="space-y-1">
-              <button
-                onClick={() => send(key)}
-                disabled={!available || sending === key}
+              <button onClick={() => send(key)} disabled={!available || sending === key}
                 title={!available ? t('missing_contact') : hint}
                 className={clsx(
                   'w-full flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 text-xs font-medium transition-all',
                   !available ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
                   r?.success ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
                   r && !r.success ? 'border-red-300 bg-red-50 text-red-600' :
-                  'border-slate-200 hover:border-brand-300 hover:bg-brand-50 text-slate-600 cursor-pointer'
+                  'border-slate-200 hover:border-brand-300 hover:bg-brand-50 text-slate-600 cursor-pointer',
                 )}>
                 {sending === key ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
                 {label}
@@ -150,7 +143,91 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   );
 }
 
-/* ─── Main page ─────────────────────────────── */
+// MOD 7: Internal margin section — never printed on PDF
+function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) => string }) {
+  const items = Array.isArray(invoice.items) ? invoice.items : [];
+  // Only show if at least one item has purchasePrice
+  const hasData = items.some((item: any) => item.purchasePrice !== undefined && item.purchasePrice !== null);
+  if (!hasData && Number(invoice.totalMargin) === 0) return null;
+
+  const totalRevenue = Number(invoice.total) || 0;
+  const totalMargin = items.reduce((sum: number, item: any) => {
+    if (item.purchasePrice != null) {
+      return sum + (Number(item.unitPrice) - Number(item.purchasePrice)) * Number(item.quantity);
+    }
+    return sum;
+  }, 0);
+  const marginRate = totalRevenue > 0 ? ((totalMargin / totalRevenue) * 100).toFixed(1) : '0';
+
+  return (
+    <div className="card overflow-hidden mb-6 border-2 border-dashed border-slate-300">
+      {/* Internal banner — not printed */}
+      <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+        <Lock size={14} className="text-slate-500" />
+        <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
+          Données internes — non incluses dans le PDF client
+        </span>
+        <TrendingUp size={14} className="text-emerald-500 ml-auto" />
+        <span className="text-xs font-bold text-emerald-600">
+          Marge brute : {totalMargin.toLocaleString('fr-DZ')} DZD ({marginRate}%)
+        </span>
+      </div>
+
+      <table className="w-full">
+        <thead>
+          <tr className="bg-slate-50">
+            <th className="text-left text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">Produit</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Prix achat</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Prix vente</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Qté</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">Marge totale</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-50">
+          {items.map((item: any, i: number) => {
+            const purchase = Number(item.purchasePrice || 0);
+            const sale = Number(item.unitPrice);
+            const qty = Number(item.quantity);
+            const margin = (sale - purchase) * qty;
+            const marginPct = sale > 0 ? (((sale - purchase) / sale) * 100).toFixed(0) : '0';
+            return (
+              <tr key={i} className="hover:bg-slate-50/50">
+                <td className="px-5 py-2.5 text-sm text-slate-700">{item.description}</td>
+                <td className="px-4 py-2.5 text-sm text-right text-slate-500 font-mono">
+                  {purchase > 0 ? `${purchase.toLocaleString('fr-DZ')} DZD` : <span className="text-slate-300">—</span>}
+                </td>
+                <td className="px-4 py-2.5 text-sm text-right text-slate-700 font-mono">
+                  {sale.toLocaleString('fr-DZ')} DZD
+                </td>
+                <td className="px-4 py-2.5 text-sm text-right text-slate-500">{qty}</td>
+                <td className="px-5 py-2.5 text-sm text-right font-semibold">
+                  {purchase > 0 ? (
+                    <span className={clsx(margin >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                      {margin.toLocaleString('fr-DZ')} DZD
+                      <span className="text-xs font-normal text-slate-400 ml-1">({marginPct}%)</span>
+                    </span>
+                  ) : <span className="text-slate-300">—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr className="bg-emerald-50/50 border-t-2 border-slate-200">
+            <td colSpan={4} className="px-5 py-3 text-sm font-600 text-slate-700">Marge brute totale</td>
+            <td className="px-5 py-3 text-right">
+              <span className={clsx('text-base font-display font-700', totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                {totalMargin.toLocaleString('fr-DZ')} DZD
+              </span>
+              <span className="text-xs text-slate-400 ml-1">({marginRate}%)</span>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 export default function InvoiceDetailPage() {
   const { id } = useParams();
   const { t } = useI18nStore();
@@ -210,6 +287,7 @@ export default function InvoiceDetailPage() {
 
   const isAdmin = user?.role === 'admin';
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
+  const isAdminOrCommercial = isAdmin || user?.role === 'commercial';
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -227,12 +305,11 @@ export default function InvoiceDetailPage() {
               <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryStatus])}>
                 {t(invoice.deliveryStatus?.replace('_', ' '))}
               </span>
-              {/* Payment badge */}
               {invoice.type === 'facture' && (
                 <button onClick={togglePayment} disabled={updatingPayment}
                   className={clsx(
                     'badge cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1',
-                    invoice.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                    invoice.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600',
                   )}>
                   {updatingPayment ? <Loader2 size={10} className="animate-spin" /> :
                     invoice.paymentStatus === 'paid' ? <CheckCircle size={11} /> : <XCircle size={11} />}
@@ -244,6 +321,26 @@ export default function InvoiceDetailPage() {
               {invoice.clientName} · {new Date(invoice.createdAt).toLocaleDateString('fr-DZ')}
               {invoice.dueDate && ` · ${t('due_date')}: ${new Date(invoice.dueDate).toLocaleDateString('fr-DZ')}`}
             </p>
+
+            {/* MOD 3: Creator + last modifier info */}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {invoice.createdBy && (
+                <span className={clsx(
+                  'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+                  invoice.createdBy.role === 'admin' ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600',
+                )}>
+                  {invoice.createdBy.role === 'admin' ? <ShieldCheck size={10} /> : <Briefcase size={10} />}
+                  Créé par {invoice.createdBy.role === 'admin' ? 'Admin' : invoice.createdBy.name}
+                  · {new Date(invoice.createdAt).toLocaleDateString('fr-FR')} à {new Date(invoice.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              {invoice.lastModifiedBy && invoice.lastModifiedBy.id !== invoice.createdBy?.id && (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
+                  Modifié par {invoice.lastModifiedBy.name}
+                  · {new Date(invoice.updatedAt).toLocaleDateString('fr-FR')}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -260,17 +357,11 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Workflow stepper (mod #2) */}
+      {/* Workflow stepper */}
       {invoice.workflowStep && (
         <div className="card p-5 mb-6">
           <h3 className="text-sm font-600 text-slate-500 mb-3">{t('workflow_progress')}</h3>
-          <WorkflowStepper
-            current={invoice.workflowStep}
-            invoiceId={invoice.id}
-            onUpdate={load}
-            canEdit={isAdmin}
-            t={t}
-          />
+          <WorkflowStepper current={invoice.workflowStep} invoiceId={invoice.id} onUpdate={load} canEdit={isAdmin} t={t} />
         </div>
       )}
 
@@ -286,9 +377,8 @@ export default function InvoiceDetailPage() {
             {invoice.clientNif && <p className="font-mono text-xs">NIF: {invoice.clientNif}</p>}
             {invoice.clientNis && <p className="font-mono text-xs">NIS: {invoice.clientNis}</p>}
           </div>
-          {/* Link to client view */}
           {invoice.clientId && (
-            <Link href={`/clients`} className="mt-3 text-xs text-brand-600 hover:underline flex items-center gap-1">
+            <Link href="/clients" className="mt-3 text-xs text-brand-600 hover:underline flex items-center gap-1">
               {t('view_all_client_docs')} <ChevronRight size={12} />
             </Link>
           )}
@@ -304,9 +394,8 @@ export default function InvoiceDetailPage() {
                   <button key={s} onClick={() => updateStatus(s)}
                     className={clsx(
                       'text-xs px-3 py-1.5 rounded-lg border transition-all capitalize',
-                      invoice.status === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'
-                    )}>{t(s)}
-                  </button>
+                      invoice.status === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
+                    )}>{t(s)}</button>
                 ))}
               </div>
             </div>
@@ -317,23 +406,20 @@ export default function InvoiceDetailPage() {
                   <button key={s} onClick={() => updateDelivery(s)}
                     className={clsx(
                       'text-xs px-3 py-1.5 rounded-lg border transition-all',
-                      invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50'
-                    )}>{t(s.replace('_', ' '))}
-                  </button>
+                      invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
+                    )}>{t(s.replace('_', ' '))}</button>
                 ))}
               </div>
             </div>
           </div>
         ) : (
-          /* Reminder panel for commercial on unpaid invoices */
           isUnpaid && <ReminderPanel invoice={invoice} t={t} />
         )}
       </div>
 
-      {/* Reminder panel for admin on unpaid */}
       {isAdmin && isUnpaid && <div className="mb-6"><ReminderPanel invoice={invoice} t={t} /></div>}
 
-      {/* Items table */}
+      {/* Items table (customer-facing) */}
       <div className="card overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-display font-600 text-slate-900">{t('items')}</h3>
@@ -353,18 +439,13 @@ export default function InvoiceDetailPage() {
               <tr key={i} className="hover:bg-slate-50/50">
                 <td className="px-5 py-3 text-sm text-slate-700">{item.description}</td>
                 <td className="px-4 py-3 text-sm text-center text-slate-500">{item.quantity}</td>
-                <td className="px-4 py-3 text-sm text-right text-slate-600">
-                  {Number(item.unitPrice).toLocaleString('fr-DZ')} DZD
-                </td>
-                <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">
-                  {Number(item.total).toLocaleString('fr-DZ')} DZD
-                </td>
+                <td className="px-4 py-3 text-sm text-right text-slate-600">{Number(item.unitPrice).toLocaleString('fr-DZ')} DZD</td>
+                <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">{Number(item.total).toLocaleString('fr-DZ')} DZD</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        {/* Totals */}
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
             <span>{t('subtotal_excl_tax')}</span>
@@ -383,6 +464,11 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
+      {/* MOD 7: Internal margin section (admin + commercial only, never in PDF) */}
+      {isAdminOrCommercial && invoice.type === 'facture' && (
+        <InternalMarginSection invoice={invoice} t={t} />
+      )}
+
       {invoice.notes && (
         <div className="card p-5">
           <h3 className="font-display font-600 text-slate-700 mb-2 text-sm">{t('notes')}</h3>
@@ -390,7 +476,6 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* PDF Preview Modal */}
       {showPreview && (
         <PDFPreviewModal
           invoice={invoice}

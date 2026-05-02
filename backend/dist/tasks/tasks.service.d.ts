@@ -19,4 +19,17 @@ export declare class TasksService {
     }): Promise<Task>;
     remove(id: string): Promise<void>;
     getLivreurStats(userId: string): Promise<any>;
+    startDelivery(id: string, user: {
+        id: string;
+        role: UserRole;
+    }): Promise<Task>;
+    finishDelivery(id: string, user: {
+        id: string;
+        role: UserRole;
+    }): Promise<Task>;
+    addExtraFees(id: string, dto: {
+        extraFees: number;
+        extraFeesNote?: string;
+    }): Promise<Task>;
+    getTasksByLivreur(livreurId: string, from?: string, to?: string): Promise<Task[]>;
 }

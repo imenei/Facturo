@@ -25,7 +25,6 @@ export enum DeliveryStatus {
   NON_LIVREE = 'non_livree',
 }
 
-// Workflow: commande → livraison → facturation → recouvrement
 export enum WorkflowStep {
   COMMANDE = 'commande',
   LIVRAISON = 'livraison',
@@ -50,31 +49,24 @@ export class Invoice {
   @Column({ type: 'enum', enum: DeliveryStatus, default: DeliveryStatus.EN_ATTENTE })
   deliveryStatus: DeliveryStatus;
 
-  // Payment status (modification 2)
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.UNPAID })
   paymentStatus: PaymentStatus;
 
-  // Workflow step (modification 2)
   @Column({ type: 'enum', enum: WorkflowStep, default: WorkflowStep.COMMANDE })
   workflowStep: WorkflowStep;
 
-  // Client identifier for grouping (modification 3)
   @Column({ nullable: true })
-  clientId: string; // normalized slug from clientName+phone
+  clientId: string;
 
-  // Client logo URL — uploaded per client, stored on all their invoices
   @Column({ nullable: true, type: 'text' })
   clientLogoUrl: string;
 
-  // Delivery date (modification 7 — nullable)
   @Column({ nullable: true, type: 'date' })
   deliveryDate: Date;
 
-  // Template used (modification 12)
   @Column({ nullable: true })
   templateType: string;
 
-  // Client info
   @Column()
   clientName: string;
 
@@ -93,11 +85,10 @@ export class Invoice {
   @Column({ nullable: true })
   clientNis: string;
 
-  // Items JSON
+  // MOD 7: items include purchasePrice and margin (internal, never printed)
   @Column({ type: 'jsonb', default: '[]' })
   items: InvoiceItem[];
 
-  // Amounts
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   subtotal: number;
 
@@ -113,6 +104,10 @@ export class Invoice {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   total: number;
 
+  // MOD 7: total gross margin (internal only)
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
+  totalMargin: number;
+
   @Column({ nullable: true, type: 'text' })
   notes: string;
 
@@ -121,6 +116,10 @@ export class Invoice {
 
   @ManyToOne(() => User, (user) => user.invoices, { eager: true })
   createdBy: User;
+
+  // MOD 3: track who last modified
+  @ManyToOne(() => User, { eager: true, nullable: true })
+  lastModifiedBy: User;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -134,5 +133,7 @@ export interface InvoiceItem {
   description: string;
   quantity: number;
   unitPrice: number;
+  purchasePrice?: number;  // MOD 7: internal, not printed on PDF
+  margin?: number;         // MOD 7: (unitPrice - purchasePrice) * qty, internal
   total: number;
 }

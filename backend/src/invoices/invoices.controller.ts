@@ -19,8 +19,7 @@ export class InvoicesController {
     return this.invoicesService.create(dto, req.user.id);
   }
 
-  // Modification 6: advanced search via query params
-  // GET /invoices?client=&date=&status=&paymentStatus=&type=
+  // MOD 2: added ?number= query param for invoice number search
   @Get()
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   findAll(
@@ -30,8 +29,9 @@ export class InvoicesController {
     @Query('status') status?: string,
     @Query('paymentStatus') paymentStatus?: string,
     @Query('type') type?: string,
+    @Query('number') number?: string,  // MOD 2
   ) {
-    return this.invoicesService.findAll(req.user, { client, date, status, paymentStatus, type });
+    return this.invoicesService.findAll(req.user, { client, date, status, paymentStatus, type, number });
   }
 
   @Get('stats')
@@ -58,14 +58,12 @@ export class InvoicesController {
     return this.invoicesService.updateDeliveryStatus(id, status);
   }
 
-  // Modification 2: update payment status (paid/unpaid)
   @Patch(':id/payment-status')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   updatePayment(@Param('id') id: string, @Body('paymentStatus') paymentStatus: string) {
     return this.invoicesService.updatePaymentStatus(id, paymentStatus as any);
   }
 
-  // Modification 2: advance workflow step
   @Patch(':id/workflow')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   updateWorkflow(@Param('id') id: string, @Body('step') step: string) {

@@ -6,7 +6,7 @@ export declare class InvoicesController {
     private readonly invoicesService;
     constructor(invoicesService: InvoicesService);
     create(dto: CreateInvoiceDto, req: any): Promise<import("./invoice.entity").Invoice>;
-    findAll(req: any, client?: string, date?: string, status?: string, paymentStatus?: string, type?: string): Promise<import("./invoice.entity").Invoice[]>;
+    findAll(req: any, client?: string, date?: string, status?: string, paymentStatus?: string, type?: string, number?: string): Promise<import("./invoice.entity").Invoice[]>;
     getStats(): Promise<any>;
     findOne(id: string, req: any): Promise<import("./invoice.entity").Invoice>;
     update(id: string, dto: UpdateInvoiceDto, req: any): Promise<import("./invoice.entity").Invoice>;

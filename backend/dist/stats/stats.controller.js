@@ -55,7 +55,7 @@ let StatsController = class StatsController {
             .addSelect('inv.clientId', 'clientId')
             .addSelect('SUM(inv.total)', 'totalRevenue')
             .addSelect('COUNT(*)', 'invoiceCount')
-            .addSelect('SUM(CASE WHEN inv.paymentStatus = \'paid\' THEN inv.total ELSE 0 END)', 'paidRevenue')
+            .addSelect("SUM(CASE WHEN inv.paymentStatus = 'paid' THEN inv.total ELSE 0 END)", 'paidRevenue')
             .where('inv.type = :type', { type: 'facture' })
             .groupBy('inv.clientName')
             .addGroupBy('inv.clientId')
@@ -81,16 +81,124 @@ let StatsController = class StatsController {
         ]);
         const earningsResult = await this.tasksRepo
             .createQueryBuilder('task')
-            .select('SUM(task.price)', 'totalEarnings')
+            .select('SUM(task.finalPrice)', 'totalEarnings')
             .where('task.status = :status', { status: task_entity_1.TaskStatus.TERMINEE })
             .getRawOne();
         return {
-            total,
-            completed,
-            pending,
-            notCompleted,
+            total, completed, pending, notCompleted,
             completionRate: total > 0 ? ((completed / total) * 100).toFixed(1) : '0',
             totalEarnings: Number(earningsResult?.totalEarnings || 0),
+        };
+    }
+    async getUnpaidByClient() {
+        return this.invoicesRepo
+            .createQueryBuilder('inv')
+            .select('inv.clientName', 'clientName')
+            .addSelect('inv.clientId', 'clientId')
+            .addSelect('inv.clientEmail', 'clientEmail')
+            .addSelect('inv.clientPhone', 'clientPhone')
+            .addSelect('inv.clientLogoUrl', 'clientLogoUrl')
+            .addSelect('SUM(inv.total)', 'unpaidTotal')
+            .addSelect('COUNT(*)', 'unpaidCount')
+            .addSelect('MIN(inv.createdAt)', 'oldestInvoice')
+            .where('inv.paymentStatus = :s', { s: invoice_entity_1.PaymentStatus.UNPAID })
+            .andWhere('inv.status != :c', { c: invoice_entity_1.InvoiceStatus.ANNULEE })
+            .andWhere('inv.type = :type', { type: invoice_entity_1.InvoiceType.FACTURE })
+            .groupBy('inv.clientName')
+            .addGroupBy('inv.clientId')
+            .addGroupBy('inv.clientEmail')
+            .addGroupBy('inv.clientPhone')
+            .addGroupBy('inv.clientLogoUrl')
+            .orderBy('SUM(inv.total)', 'DESC')
+            .getRawMany();
+    }
+    async getMonthlyRevenue() {
+        const rows = await this.invoicesRepo
+            .createQueryBuilder('inv')
+            .select("TO_CHAR(inv.createdAt, 'YYYY-MM')", 'month')
+            .addSelect('SUM(inv.total)', 'revenue')
+            .addSelect("SUM(CASE WHEN inv.paymentStatus = 'paid' THEN inv.total ELSE 0 END)", 'paidRevenue')
+            .where('inv.type = :type', { type: 'facture' })
+            .andWhere("inv.createdAt >= NOW() - INTERVAL '12 months'")
+            .groupBy("TO_CHAR(inv.createdAt, 'YYYY-MM')")
+            .orderBy("TO_CHAR(inv.createdAt, 'YYYY-MM')", 'ASC')
+            .getRawMany();
+        return rows;
+    }
+    async getRevenueByUser() {
+        return this.invoicesRepo
+            .createQueryBuilder('inv')
+            .leftJoin('inv.createdBy', 'user')
+            .select('user.name', 'userName')
+            .addSelect('user.role', 'userRole')
+            .addSelect('COUNT(*)', 'invoiceCount')
+            .addSelect('SUM(inv.total)', 'totalRevenue')
+            .addSelect("SUM(CASE WHEN inv.paymentStatus = 'paid' THEN inv.total ELSE 0 END)", 'paidRevenue')
+            .where('inv.type = :type', { type: 'facture' })
+            .groupBy('user.name')
+            .addGroupBy('user.role')
+            .orderBy('SUM(inv.total)', 'DESC')
+            .getRawMany();
+    }
+    async getTopProducts() {
+        const invoices = await this.invoicesRepo
+            .createQueryBuilder('inv')
+            .select('inv.items', 'items')
+            .where('inv.type = :type', { type: 'facture' })
+            .getRawMany();
+        const productMap = {};
+        for (const row of invoices) {
+            const items = Array.isArray(row.items) ? row.items : [];
+            for (const item of items) {
+                const key = item.description;
+                if (!productMap[key])
+                    productMap[key] = { name: key, qty: 0, revenue: 0 };
+                productMap[key].qty += Number(item.quantity);
+                productMap[key].revenue += Number(item.total);
+            }
+        }
+        return Object.values(productMap)
+            .sort((a, b) => b.revenue - a.revenue)
+            .slice(0, 5);
+    }
+    async getOverdueInvoices() {
+        return this.invoicesRepo
+            .createQueryBuilder('inv')
+            .leftJoinAndSelect('inv.createdBy', 'createdBy')
+            .where('inv.paymentStatus = :status', { status: invoice_entity_1.PaymentStatus.UNPAID })
+            .andWhere('inv.status != :cancelled', { cancelled: invoice_entity_1.InvoiceStatus.ANNULEE })
+            .andWhere('inv.type = :type', { type: 'facture' })
+            .andWhere("inv.createdAt < NOW() - INTERVAL '30 days'")
+            .orderBy('inv.createdAt', 'ASC')
+            .getMany();
+    }
+    async getMarginStats() {
+        const result = await this.invoicesRepo
+            .createQueryBuilder('inv')
+            .select('SUM(inv.totalMargin)', 'totalMargin')
+            .addSelect('SUM(inv.total)', 'totalRevenue')
+            .where('inv.type = :type', { type: 'facture' })
+            .andWhere('inv.status != :cancelled', { cancelled: invoice_entity_1.InvoiceStatus.ANNULEE })
+            .getRawOne();
+        const totalMargin = Number(result?.totalMargin || 0);
+        const totalRevenue = Number(result?.totalRevenue || 0);
+        const marginRate = totalRevenue > 0 ? ((totalMargin / totalRevenue) * 100).toFixed(1) : '0';
+        return { totalMargin, totalRevenue, marginRate };
+    }
+    async getDeliveryPerformance() {
+        const total = await this.tasksRepo.count();
+        const completed = await this.tasksRepo.count({ where: { status: task_entity_1.TaskStatus.TERMINEE } });
+        const onTime = await this.tasksRepo
+            .createQueryBuilder('task')
+            .where('task.status = :status', { status: task_entity_1.TaskStatus.TERMINEE })
+            .andWhere('task.completedAt <= task.dueDate OR task.dueDate IS NULL')
+            .getCount();
+        return {
+            total,
+            completed,
+            onTime,
+            late: completed - onTime,
+            onTimeRate: completed > 0 ? ((onTime / completed) * 100).toFixed(1) : '0',
         };
     }
     async getOverview() {
@@ -127,6 +235,48 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], StatsController.prototype, "getDeliveriesCompleted", null);
+__decorate([
+    (0, common_1.Get)('unpaid-by-client'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getUnpaidByClient", null);
+__decorate([
+    (0, common_1.Get)('monthly-revenue'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getMonthlyRevenue", null);
+__decorate([
+    (0, common_1.Get)('revenue-by-user'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getRevenueByUser", null);
+__decorate([
+    (0, common_1.Get)('top-products'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getTopProducts", null);
+__decorate([
+    (0, common_1.Get)('overdue-invoices'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getOverdueInvoices", null);
+__decorate([
+    (0, common_1.Get)('margin'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getMarginStats", null);
+__decorate([
+    (0, common_1.Get)('delivery-performance'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], StatsController.prototype, "getDeliveryPerformance", null);
 __decorate([
     (0, common_1.Get)('overview'),
     __metadata("design:type", Function),

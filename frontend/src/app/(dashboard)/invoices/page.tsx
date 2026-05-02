@@ -8,7 +8,11 @@ import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { Plus, Search, Eye, Edit, Trash2, FileDown, Loader2, FileText, CheckCircle, XCircle, Bell, ArrowUpDown } from 'lucide-react';
+import {
+  Plus, Search, Eye, Edit, Trash2, FileDown, Loader2,
+  FileText, CheckCircle, XCircle, Bell, ArrowUpDown, Hash,
+  ShieldCheck, Briefcase,
+} from 'lucide-react';
 
 const TYPE_COLORS: Record<string, string> = {
   facture: 'bg-brand-100 text-brand-700',
@@ -16,22 +20,12 @@ const TYPE_COLORS: Record<string, string> = {
   bon_livraison: 'bg-amber-100 text-amber-700',
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  brouillon: 'bg-slate-100 text-slate-600',
-  emise: 'bg-blue-100 text-blue-700',
-  payee: 'bg-emerald-100 text-emerald-700',
-  annulee: 'bg-red-100 text-red-700',
-};
-
 const WORKFLOW_STEPS = ['commande', 'livraison', 'facturation', 'recouvrement'];
-const WORKFLOW_LABELS: Record<string, string> = { 
-  commande: 'Cmd', 
-  livraison: 'Liv', 
-  facturation: 'Fact', 
-  recouvrement: 'Recouv' 
+const WORKFLOW_LABELS: Record<string, string> = {
+  commande: 'Cmd', livraison: 'Liv', facturation: 'Fact', recouvrement: 'Recouv',
 };
 
-function WorkflowBar({ step, t }: { step: string; t: (key: string) => string }) {
+function WorkflowBar({ step, t }: { step: string; t: (k: string) => string }) {
   const idx = WORKFLOW_STEPS.indexOf(step);
   return (
     <div className="flex items-center gap-0.5">
@@ -46,12 +40,12 @@ function WorkflowBar({ step, t }: { step: string; t: (key: string) => string }) 
   );
 }
 
-function PaymentBadge({ status, invoiceId, onUpdate, t }: { status: string; invoiceId: string; onUpdate: () => void; t: (key: string) => string }) {
+function PaymentBadge({ status, invoiceId, onUpdate, t }: {
+  status: string; invoiceId: string; onUpdate: () => void; t: (k: string) => string;
+}) {
   const [loading, setLoading] = useState(false);
-
   const toggle = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     setLoading(true);
     const next = status === 'paid' ? 'unpaid' : 'paid';
     try {
@@ -61,18 +55,39 @@ function PaymentBadge({ status, invoiceId, onUpdate, t }: { status: string; invo
     } catch { toast.error(t('error_updating')); }
     setLoading(false);
   };
-
   if (loading) return <Loader2 size={14} className="animate-spin text-slate-400" />;
-
   return (
     <button onClick={toggle}
       className={clsx(
         'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80',
-        status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+        status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600',
       )}>
       {status === 'paid' ? <CheckCircle size={11} /> : <XCircle size={11} />}
       {status === 'paid' ? t('paid_status') : t('unpaid_status')}
     </button>
+  );
+}
+
+// MOD 3: badge showing who created/modified the invoice
+function CreatorBadge({ invoice }: { invoice: any }) {
+  const creator = invoice.createdBy;
+  if (!creator) return null;
+  const isAdmin = creator.role === 'admin';
+  return (
+    <div className="flex items-center gap-1 mt-0.5">
+      <span className={clsx(
+        'inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
+        isAdmin ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600',
+      )}>
+        {isAdmin ? <ShieldCheck size={10} /> : <Briefcase size={10} />}
+        {isAdmin ? 'Admin' : creator.name}
+      </span>
+      {invoice.lastModifiedBy && invoice.lastModifiedBy.id !== creator.id && (
+        <span className="text-xs text-slate-400">
+          · modif. {invoice.lastModifiedBy.name}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -83,6 +98,7 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState<any>(null);
   const [search, setSearch] = useState('');
+  const [numberSearch, setNumberSearch] = useState(''); // MOD 2
   const [typeFilter, setTypeFilter] = useState('');
   const [paymentFilter, setPaymentFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -100,6 +116,7 @@ export default function InvoicesPage() {
     try {
       const params: any = {};
       if (search) params.client = search;
+      if (numberSearch) params.number = numberSearch; // MOD 2
       if (typeFilter) params.type = typeFilter;
       if (paymentFilter) params.paymentStatus = paymentFilter;
       if (dateFilter) params.date = dateFilter;
@@ -117,7 +134,7 @@ export default function InvoicesPage() {
       if (cached.length) { setInvoices(cached); toast(t('offline_mode'), { icon: '📶' }); }
     }
     setLoading(false);
-  }, [search, typeFilter, paymentFilter, dateFilter, statusFilter, t]);
+  }, [search, numberSearch, typeFilter, paymentFilter, dateFilter, statusFilter, t]);
 
   useEffect(() => {
     const timer = setTimeout(() => load(), 300);
@@ -131,27 +148,21 @@ export default function InvoicesPage() {
   };
 
   const sendReminder = async (inv: any) => {
-    if (!inv.clientEmail && !inv.clientPhone) {
-      toast.error(t('no_contact_for_reminder'));
-      return;
-    }
+    if (!inv.clientEmail && !inv.clientPhone) { toast.error(t('no_contact_for_reminder')); return; }
     setReminding(inv.id);
     try {
-      const channels = { email: !!inv.clientEmail, whatsapp: false, sms: false };
-      await api.post(`/notifications/send-reminder/${inv.id}`, { channels });
+      await api.post(`/notifications/send-reminder/${inv.id}`, { channels: { email: !!inv.clientEmail } });
       toast.success(`${t('reminder_sent_to')} ${inv.clientName}`);
     } catch { toast.error(t('error_sending_reminder')); }
     setReminding(null);
   };
 
   const updateWorkflow = async (id: string, step: string) => {
-    try {
-      await api.patch(`/invoices/${id}/workflow`, { step });
-      load();
-    } catch { toast.error(t('error_updating_workflow')); }
+    try { await api.patch(`/invoices/${id}/workflow`, { step }); load(); }
+    catch { toast.error(t('error_updating_workflow')); }
   };
 
-  const activeFiltersCount = [typeFilter, paymentFilter, dateFilter, statusFilter].filter(Boolean).length;
+  const activeFiltersCount = [typeFilter, paymentFilter, dateFilter, statusFilter, numberSearch].filter(Boolean).length;
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
@@ -165,10 +176,16 @@ export default function InvoicesPage() {
 
       <div className="card p-4 mb-4 space-y-3">
         <div className="flex gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-52">
+          {/* MOD 2: two search fields - client name + invoice number */}
+          <div className="relative flex-1 min-w-44">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-9" placeholder={t('search_by_client')} value={search}
               onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <div className="relative min-w-44">
+            <Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input className="input pl-9" placeholder="N° facture (ex: FAC-2025)" value={numberSearch}
+              onChange={(e) => setNumberSearch(e.target.value)} />
           </div>
           <select className="input w-auto min-w-36" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">{t('all_types')}</option>
@@ -209,7 +226,7 @@ export default function InvoicesPage() {
               </select>
             </div>
             <div className="flex items-end">
-              <button onClick={() => { setTypeFilter(''); setPaymentFilter(''); setDateFilter(''); setStatusFilter(''); }}
+              <button onClick={() => { setTypeFilter(''); setPaymentFilter(''); setDateFilter(''); setStatusFilter(''); setNumberSearch(''); setSearch(''); }}
                 className="btn-secondary text-sm py-2">{t('reset_filters')}</button>
             </div>
           </div>
@@ -240,7 +257,11 @@ export default function InvoicesPage() {
                 )}
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-4 py-3 font-mono text-sm font-semibold text-slate-900 whitespace-nowrap">{inv.number}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="font-mono text-sm font-semibold text-slate-900">{inv.number}</div>
+                      {/* MOD 3: creator badge */}
+                      <CreatorBadge invoice={inv} />
+                    </td>
                     <td className="px-4 py-3">
                       <span className={clsx('badge whitespace-nowrap', TYPE_COLORS[inv.type])}>
                         {typeLabels[inv.type]}
@@ -262,14 +283,12 @@ export default function InvoicesPage() {
                     </td>
                     <td className="px-4 py-3">
                       {inv.workflowStep ? (
-                        <div className="group/wf relative">
+                        <div className="relative">
                           <WorkflowBar step={inv.workflowStep} t={t} />
                           {user?.role === 'admin' && (
                             <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={inv.workflowStep}
                               onChange={(e) => { e.stopPropagation(); updateWorkflow(inv.id, e.target.value); }}>
-                              {WORKFLOW_STEPS.map((s) => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
+                              {WORKFLOW_STEPS.map((s) => <option key={s} value={s}>{s}</option>)}
                             </select>
                           )}
                         </div>
@@ -278,23 +297,23 @@ export default function InvoicesPage() {
                     <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <Link href={`/invoices/${inv.id}`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600 transition-colors" title={t('view')}>
+                        <Link href={`/invoices/${inv.id}`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600" title={t('view')}>
                           <Eye size={15} />
                         </Link>
-                        <Link href={`/invoices/${inv.id}/edit`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600 transition-colors" title={t('edit')}>
+                        <Link href={`/invoices/${inv.id}/edit`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600" title={t('edit')}>
                           <Edit size={15} />
                         </Link>
-                        <button onClick={() => generateInvoicePDF(inv, company)} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600 transition-colors" title={t('export_pdf')}>
+                        <button onClick={() => generateInvoicePDF(inv, company)} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
                           <FileDown size={15} />
                         </button>
                         {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
                           <button onClick={() => sendReminder(inv)} disabled={reminding === inv.id}
-                            className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500 transition-colors" title={t('send_reminder')}>
+                            className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
                             {reminding === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
                           </button>
                         )}
                         {user?.role === 'admin' && (
-                          <button onClick={() => handleDelete(inv.id)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors" title={t('delete')}>
+                          <button onClick={() => handleDelete(inv.id)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={t('delete')}>
                             <Trash2 size={15} />
                           </button>
                         )}

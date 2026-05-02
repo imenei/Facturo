@@ -5,46 +5,37 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
-  Search, FileText, Package, FileStack, ChevronRight,
-  Loader2, ArrowLeft, Upload, Trash2, Building2, Camera,
+  Search, FileText, Package, Loader2, ArrowLeft, Trash2,
+  Camera, Upload, AlertCircle, TrendingUp, BarChart3,
+  CalendarDays, ShoppingBag, ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000';
 
-// Resolve logo URL (handles /uploads/... paths and base64)
 function resolveLogoUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('data:') || url.startsWith('http')) return url;
   return `${API_BASE}${url}`;
 }
 
-// Client avatar: logo image or colored initial
 function ClientAvatar({ name, logoUrl, size = 'md' }: { name: string; logoUrl?: string | null; size?: 'sm' | 'md' | 'lg' }) {
   const resolved = resolveLogoUrl(logoUrl);
   const sizes = { sm: 'w-9 h-9 text-sm', md: 'w-12 h-12 text-base', lg: 'w-16 h-16 text-xl' };
-
-  if (resolved) {
-    return (
-      <div className={clsx('rounded-xl overflow-hidden shrink-0 bg-white border border-slate-200', sizes[size])}>
-        <img
-          src={resolved}
-          alt={name}
-          className="w-full h-full object-contain"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
-      </div>
-    );
-  }
-
-  // Colored initial fallback
   const colors = [
     'bg-blue-100 text-blue-700', 'bg-purple-100 text-purple-700',
     'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700',
     'bg-red-100 text-red-700', 'bg-indigo-100 text-indigo-700',
   ];
   const color = colors[(name?.charCodeAt(0) || 0) % colors.length];
-
+  if (resolved) {
+    return (
+      <div className={clsx('rounded-xl overflow-hidden shrink-0 bg-white border border-slate-200', sizes[size])}>
+        <img src={resolved} alt={name} className="w-full h-full object-contain"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+      </div>
+    );
+  }
   return (
     <div className={clsx('rounded-xl flex items-center justify-center font-700 shrink-0 uppercase', sizes[size], color)}>
       {name?.charAt(0) || '?'}
@@ -52,69 +43,221 @@ function ClientAvatar({ name, logoUrl, size = 'md' }: { name: string; logoUrl?: 
   );
 }
 
-// Logo upload button for a client
-function LogoUploader({ clientId, currentLogo, onUpdated, t }: {
-  clientId: string;
-  currentLogo?: string | null;
-  onUpdated: (url: string | null) => void;
-  t: (key: string) => string;
-}) {
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+// MOD 1: Unpaid badge for client list
+function UnpaidBadge({ amount, count, t }: { amount: number; count: number; t: (k: string) => string }) {
+  if (!amount || amount <= 0) return null;
+  const days = 30; // simplified
+  return (
+    <div className={clsx(
+      'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium',
+      amount > 100000 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700',
+    )}>
+      <AlertCircle size={10} />
+      {Number(amount).toLocaleString('fr-DZ')} DZD {t('unpaid')}{count > 1 ? ` (${count})` : ''}
+    </div>
+  );
+}
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+// MOD 5: Detailed client view with tabs
+function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; t: (k: string, vars?: Record<string, string>) => string }) {
+  const [details, setDetails] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'summary' | 'factures' | 'products' | 'stats'>('summary');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api.get(`/clients/${client.clientId}/details`)
+      .then(({ data }) => setDetails(data))
+      .catch(() => toast.error(t('error_loading_documents')))
+      .finally(() => setLoading(false));
+  }, [client.clientId]);
+
+  if (loading) return (
+    <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
+  );
+
+  const d = details;
+  const payBadge = (status: string) =>
+    status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600';
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploading(true);
+    const form = new FormData();
+    form.append('file', file);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      const { data } = await api.patch(`/clients/${clientId}/logo`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      onUpdated(data.clientLogoUrl);
+      await api.patch(`/clients/${client.clientId}/logo`, form, { headers: { 'Content-Type': 'multipart/form-data' } });
       toast.success(t('logo_updated'));
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || t('error_uploading_logo'));
-    }
-    setUploading(false);
-    if (fileRef.current) fileRef.current.value = '';
-  };
-
-  const handleRemove = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm(t('confirm_remove_logo'))) return;
-    setUploading(true);
-    try {
-      await api.patch(`/clients/${clientId}/logo-remove`);
-      onUpdated(null);
-      toast.success(t('logo_removed'));
-    } catch { toast.error(t('error_removing_logo')); }
-    setUploading(false);
+    } catch { toast.error(t('error_uploading_logo')); }
+    e.target.value = '';
   };
 
   return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={() => fileRef.current?.click()}
-        disabled={uploading}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-        title={t('change_logo')}
-      >
-        {uploading ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-        {currentLogo ? t('change') : t('add_logo')}
-      </button>
-      {currentLogo && (
-        <button
-          onClick={handleRemove}
-          disabled={uploading}
-          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-          title={t('remove_logo')}
-        >
-          <Trash2 size={13} />
+    <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
+      {/* Header */}
+      <div className="flex items-start gap-4 mb-6">
+        <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 mt-1 shrink-0">
+          <ArrowLeft size={20} />
         </button>
+        <div className="flex items-center gap-4 flex-1 flex-wrap">
+          <div className="relative group cursor-pointer" onClick={() => fileRef.current?.click()}>
+            <ClientAvatar name={d?.clientName || client.clientName} logoUrl={d?.clientLogoUrl || client.clientLogoUrl} size="lg" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+              <Upload size={16} className="text-white" />
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-display font-700 text-slate-900">{d?.clientName}</h1>
+            <p className="text-slate-500 text-sm">{d?.clientEmail}{d?.clientPhone ? ` · ${d.clientPhone}` : ''}</p>
+            {d?.clientAddress && <p className="text-slate-400 text-xs">{d.clientAddress}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        {(['summary', 'factures', 'products', 'stats'] as const).map((tabKey) => {
+          const labels = { summary: t('summary'), factures: t('invoices'), products: t('products'), stats: t('statistics') };
+          return (
+            <button key={tabKey} onClick={() => setTab(tabKey)}
+              className={clsx(
+                'px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                tab === tabKey
+                  ? 'border-brand-500 text-brand-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700',
+              )}>
+              {labels[tabKey]}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab: Summary */}
+      {tab === 'summary' && d && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {[
+            { label: t('total_revenue'), value: `${Number(d.summary.totalRevenue).toLocaleString('fr-DZ')} DZD`, color: 'text-brand-600' },
+            { label: t('paid'), value: `${Number(d.summary.totalPaid).toLocaleString('fr-DZ')} DZD`, color: 'text-emerald-600' },
+            { label: t('unpaid'), value: `${Number(d.summary.totalUnpaid).toLocaleString('fr-DZ')} DZD`, color: 'text-red-600' },
+            { label: t('invoices'), value: d.summary.facturesCount, color: 'text-slate-900' },
+            { label: t('average_basket'), value: `${Number(d.summary.averageInvoice).toLocaleString('fr-DZ')} DZD`, color: 'text-slate-900' },
+            { label: t('total_documents'), value: d.summary.totalDocuments, color: 'text-slate-900' },
+          ].map((item) => (
+            <div key={item.label} className="card p-4">
+              <p className="text-xs text-slate-500 mb-1">{item.label}</p>
+              <p className={clsx('text-xl font-display font-700', item.color)}>{item.value}</p>
+            </div>
+          ))}
+          {d.summary.firstOrder && (
+            <div className="card p-4 md:col-span-3 flex gap-6 text-sm text-slate-600">
+              <span><CalendarDays size={14} className="inline mr-1" />{t('first_order')}: <strong>{new Date(d.summary.firstOrder).toLocaleDateString('fr-FR')}</strong></span>
+              <span><CalendarDays size={14} className="inline mr-1" />{t('last_order')}: <strong>{new Date(d.summary.lastOrder).toLocaleDateString('fr-FR')}</strong></span>
+            </div>
+          )}
+          {/* MOD 1: unpaid alert */}
+          {d.summary.totalUnpaid > 0 && (
+            <div className="card p-4 md:col-span-3 border-l-4 border-red-400 bg-red-50">
+              <div className="flex items-center gap-2 text-red-700 font-medium">
+                <AlertCircle size={16} />
+                {d.summary.totalUnpaid.toLocaleString('fr-DZ')} DZD {t('unpaid_on_invoices', { count: String(d.factures.filter((f: any) => f.paymentStatus === 'unpaid').length) })}
+              </div>
+              <Link href={`/invoices?client=${encodeURIComponent(d.clientName)}&paymentStatus=unpaid`}
+                className="text-sm text-red-600 hover:underline mt-1 inline-block">
+                {t('view_unpaid_invoices')} →
+              </Link>
+            </div>
+          )}
+        </div>
       )}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+
+      {/* Tab: Factures */}
+      {tab === 'factures' && d && (
+        <div className="space-y-2">
+          {d.factures.length === 0 && <p className="text-center text-slate-400 py-8">Aucune facture</p>}
+          {d.factures.map((inv: any) => (
+            <Link key={inv.id} href={`/invoices/${inv.id}`}
+              className="flex items-center justify-between p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-300 transition-all">
+              <div>
+                <div className="font-mono text-sm font-semibold text-slate-900">{inv.number}</div>
+                <div className="text-xs text-slate-400">{new Date(inv.createdAt).toLocaleDateString('fr-FR')}</div>
+                {/* MOD 3: creator */}
+                {inv.createdBy && (
+                  <div className={clsx('text-xs mt-0.5', inv.createdBy.role === 'admin' ? 'text-blue-500' : 'text-violet-500')}>
+                    {inv.createdBy.role === 'admin' ? '🛡 Admin' : `💼 ${inv.createdBy.name}`}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className={clsx('badge text-xs', payBadge(inv.paymentStatus))}>
+                  {inv.paymentStatus === 'paid' ? t('paid') : t('unpaid')}
+                </span>
+                <span className="font-display font-700 text-slate-900">{Number(inv.total).toLocaleString('fr-DZ')} DZD</span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Tab: Products — MOD 5 */}
+      {tab === 'products' && d && (
+        <div className="card overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                {[t('product'), t('total_quantity'), t('total_revenue_short'), t('last_order')].map((h) => (
+                  <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {d.products.length === 0 && (
+                <tr><td colSpan={4} className="text-center py-8 text-slate-400"><ShoppingBag size={28} className="mx-auto mb-2 opacity-30" />{t('no_products')}</td></tr>
+              )}
+              {d.products.map((p: any) => (
+                <tr key={p.name} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
+                  <td className="px-4 py-3 text-slate-600">{p.qty}</td>
+                  <td className="px-4 py-3 font-semibold text-brand-600">{Number(p.revenue).toLocaleString('fr-DZ')} DZD</td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{new Date(p.lastDate).toLocaleDateString('fr-FR')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Tab: Stats — MOD 5 */}
+      {tab === 'stats' && d && (
+        <div className="space-y-4">
+          <div className="card p-6">
+            <h3 className="font-display font-600 text-slate-900 mb-4 flex items-center gap-2">
+              <BarChart3 size={18} className="text-brand-500" /> {t('monthly_revenue')}
+            </h3>
+            {d.monthlyRevenue.length === 0 ? (
+              <p className="text-slate-400 text-sm">{t('no_data')}</p>
+            ) : (
+              <div className="space-y-2">
+                {d.monthlyRevenue.map((m: any) => {
+                  const max = Math.max(...d.monthlyRevenue.map((x: any) => Number(x.revenue)));
+                  const pct = max > 0 ? (Number(m.revenue) / max) * 100 : 0;
+                  return (
+                    <div key={m.month} className="flex items-center gap-3">
+                      <span className="text-xs text-slate-500 w-16 shrink-0">{m.month}</span>
+                      <div className="flex-1 bg-slate-100 rounded-full h-2">
+                        <div className="bg-brand-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-medium text-slate-900 w-32 text-right shrink-0">
+                        {Number(m.revenue).toLocaleString('fr-DZ')} DZD
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -125,8 +268,6 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<any>(null);
-  const [docs, setDocs] = useState<any>(null);
-  const [loadingDocs, setLoadingDocs] = useState(false);
 
   const load = async (q?: string) => {
     try {
@@ -138,292 +279,68 @@ export default function ClientsPage() {
 
   useEffect(() => { load(); }, []);
 
-  const selectClient = async (client: any) => {
-    setSelected(client);
-    setLoadingDocs(true);
-    try {
-      const { data } = await api.get(`/clients/${client.clientId}/documents`);
-      setDocs(data);
-    } catch { toast.error(t('error_loading_documents')); }
-    setLoadingDocs(false);
-  };
-
-  const updateClientLogo = (clientId: string, logoUrl: string | null) => {
-    setClients((prev) => prev.map((c) => c.clientId === clientId ? { ...c, clientLogoUrl: logoUrl } : c));
-    if (selected?.clientId === clientId) {
-      setSelected((p: any) => ({ ...p, clientLogoUrl: logoUrl }));
-      setDocs((p: any) => p ? { ...p, clientLogoUrl: logoUrl } : p);
-    }
-  };
-
-  const paymentBadge = (status: string) =>
-    status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600';
-
-  // ── Client detail view ──────────────────────────────────────────────────────
-  if (selected && docs) {
-    return (
-      <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
-        {/* Back + header */}
-        <div className="flex items-start gap-4 mb-6">
-          <button
-            onClick={() => { setSelected(null); setDocs(null); }}
-            className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 mt-1 shrink-0"
-          >
-            <ArrowLeft size={20} />
-          </button>
-          <div className="flex items-center gap-4 flex-1 flex-wrap">
-            {/* Client logo — large */}
-            <div className="relative group">
-              <ClientAvatar name={docs.clientName} logoUrl={docs.clientLogoUrl} size="lg" />
-              {/* Upload overlay on hover */}
-              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                <Upload size={16} className="text-white" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const form = new FormData();
-                    form.append('file', file);
-                    try {
-                      const { data } = await api.patch(`/clients/${selected.clientId}/logo`, form, {
-                        headers: { 'Content-Type': 'multipart/form-data' },
-                      });
-                      updateClientLogo(selected.clientId, data.clientLogoUrl);
-                      toast.success(t('logo_updated'));
-                    } catch { toast.error(t('error_uploading_logo')); }
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-            </div>
-
-            <div className="flex-1">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-display font-700 text-slate-900">{docs.clientName}</h1>
-                <LogoUploader
-                  clientId={selected.clientId}
-                  currentLogo={docs.clientLogoUrl}
-                  onUpdated={(url) => updateClientLogo(selected.clientId, url)}
-                  t={t}
-                />
-              </div>
-              <p className="text-slate-500 text-sm mt-1">
-                {[docs.clientPhone, docs.clientEmail, docs.clientAddress].filter(Boolean).join(' · ')}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Summary */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: t('documents'), value: docs.summary.totalDocuments, color: 'text-slate-900' },
-            { label: t('invoices'), value: docs.summary.facturesCount, color: 'text-brand-600' },
-            { label: t('paid'), value: `${Number(docs.summary.totalPaid).toLocaleString('fr-FR')} DZD`, color: 'text-emerald-600' },
-            { label: t('unpaid'), value: `${Number(docs.summary.totalUnpaid).toLocaleString('fr-FR')} DZD`, color: 'text-red-600' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="card p-4">
-              <div className={`text-xl font-display font-700 ${color} truncate`}>{value}</div>
-              <div className="text-xs text-slate-500 mt-1">{label}</div>
-            </div>
-          ))}
-        </div>
-
-        {loadingDocs ? (
-          <div className="flex justify-center py-12"><Loader2 size={28} className="animate-spin text-brand-500" /></div>
-        ) : (
-          <div className="space-y-5">
-            {/* Factures */}
-            {docs.factures.length > 0 && (
-              <div className="card overflow-hidden">
-                <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-2">
-                  <FileText size={16} className="text-brand-500" />
-                  <span className="font-600 text-slate-900">{t('invoices')} ({docs.factures.length})</span>
-                </div>
-                <table className="w-full">
-                  <tbody className="divide-y divide-slate-50">
-                    {docs.factures.map((inv: any) => (
-                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3 font-mono text-sm font-medium">{inv.number}</td>
-                        <td className="px-4 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-FR')}</td>
-                        <td className="px-4 py-3 text-sm font-medium text-slate-900">{Number(inv.total).toLocaleString('fr-FR')} DZD</td>
-                        <td className="px-4 py-3">
-                          <span className={clsx('badge', paymentBadge(inv.paymentStatus))}>
-                            {inv.paymentStatus === 'paid' ? t('paid_status') : t('unpaid_status')}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">{t('view')} →</Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Proformas */}
-            {docs.proformas.length > 0 && (
-              <div className="card overflow-hidden">
-                <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-2">
-                  <FileStack size={16} className="text-purple-500" />
-                  <span className="font-600 text-slate-900">{t('proformas')} ({docs.proformas.length})</span>
-                </div>
-                <table className="w-full">
-                  <tbody className="divide-y divide-slate-50">
-                    {docs.proformas.map((inv: any) => (
-                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3 font-mono text-sm font-medium">{inv.number}</td>
-                        <td className="px-4 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-FR')}</td>
-                        <td className="px-4 py-3 text-sm font-medium">{Number(inv.total).toLocaleString('fr-FR')} DZD</td>
-                        <td className="px-4 py-3">
-                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">{t('view')} →</Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {/* Bons de livraison */}
-            {docs.bonsLivraison.length > 0 && (
-              <div className="card overflow-hidden">
-                <div className="px-5 py-3 border-b bg-slate-50 flex items-center gap-2">
-                  <Package size={16} className="text-amber-500" />
-                  <span className="font-600 text-slate-900">{t('delivery_notes')} ({docs.bonsLivraison.length})</span>
-                </div>
-                <table className="w-full">
-                  <tbody className="divide-y divide-slate-50">
-                    {docs.bonsLivraison.map((inv: any) => (
-                      <tr key={inv.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3 font-mono text-sm font-medium">{inv.number}</td>
-                        <td className="px-4 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-FR')}</td>
-                        <td className="px-4 py-3 text-sm font-medium">{Number(inv.total).toLocaleString('fr-FR')} DZD</td>
-                        <td className="px-4 py-3">
-                          <span className={clsx('badge', inv.deliveryStatus === 'livree' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>
-                            {inv.deliveryStatus === 'livree' ? t('delivered') : t('not_delivered')}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link href={`/invoices/${inv.id}`} className="text-brand-600 hover:underline text-xs">{t('view')} →</Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {docs.summary.totalDocuments === 0 && (
-              <div className="card p-12 text-center text-slate-400">{t('no_documents_for_client')}</div>
-            )}
-          </div>
-        )}
-      </div>
-    );
+  if (selected) {
+    return <ClientDetail client={selected} onBack={() => setSelected(null)} t={t} />;
   }
 
-  // ── Client list ─────────────────────────────────────────────────────────────
+  const filtered = clients.filter((c) =>
+    !search || c.clientName?.toLowerCase().includes(search.toLowerCase()),
+  );
+
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto animate-fade-in">
-      <div className="mb-6">
-        <h1 className="text-3xl font-display font-700 text-slate-900">{t('clients')}</h1>
-        <p className="text-slate-500 text-sm mt-1">{t('clients_description')}</p>
+    <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="text-3xl font-display font-700 text-slate-900">{t('clients')}</h1>
+          <p className="text-slate-500 text-sm mt-1">{clients.length} {t('clients_count')}</p>
+        </div>
       </div>
 
-      <div className="card p-4 mb-6">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            className="input pl-9"
-            placeholder={t('search_clients_placeholder')}
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); load(e.target.value); }}
-          />
-        </div>
+      <div className="relative mb-5">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input className="input pl-9 max-w-sm" placeholder={t('search_client')} value={search}
+          onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
-        <div className="space-y-2">
-          {clients.length === 0 && (
+        <div className="space-y-3">
+          {filtered.length === 0 && (
             <div className="card p-12 text-center text-slate-400">
-              <Building2 size={36} className="mx-auto mb-3 opacity-30" />
+              <FileText size={36} className="mx-auto mb-3 opacity-30" />
               {t('no_clients_found')}
             </div>
           )}
-
-          {clients.map((c: any) => (
-            <div key={c.clientId || c.clientName} className="card hover:shadow-md hover:border-brand-200 transition-all">
-              <div className="flex items-center p-4 gap-4">
-
-                {/* Client logo / avatar */}
-                <div className="relative group shrink-0">
-                  <ClientAvatar name={c.clientName} logoUrl={c.clientLogoUrl} size="md" />
-                  {/* Upload overlay */}
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title={t('change_logo')}>
-                    <Upload size={12} className="text-white" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        e.stopPropagation();
-                        const file = e.target.files?.[0];
-                        if (!file || !c.clientId) return;
-                        const form = new FormData();
-                        form.append('file', file);
-                        try {
-                          const { data } = await api.patch(`/clients/${c.clientId}/logo`, form, {
-                            headers: { 'Content-Type': 'multipart/form-data' },
-                          });
-                          updateClientLogo(c.clientId, data.clientLogoUrl);
-                          toast.success(t('logo_updated'));
-                        } catch { toast.error(t('error_uploading_logo')); }
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
+          {filtered.map((client) => (
+            <button key={client.clientId || client.clientName}
+              onClick={() => setSelected(client)}
+              className="card p-4 w-full text-left hover:shadow-md hover:border-brand-200 transition-all flex items-center gap-4">
+              <ClientAvatar name={client.clientName} logoUrl={client.clientLogoUrl} size="md" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-display font-600 text-slate-900">{client.clientName}</h3>
+                  {/* MOD 1: unpaid badge */}
+                  {Number(client.unpaidAmount) > 0 && (
+                  <UnpaidBadge amount={Number(client.unpaidAmount)} count={Number(client.unpaidCount)} t={t} />
+                  )}
                 </div>
-
-                {/* Info */}
-                <button
-                  onClick={() => selectClient(c)}
-                  className="flex-1 text-left min-w-0"
-                >
-                  <div className="font-600 text-slate-900 truncate">{c.clientName}</div>
-                  <div className="text-xs text-slate-400 mt-0.5 truncate">
-                    {[c.clientEmail, c.clientPhone].filter(Boolean).join(' · ') || t('no_contact')}
-                  </div>
-                </button>
-
-                {/* Stats + arrow */}
-                <button onClick={() => selectClient(c)} className="flex items-center gap-4 shrink-0">
-                  <div className="text-right">
-                    <div className="text-sm font-600 text-slate-900">
-                      {Number(c.documentCount)} {Number(c.documentCount) > 1 ? t('docs_plural') : t('docs_singular')}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      {Number(c.totalAmount || 0).toLocaleString('fr-FR')} DZD
-                    </div>
-                  </div>
-                  <ChevronRight size={18} className="text-slate-300" />
-                </button>
+                <div className="text-xs text-slate-400 mt-0.5 flex flex-wrap gap-2">
+                  {client.clientEmail && <span>{client.clientEmail}</span>}
+                  {client.clientPhone && <span>{client.clientPhone}</span>}
+                </div>
               </div>
-            </div>
+              <div className="text-right shrink-0">
+                <div className="text-sm font-700 text-brand-600">
+                  {Number(client.totalAmount || 0).toLocaleString('fr-DZ')} DZD
+                </div>
+                <div className="text-xs text-slate-400">{client.documentCount} documents</div>
+              </div>
+              <ChevronRight size={16} className="text-slate-300 shrink-0" />
+            </button>
           ))}
         </div>
       )}
-
-      <p className="text-xs text-slate-400 text-center mt-6">
-        {t('logo_hover_tip')}
-      </p>
     </div>
   );
 }

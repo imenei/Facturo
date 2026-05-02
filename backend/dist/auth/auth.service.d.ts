@@ -9,6 +9,7 @@ export declare class AuthService {
         email: string;
         name: string;
         phone: string;
+        specialty: string;
         role: import("../users/user.entity").UserRole;
         isActive: boolean;
         invoices: import("../invoices/invoice.entity").Invoice[];
@@ -23,6 +24,7 @@ export declare class AuthService {
             email: string;
             name: string;
             phone: string;
+            specialty: string;
             role: import("../users/user.entity").UserRole;
             isActive: boolean;
             invoices: import("../invoices/invoice.entity").Invoice[];

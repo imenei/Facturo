@@ -36,11 +36,9 @@ export class Task {
   @Column({ nullable: true })
   dueDate: Date;
 
-  // Modification 7 — date de livraison optionnelle (nullable)
   @Column({ nullable: true, type: 'date' })
   deliveryDate: Date;
 
-  // Client info — pour afficher logo au livreur
   @Column({ nullable: true })
   clientName: string;
 
@@ -52,6 +50,27 @@ export class Task {
 
   @Column({ nullable: true })
   completedAt: Date;
+
+  // MOD 6: delivery tracking by livreur
+  @Column({ nullable: true, type: 'timestamp' })
+  startedDeliveryAt: Date;
+
+  @Column({ nullable: true, type: 'timestamp' })
+  finishedDeliveryAt: Date;
+
+  @Column({ nullable: true, type: 'integer' })
+  deliveryDurationMinutes: number;
+
+  // MOD 6: extra fees added by admin (unforeseen costs)
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
+  extraFees: number;
+
+  @Column({ nullable: true, type: 'text' })
+  extraFeesNote: string;
+
+  // MOD 6: final price = price + extraFees
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
+  finalPrice: number;
 
   @CreateDateColumn()
   createdAt: Date;

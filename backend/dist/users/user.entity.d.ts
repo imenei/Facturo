@@ -3,7 +3,8 @@ import { Task } from '../tasks/task.entity';
 export declare enum UserRole {
     ADMIN = "admin",
     COMMERCIAL = "commercial",
-    LIVREUR = "livreur"
+    LIVREUR = "livreur",
+    TECHNICIEN = "technicien"
 }
 export declare class User {
     id: string;
@@ -11,6 +12,7 @@ export declare class User {
     password: string;
     name: string;
     phone: string;
+    specialty: string;
     role: UserRole;
     isActive: boolean;
     invoices: Invoice[];

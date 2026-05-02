@@ -36,6 +36,17 @@ let NotificationsController = class NotificationsController {
     sendSms(invoiceId) {
         return this.notificationsService.sendSmsReminder(invoiceId);
     }
+    getEmailTemplate() {
+        return this.notificationsService.getEmailTemplate();
+    }
+    saveEmailTemplate(body) {
+        this.notificationsService.saveEmailTemplate(body.subject, body.body);
+        return { success: true, message: 'Modèle enregistré' };
+    }
+    resetEmailTemplate() {
+        this.notificationsService.resetEmailTemplate();
+        return { success: true, message: 'Modèle réinitialisé au défaut' };
+    }
 };
 exports.NotificationsController = NotificationsController;
 __decorate([
@@ -67,6 +78,26 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], NotificationsController.prototype, "sendSms", null);
+__decorate([
+    (0, common_1.Get)('email-template'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "getEmailTemplate", null);
+__decorate([
+    (0, common_1.Put)('email-template'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "saveEmailTemplate", null);
+__decorate([
+    (0, common_1.Delete)('email-template'),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.ADMIN),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], NotificationsController.prototype, "resetEmailTemplate", null);
 exports.NotificationsController = NotificationsController = __decorate([
     (0, common_1.Controller)('notifications'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

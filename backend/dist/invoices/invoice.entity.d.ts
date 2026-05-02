@@ -49,9 +49,11 @@ export declare class Invoice {
     tvaRate: number;
     tvaAmount: number;
     total: number;
+    totalMargin: number;
     notes: string;
     dueDate: Date;
     createdBy: User;
+    lastModifiedBy: User;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -60,5 +62,7 @@ export interface InvoiceItem {
     description: string;
     quantity: number;
     unitPrice: number;
+    purchasePrice?: number;
+    margin?: number;
     total: number;
 }

@@ -78,6 +78,30 @@ __decorate([
     __metadata("design:type", Date)
 ], Task.prototype, "completedAt", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ nullable: true, type: 'timestamp' }),
+    __metadata("design:type", Date)
+], Task.prototype, "startedDeliveryAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, type: 'timestamp' }),
+    __metadata("design:type", Date)
+], Task.prototype, "finishedDeliveryAt", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, type: 'integer' }),
+    __metadata("design:type", Number)
+], Task.prototype, "deliveryDurationMinutes", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true }),
+    __metadata("design:type", Number)
+], Task.prototype, "extraFees", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ nullable: true, type: 'text' }),
+    __metadata("design:type", String)
+], Task.prototype, "extraFeesNote", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true }),
+    __metadata("design:type", Number)
+], Task.prototype, "finalPrice", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)
 ], Task.prototype, "createdAt", void 0);

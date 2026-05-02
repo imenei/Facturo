@@ -32,6 +32,7 @@ let TasksService = class TasksService {
             clientName: dto.clientName || null,
             clientLogoUrl: dto.clientLogoUrl || null,
             clientAddress: dto.clientAddress || null,
+            finalPrice: dto.price,
             createdBy: { id: adminId },
             assignedTo: { id: dto.assignedToId },
         });
@@ -70,6 +71,7 @@ let TasksService = class TasksService {
             Object.assign(task, dto);
             if (dto.assignedToId)
                 task.assignedTo = { id: dto.assignedToId };
+            task.finalPrice = Number(task.price) + Number(task.extraFees || 0);
         }
         return this.tasksRepository.save(task);
     }
@@ -79,8 +81,55 @@ let TasksService = class TasksService {
     async getLivreurStats(userId) {
         const tasks = await this.tasksRepository.find({ where: { assignedTo: { id: userId } } });
         const completed = tasks.filter((t) => t.status === task_entity_1.TaskStatus.TERMINEE);
-        const totalEarned = completed.reduce((sum, t) => sum + Number(t.price), 0);
-        return { total: tasks.length, completed: completed.length, pending: tasks.filter(t => t.status === task_entity_1.TaskStatus.EN_ATTENTE).length, totalEarned };
+        const totalEarned = completed.reduce((sum, t) => sum + Number(t.finalPrice || t.price), 0);
+        return {
+            total: tasks.length,
+            completed: completed.length,
+            pending: tasks.filter((t) => t.status === task_entity_1.TaskStatus.EN_ATTENTE).length,
+            totalEarned,
+        };
+    }
+    async startDelivery(id, user) {
+        const task = await this.findOne(id, user);
+        if (task.startedDeliveryAt) {
+            throw new common_1.BadRequestException('La livraison est déjà démarrée');
+        }
+        task.startedDeliveryAt = new Date();
+        return this.tasksRepository.save(task);
+    }
+    async finishDelivery(id, user) {
+        const task = await this.findOne(id, user);
+        if (!task.startedDeliveryAt) {
+            throw new common_1.BadRequestException('La livraison n\'a pas encore été démarrée');
+        }
+        task.finishedDeliveryAt = new Date();
+        const diffMs = task.finishedDeliveryAt.getTime() - task.startedDeliveryAt.getTime();
+        task.deliveryDurationMinutes = Math.round(diffMs / 60000);
+        task.status = task_entity_1.TaskStatus.TERMINEE;
+        task.completedAt = new Date();
+        return this.tasksRepository.save(task);
+    }
+    async addExtraFees(id, dto) {
+        const task = await this.tasksRepository.findOne({ where: { id } });
+        if (!task)
+            throw new common_1.NotFoundException('Tâche non trouvée');
+        task.extraFees = dto.extraFees;
+        task.extraFeesNote = dto.extraFeesNote || null;
+        task.finalPrice = Number(task.price) + Number(dto.extraFees);
+        return this.tasksRepository.save(task);
+    }
+    async getTasksByLivreur(livreurId, from, to) {
+        const qb = this.tasksRepository
+            .createQueryBuilder('task')
+            .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+            .leftJoinAndSelect('task.createdBy', 'createdBy')
+            .where('assignedTo.id = :livreurId', { livreurId })
+            .orderBy('task.createdAt', 'DESC');
+        if (from)
+            qb.andWhere('task.createdAt >= :from', { from: new Date(from) });
+        if (to)
+            qb.andWhere('task.createdAt <= :to', { to: new Date(to + 'T23:59:59') });
+        return qb.getMany();
     }
 };
 exports.TasksService = TasksService;

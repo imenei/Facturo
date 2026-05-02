@@ -29,8 +29,8 @@ let InvoicesController = class InvoicesController {
     create(dto, req) {
         return this.invoicesService.create(dto, req.user.id);
     }
-    findAll(req, client, date, status, paymentStatus, type) {
-        return this.invoicesService.findAll(req.user, { client, date, status, paymentStatus, type });
+    findAll(req, client, date, status, paymentStatus, type, number) {
+        return this.invoicesService.findAll(req.user, { client, date, status, paymentStatus, type, number });
     }
     getStats() {
         return this.invoicesService.getStats();
@@ -73,8 +73,9 @@ __decorate([
     __param(3, (0, common_1.Query)('status')),
     __param(4, (0, common_1.Query)('paymentStatus')),
     __param(5, (0, common_1.Query)('type')),
+    __param(6, (0, common_1.Query)('number')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String, String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String, String, String, String, String]),
     __metadata("design:returntype", void 0)
 ], InvoicesController.prototype, "findAll", null);
 __decorate([

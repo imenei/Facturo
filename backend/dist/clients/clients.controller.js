@@ -41,6 +41,8 @@ let ClientsController = class ClientsController {
             .addSelect('MAX(inv.clientLogoUrl)', 'clientLogoUrl')
             .addSelect('COUNT(*)', 'documentCount')
             .addSelect('SUM(inv.total)', 'totalAmount')
+            .addSelect("SUM(CASE WHEN inv.paymentStatus = 'unpaid' AND inv.status != 'annulee' AND inv.type = 'facture' THEN inv.total ELSE 0 END)", 'unpaidAmount')
+            .addSelect("COUNT(CASE WHEN inv.paymentStatus = 'unpaid' AND inv.status != 'annulee' AND inv.type = 'facture' THEN 1 END)", 'unpaidCount')
             .groupBy('inv.clientName')
             .addGroupBy('inv.clientId')
             .addGroupBy('inv.clientEmail')
@@ -51,6 +53,92 @@ let ClientsController = class ClientsController {
             qb.where('LOWER(inv.clientName) LIKE :name', { name: `%${name.toLowerCase()}%` });
         }
         return qb.getRawMany();
+    }
+    async getClientDetails(clientId, type, paymentStatus) {
+        const qb = this.invoicesRepo
+            .createQueryBuilder('inv')
+            .leftJoinAndSelect('inv.createdBy', 'createdBy')
+            .leftJoinAndSelect('inv.lastModifiedBy', 'lastModifiedBy')
+            .where('inv.clientId = :clientId', { clientId })
+            .orderBy('inv.createdAt', 'DESC');
+        if (type)
+            qb.andWhere('inv.type = :type', { type });
+        if (paymentStatus)
+            qb.andWhere('inv.paymentStatus = :paymentStatus', { paymentStatus });
+        const docs = await qb.getMany();
+        if (docs.length === 0) {
+            return {
+                clientId,
+                clientName: '',
+                clientEmail: '',
+                clientPhone: '',
+                clientAddress: '',
+                clientLogoUrl: null,
+                summary: { totalDocuments: 0, totalRevenue: 0, totalPaid: 0, totalUnpaid: 0, facturesCount: 0, proformasCount: 0, bonsCount: 0, averageInvoice: 0, firstOrder: null, lastOrder: null },
+                factures: [],
+                proformas: [],
+                bonsLivraison: [],
+                products: [],
+                monthlyRevenue: [],
+            };
+        }
+        const factures = docs.filter((d) => d.type === 'facture');
+        const proformas = docs.filter((d) => d.type === 'proforma');
+        const bons = docs.filter((d) => d.type === 'bon_livraison');
+        const totalPaid = factures.filter((f) => f.paymentStatus === 'paid').reduce((s, f) => s + Number(f.total), 0);
+        const totalUnpaid = factures.filter((f) => f.paymentStatus === 'unpaid').reduce((s, f) => s + Number(f.total), 0);
+        const totalRevenue = factures.reduce((s, f) => s + Number(f.total), 0);
+        const productMap = {};
+        for (const inv of factures) {
+            const items = Array.isArray(inv.items) ? inv.items : [];
+            for (const item of items) {
+                const key = item.description;
+                if (!productMap[key]) {
+                    productMap[key] = { name: key, qty: 0, revenue: 0, lastDate: inv.createdAt };
+                }
+                productMap[key].qty += Number(item.quantity);
+                productMap[key].revenue += Number(item.total);
+                if (new Date(inv.createdAt) > new Date(productMap[key].lastDate)) {
+                    productMap[key].lastDate = inv.createdAt;
+                }
+            }
+        }
+        const products = Object.values(productMap).sort((a, b) => b.revenue - a.revenue);
+        const monthlyMap = {};
+        for (const inv of factures) {
+            const month = new Date(inv.createdAt).toISOString().slice(0, 7);
+            monthlyMap[month] = (monthlyMap[month] || 0) + Number(inv.total);
+        }
+        const monthlyRevenue = Object.entries(monthlyMap)
+            .map(([month, revenue]) => ({ month, revenue }))
+            .sort((a, b) => a.month.localeCompare(b.month));
+        const clientLogoUrl = docs.find((d) => d.clientLogoUrl)?.['clientLogoUrl'] ?? null;
+        const dates = factures.map((f) => new Date(f.createdAt));
+        return {
+            clientId,
+            clientName: docs[0]?.clientName || '',
+            clientEmail: docs[0]?.clientEmail || '',
+            clientPhone: docs[0]?.clientPhone || '',
+            clientAddress: docs[0]?.clientAddress || '',
+            clientLogoUrl,
+            summary: {
+                totalDocuments: docs.length,
+                totalRevenue,
+                totalPaid,
+                totalUnpaid,
+                facturesCount: factures.length,
+                proformasCount: proformas.length,
+                bonsCount: bons.length,
+                averageInvoice: factures.length > 0 ? totalRevenue / factures.length : 0,
+                firstOrder: dates.length > 0 ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null,
+                lastOrder: dates.length > 0 ? new Date(Math.max(...dates.map((d) => d.getTime()))) : null,
+            },
+            factures,
+            proformas,
+            bonsLivraison: bons,
+            products,
+            monthlyRevenue,
+        };
     }
     async getClientDocuments(clientId, type, status) {
         const qb = this.invoicesRepo
@@ -66,12 +154,8 @@ let ClientsController = class ClientsController {
         const factures = docs.filter((d) => d.type === 'facture');
         const proformas = docs.filter((d) => d.type === 'proforma');
         const bons = docs.filter((d) => d.type === 'bon_livraison');
-        const totalPaid = factures
-            .filter((f) => f.paymentStatus === 'paid')
-            .reduce((sum, f) => sum + Number(f.total), 0);
-        const totalUnpaid = factures
-            .filter((f) => f.paymentStatus === 'unpaid')
-            .reduce((sum, f) => sum + Number(f.total), 0);
+        const totalPaid = factures.filter((f) => f.paymentStatus === 'paid').reduce((sum, f) => sum + Number(f.total), 0);
+        const totalUnpaid = factures.filter((f) => f.paymentStatus === 'unpaid').reduce((sum, f) => sum + Number(f.total), 0);
         const clientLogoUrl = docs.find((d) => !!d.clientLogoUrl)?.['clientLogoUrl'] ?? null;
         return {
             clientId,
@@ -114,6 +198,15 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], ClientsController.prototype, "getClients", null);
+__decorate([
+    (0, common_1.Get)(':id/details'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)('type')),
+    __param(2, (0, common_1.Query)('paymentStatus')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], ClientsController.prototype, "getClientDetails", null);
 __decorate([
     (0, common_1.Get)(':id/documents'),
     __param(0, (0, common_1.Param)('id')),
