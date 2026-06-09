@@ -710,7 +710,8 @@
   "finish_without_signature": "Terminer sans signature",
   "not_repairable": "Non réparable",
   "intervention_done": "Intervention terminée",
-  "closing_date": "Date de clôture"
+  "closing_date": "Date de clôture",
+  "send_email_reminder": "Envoyer rappel par email"
 
   
   }

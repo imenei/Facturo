@@ -709,6 +709,7 @@
   "finish_without_signature": "إنهاء بدون توقيع",
   "not_repairable": "غير قابل للإصلاح",
   "intervention_done": "تم إنهاء التدخل",
-  "closing_date": "تاريخ الإغلاق"
+  "closing_date": "تاريخ الإغلاق",
+  "send_email_reminder": "إرسال تذكير بالبريد"
   }
 }

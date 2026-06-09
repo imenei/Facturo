@@ -12,7 +12,7 @@ import clsx from 'clsx';
 import {
   ArrowLeft, FileDown, FileText, Edit, CheckCircle,
   XCircle, Loader2, Bell, ChevronRight, Mail,
-  MessageCircle, Phone, AlertTriangle, Eye,
+  AlertTriangle, Eye,
   ShieldCheck, Briefcase, Lock, TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -79,28 +79,20 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
 }
 
 function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => string }) {
-  const [sending, setSending] = useState<string | null>(null);
-  const [results, setResults] = useState<Record<string, any>>({});
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<any>(null);
 
-  const send = async (channel: 'email' | 'whatsapp' | 'sms') => {
-    setSending(channel);
+  const send = async () => {
+    if (!invoice.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
+    setSending(true);
     try {
-      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`, {
-        channels: { [channel]: true },
-      });
-      setResults((p) => ({ ...p, ...data }));
-      const r = data[channel];
-      if (r?.success) toast.success(r.message);
-      else toast.error(r?.message || t('reminder_failed'));
+      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`);
+      setResult(data.email);
+      if (data.email?.success) toast.success(data.email.message);
+      else toast.error(data.email?.message || t('reminder_failed'));
     } catch { toast.error(t('error_sending_reminder')); }
-    setSending(null);
+    setSending(false);
   };
-
-  const channels = [
-    { key: 'email' as const, icon: Mail, label: t('email'), available: !!invoice.clientEmail, hint: invoice.clientEmail },
-    { key: 'whatsapp' as const, icon: MessageCircle, label: 'WhatsApp', available: !!invoice.clientPhone, hint: invoice.clientPhone },
-    { key: 'sms' as const, icon: Phone, label: 'SMS', available: !!invoice.clientPhone, hint: invoice.clientPhone },
-  ];
 
   return (
     <div className="card p-5">
@@ -108,33 +100,26 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         <Bell size={16} className="text-amber-500" />
         <h3 className="font-display font-600 text-slate-900">{t('payment_reminder')}</h3>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {channels.map(({ key, icon: Icon, label, available, hint }) => {
-          const r = results[key];
-          return (
-            <div key={key} className="space-y-1">
-              <button onClick={() => send(key)} disabled={!available || sending === key}
-                title={!available ? t('missing_contact') : hint}
-                className={clsx(
-                  'w-full flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 text-xs font-medium transition-all',
-                  !available ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
-                  r?.success ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
-                  r && !r.success ? 'border-red-300 bg-red-50 text-red-600' :
-                  'border-slate-200 hover:border-brand-300 hover:bg-brand-50 text-slate-600 cursor-pointer',
-                )}>
-                {sending === key ? <Loader2 size={18} className="animate-spin" /> : <Icon size={18} />}
-                {label}
-              </button>
-              {r && (
-                <p className={clsx('text-xs text-center leading-tight', r.success ? 'text-emerald-600' : 'text-red-500')}>
-                  {r.success ? `✓ ${t('sent')}` : `✗ ${t('failed')}`}
-                </p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      {!invoice.clientEmail && !invoice.clientPhone && (
+      {invoice.clientEmail && (
+        <p className="text-xs text-slate-500 mb-3 flex items-center gap-1">
+          <Mail size={12} /> {invoice.clientEmail}
+        </p>
+      )}
+      <button
+        onClick={send}
+        disabled={!invoice.clientEmail || sending}
+        className={clsx(
+          'w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 text-sm font-medium transition-all',
+          !invoice.clientEmail ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
+          result?.success ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
+          result && !result.success ? 'border-red-300 bg-red-50 text-red-600' :
+          'border-slate-200 hover:border-brand-300 hover:bg-brand-50 text-slate-600',
+        )}
+      >
+        {sending ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+        {t('send_email_reminder')}
+      </button>
+      {!invoice.clientEmail && (
         <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
           <AlertTriangle size={12} /> {t('add_contact_for_reminders')}
         </p>

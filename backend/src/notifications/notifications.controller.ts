@@ -12,27 +12,13 @@ export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
   @Post('send-reminder/:invoiceId')
-  sendReminder(
-    @Param('invoiceId') invoiceId: string,
-    @Body() body: { channels?: { email?: boolean; whatsapp?: boolean; sms?: boolean } },
-  ) {
-    const channels = body.channels || { email: true };
-    return this.notificationsService.sendAllReminders(invoiceId, channels);
+  sendReminder(@Param('invoiceId') invoiceId: string) {
+    return this.notificationsService.sendAllReminders(invoiceId);
   }
 
   @Post('send-reminder/:invoiceId/email')
   sendEmail(@Param('invoiceId') invoiceId: string) {
     return this.notificationsService.sendEmailReminder(invoiceId);
-  }
-
-  @Post('send-reminder/:invoiceId/whatsapp')
-  sendWhatsApp(@Param('invoiceId') invoiceId: string) {
-    return this.notificationsService.sendWhatsAppReminder(invoiceId);
-  }
-
-  @Post('send-reminder/:invoiceId/sms')
-  sendSms(@Param('invoiceId') invoiceId: string) {
-    return this.notificationsService.sendSmsReminder(invoiceId);
   }
 
   // MOD 8b: Get current email template

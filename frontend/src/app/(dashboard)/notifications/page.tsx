@@ -5,8 +5,8 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
-  Bell, Mail, MessageCircle, Phone, Send, Loader2, Search,
-  CheckCircle, XCircle, Settings, Eye, RotateCcw, Save,
+  Bell, Mail, Send, Loader2, Search,
+  CheckCircle, XCircle, Settings, RotateCcw, Save,
 } from 'lucide-react';
 
 // MOD 8b: default email template
@@ -178,7 +178,6 @@ export default function NotificationsPage() {
   const [search, setSearch] = useState('');
   const [sending, setSending] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, any>>({});
-  const [selectedChannels, setSelectedChannels] = useState<Record<string, { email: boolean; whatsapp: boolean; sms: boolean }>>({});
   const [showTemplateEditor, setShowTemplateEditor] = useState(false); // MOD 8b
 
   useEffect(() => {
@@ -187,26 +186,14 @@ export default function NotificationsPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const toggleChannel = (invoiceId: string, ch: 'email' | 'whatsapp' | 'sms') => {
-    setSelectedChannels((prev) => {
-      const current = prev[invoiceId] ?? { email: false, whatsapp: false, sms: false };
-      return {
-        ...prev,
-        [invoiceId]: { ...current, [ch]: !current[ch] },
-      };
-    });
-  };
-
   const sendReminder = async (invoice: any) => {
-    const channels = selectedChannels[invoice.id] || { email: true, whatsapp: false, sms: false };
-    if (!channels.email && !channels.whatsapp && !channels.sms) { toast.error(t('select_at_least_one_channel')); return; }
+    if (!invoice.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
     setSending(invoice.id);
     try {
-      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`, { channels });
+      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`);
       setResults((prev) => ({ ...prev, [invoice.id]: data }));
-      const success = Object.values(data).some((r: any) => r.success);
-      if (success) toast.success(t('reminder_sent_success'));
-      else toast.error(t('all_sends_failed'));
+      if (data.email?.success) toast.success(t('reminder_sent_success'));
+      else toast.error(data.email?.message || t('all_sends_failed'));
     } catch { toast.error(t('error_sending_reminder')); }
     setSending(null);
   };
@@ -247,7 +234,6 @@ export default function NotificationsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((inv) => {
-            const ch = selectedChannels[inv.id] || { email: true, whatsapp: false, sms: false };
             const res = results[inv.id];
             const daysSince = Math.floor((Date.now() - new Date(inv.createdAt).getTime()) / 86400000);
             return (
@@ -262,7 +248,6 @@ export default function NotificationsPage() {
                     </div>
                     <div className="text-slate-700 font-medium mt-0.5">{inv.clientName}</div>
                     {inv.clientEmail && <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><Mail size={11} /> {inv.clientEmail}</div>}
-                    {inv.clientPhone && <div className="text-xs text-slate-400 flex items-center gap-1"><Phone size={11} /> {inv.clientPhone}</div>}
                     {/* MOD 3: creator */}
                     {inv.createdBy && (
                       <div className={clsx('text-xs mt-1', inv.createdBy.role === 'admin' ? 'text-blue-500' : 'text-violet-500')}>
@@ -276,37 +261,28 @@ export default function NotificationsPage() {
                   </div>
                 </div>
 
-                {/* Channel selection */}
-                <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-100">
-                  {[
-                    { key: 'email' as const, label: 'Email', icon: Mail, disabled: !inv.clientEmail },
-                    { key: 'whatsapp' as const, label: 'WhatsApp', icon: MessageCircle, disabled: !inv.clientPhone },
-                    { key: 'sms' as const, label: 'SMS', icon: Phone, disabled: !inv.clientPhone },
-                  ].map(({ key, label, icon: Icon, disabled }) => (
-                    <button key={key} onClick={() => !disabled && toggleChannel(inv.id, key)} disabled={disabled}
-                      className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border',
-                        disabled ? 'opacity-30 cursor-not-allowed bg-slate-50 text-slate-400 border-slate-200' :
-                        ch[key] ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300')}>
-                      <Icon size={13} /> {label}
-                    </button>
-                  ))}
-
-                  <button onClick={() => sendReminder(inv)} disabled={sending === inv.id}
-                    className="ml-auto btn-primary text-sm py-1.5">
-                    {sending === inv.id ? <Loader2 size={14} className="animate-spin" /> : <><Send size={14} /> {t('send')}</>}
+                <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+                  {!inv.clientEmail && (
+                    <span className="text-xs text-slate-400">{t('no_contact_for_reminder')}</span>
+                  )}
+                  <button
+                    onClick={() => sendReminder(inv)}
+                    disabled={!inv.clientEmail || sending === inv.id}
+                    className="ml-auto btn-primary text-sm py-1.5"
+                  >
+                    {sending === inv.id
+                      ? <Loader2 size={14} className="animate-spin" />
+                      : <><Mail size={14} /> {t('send_email_reminder')}</>}
                   </button>
                 </div>
 
-                {/* Send results */}
-                {res && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {Object.entries(res).map(([ch, r]: [string, any]) => (
-                      <span key={ch} className={clsx('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full',
-                        r.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600')}>
-                        {r.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
-                        {ch}: {r.message}
-                      </span>
-                    ))}
+                {res?.email && (
+                  <div className="mt-2">
+                    <span className={clsx('inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full',
+                      res.email.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600')}>
+                      {res.email.success ? <CheckCircle size={10} /> : <XCircle size={10} />}
+                      {res.email.message}
+                    </span>
                   </div>
                 )}
               </div>

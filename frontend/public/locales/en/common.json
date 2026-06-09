@@ -705,6 +705,7 @@
   "finish_without_signature": "Finish without signature",
   "not_repairable": "Not repairable",
   "intervention_done": "Intervention completed",
-  "closing_date": "Closing date"
+  "closing_date": "Closing date",
+  "send_email_reminder": "Send email reminder"
   }
 }

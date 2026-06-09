@@ -151,7 +151,7 @@ export default function InvoicesPage() {
     if (!inv.clientEmail && !inv.clientPhone) { toast.error(t('no_contact_for_reminder')); return; }
     setReminding(inv.id);
     try {
-      await api.post(`/notifications/send-reminder/${inv.id}`, { channels: { email: !!inv.clientEmail } });
+      await api.post(`/notifications/send-reminder/${inv.id}`);
       toast.success(`${t('reminder_sent_to')} ${inv.clientName}`);
     } catch { toast.error(t('error_sending_reminder')); }
     setReminding(null);
