@@ -7,6 +7,7 @@ const withPWA = require('next-pwa')({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development' || process.env.DESKTOP_BUILD === '1',
+  buildExcludes: [/app-build-manifest\.json$/, /middleware-manifest\.json$/],
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
@@ -23,9 +24,7 @@ const withPWA = require('next-pwa')({
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-
-  i18n,   // ✅ on ajoute ici la traduction
-
+  i18n,
   env: {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api',
