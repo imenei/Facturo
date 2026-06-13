@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta charSet="utf-8" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         <I18nBootstrap />
         {children}
         <Toaster
