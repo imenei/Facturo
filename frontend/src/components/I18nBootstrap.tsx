@@ -95,9 +95,16 @@ export default function I18nBootstrap() {
   useEffect(() => {
     const id = window.setTimeout(() => {
       translateDom(translations);
-    }, 0);
+    }, 300);
 
-    return () => window.clearTimeout(id);
+    const id2 = window.setTimeout(() => {
+      translateDom(translations);
+    }, 800);
+
+    return () => {
+      window.clearTimeout(id);
+      window.clearTimeout(id2);
+    };
   }, [translations, locale, pathname]);
 
   return null;
