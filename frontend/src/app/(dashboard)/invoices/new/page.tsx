@@ -137,7 +137,7 @@ export default function NewInvoicePage() {
     : [];
 
   const pickExistingClient = (c: any) => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:4000';
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
     let logoUrl = c.clientLogoUrl || '';
     if (logoUrl && !logoUrl.startsWith('data:') && !logoUrl.startsWith('http')) {
       logoUrl = `${API_BASE}${logoUrl}`;
