@@ -1,6 +1,6 @@
 # Node
 node_modules/
-.next/
+#.next/
 package-lock.json
 yarn.lock
 
@@ -23,7 +23,7 @@ desktop/**/win-unpacked/
 *.exe
 node_modules/
 dist/
-.next/
+#.next/
 .env
 .env.local
 *.log
