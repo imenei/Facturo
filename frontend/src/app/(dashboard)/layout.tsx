@@ -20,9 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!mounted || !user) return null;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-slate-50 md:flex-row">
       <Sidebar />
-      <main className="flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto">
         {children}
       </main>
     </div>
