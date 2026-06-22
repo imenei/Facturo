@@ -595,7 +595,7 @@ export default function InterventionWorkspacePage() {
                 </div>
 
                 {/* Pricing */}
-                <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
                   <div>
                     <label className="label">{t('labor_cost')}</label>
                     {isEditable

@@ -47,9 +47,16 @@ export async function cacheInvoices(invoices: any[]) {
   await tx.done;
 }
 
-export async function getCachedInvoices() {
+export async function updateCachedInvoice(id: string, patch: Record<string, any>) {
   const database = await getDB();
-  return database.getAll('invoices');
+  const existing = await database.get('invoices', id);
+  if (existing) {
+    await database.put('invoices', { ...existing, ...patch });
+  }
+}
+
+export async function getCachedInvoices() {
+  return (await getDB()).getAll('invoices');
 }
 
 export async function cacheTasks(tasks: any[]) {
@@ -59,9 +66,16 @@ export async function cacheTasks(tasks: any[]) {
   await tx.done;
 }
 
-export async function getCachedTasks() {
+export async function updateCachedTask(id: string, patch: Record<string, any>) {
   const database = await getDB();
-  return database.getAll('tasks');
+  const existing = await database.get('tasks', id);
+  if (existing) {
+    await database.put('tasks', { ...existing, ...patch });
+  }
+}
+
+export async function getCachedTasks() {
+  return (await getDB()).getAll('tasks');
 }
 
 export async function cacheCompany(company: any) {

@@ -101,15 +101,59 @@ export default function DeliveriesPage() {
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
         <div className="card overflow-hidden">
+          {/* Mobile: cards */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filtered.length === 0 && (
+              <div className="text-center py-12 text-slate-400">{t('no_documents_found')}</div>
+            )}
+            {filtered.map((inv) => {
+              const cfg = deliveryConfig[inv.deliveryStatus as keyof typeof deliveryConfig] || deliveryConfig.en_attente;
+              const Icon = cfg.icon;
+              return (
+                <div key={inv.id} className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-mono text-sm font-medium text-slate-900">{inv.number}</div>
+                      <div className="text-xs text-slate-400 capitalize">{t(inv.type.replace('_', ' '))}</div>
+                      <div className="text-sm text-slate-700 mt-1">{inv.clientName}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-medium text-slate-900">{Number(inv.total).toLocaleString('fr-DZ')} DZD</div>
+                      <div className="text-xs text-slate-400 mt-1">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</div>
+                    </div>
+                  </div>
+                  <span className={clsx('badge', cfg.color)}><Icon size={11} className="mr-1" />{cfg.label}</span>
+                  <div className="flex gap-2 flex-wrap">
+                    {['en_attente', 'livree', 'non_livree'].filter((s) => s !== inv.deliveryStatus).map((s) => {
+                      const c = deliveryConfig[s as keyof typeof deliveryConfig];
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => updateDelivery(inv.id, s)}
+                          disabled={updating === inv.id}
+                          className={clsx('text-xs px-2.5 py-1.5 rounded border transition-all', c.color.replace('bg-', 'border-').replace('100', '200'), 'hover:opacity-80 bg-white')}
+                        >
+                          {updating === inv.id ? <Loader2 size={10} className="animate-spin" /> : c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('document')}</th>
-                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('client')}</th>
-                <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('amount')}</th>
-                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('status')}</th>
-                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('date')}</th>
-                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('action')}</th>
+                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('document')}</th>
+                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('client')}</th>
+                <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('amount')}</th>
+                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('status')}</th>
+                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('date')}</th>
+                <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('action')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -153,6 +197,7 @@ export default function DeliveriesPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

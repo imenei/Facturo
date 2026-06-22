@@ -201,12 +201,12 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
 
       {/* Tab: Products — MOD 5 */}
       {tab === 'products' && d && (
-        <div className="card overflow-hidden">
+        <div className="card overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 {[t('product'), t('total_quantity'), t('total_revenue_short'), t('last_order')].map((h) => (
-                  <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{h}</th>
+                  <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
