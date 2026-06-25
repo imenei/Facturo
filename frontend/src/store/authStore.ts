@@ -19,6 +19,7 @@ interface AuthState {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (data: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const { data } = await api.post('/auth/login', { email, password });
-          localStorage.setItem('facturo_token', data.access_token);
+          localStorage.setItem('helpdz_token', data.access_token);
           set({ user: data.user, token: data.access_token, isLoading: false });
         } catch (err) {
           set({ isLoading: false });
@@ -41,12 +42,18 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        localStorage.removeItem('facturo_token');
+        localStorage.removeItem('helpdz_token');
         set({ user: null, token: null });
+      },
+
+      updateUser: (data) => {
+        set((state) => ({
+          user: state.user ? { ...state.user, ...data } : state.user,
+        }));
       },
     }),
     {
-      name: 'facturo_auth',
+      name: 'helpdz_auth',
       partialize: (state) => ({ user: state.user, token: state.token }),
     },
   ),

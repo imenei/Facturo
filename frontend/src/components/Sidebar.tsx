@@ -87,7 +87,7 @@ export default function Sidebar() {
           <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
             <FileText size={16} className="text-white" />
           </div>
-          <span className="font-display font-700 text-lg tracking-tight">Facturo</span>
+          <span className="font-display font-700 text-lg tracking-tight">HelpDZ</span>
           <button
             type="button"
             onClick={() => setMobileOpen(false)}

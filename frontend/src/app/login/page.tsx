@@ -41,7 +41,7 @@ export default function LoginPage() {
                 <FileText size={20} className="text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-display font-700">Facturo</h1>
+                <h1 className="text-2xl font-display font-700">HelpDZ</h1>
                 <p className="text-blue-200 text-sm">{t('business_management')}</p>
               </div>
             </div>

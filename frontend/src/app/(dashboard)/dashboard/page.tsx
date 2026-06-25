@@ -367,7 +367,7 @@ export default function DashboardPage() {
 
       {/* ══ LIVREUR ═════════════════════════════════════════════════════════════ */}
       {user?.role === 'livreur' && taskStats && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-4 mb-8">
           <StatCard icon={CheckSquare} label={t('total_tasks')} color="bg-brand-500" value={taskStats.total || 0} />
           <StatCard icon={CheckSquare} label={t('completed_tasks')} color="bg-emerald-500" value={taskStats.completed || 0} />
           <StatCard icon={DollarSign} label={t('total_earned')} color="bg-purple-500"

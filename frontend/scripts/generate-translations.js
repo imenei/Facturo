@@ -47,7 +47,7 @@ const dictionary = {
   "prix": { en: "Price", ar: "السعر" },
   "remarques": { en: "Remarks", ar: "ملاحظات" },
   "ajouter_une_remarque": { en: "Add a remark", ar: "إضافة ملاحظة" },
-  "facturo": { en: "Facturo", ar: "فاكتورو" },
+  "helpdz": { en: "HelpDZ", ar: "فاكتورو" },
   "gestion_commerciale": { en: "Business Management", ar: "التسيير التجاري" },
   "bienvenue": { en: "Welcome", ar: "مرحباً" },
 };

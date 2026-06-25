@@ -24,6 +24,10 @@ export class UpdateUserDto {
   role?: UserRole;
 
   @IsOptional()
+  @IsString()
+  specialty?: string;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }

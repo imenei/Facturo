@@ -13,37 +13,37 @@ async function bootstrap() {
 
   try {
     await usersService.create({
-      email: 'admin@facturo.dz',
+      email: 'admin@helpdz.dz',
       password: 'Admin@1234',
       name: 'Administrateur',
       role: UserRole.ADMIN,
     });
-    console.log('✅ Admin créé: admin@facturo.dz / Admin@1234');
+    console.log('✅ Admin créé: admin@helpdz.dz / Admin@1234');
   } catch (e) {
     console.log('ℹ️  Admin existe déjà ou erreur:', e.message);
   }
 
   try {
     await usersService.create({
-      email: 'commercial@facturo.dz',
+      email: 'commercial@helpdz.dz',
       password: 'Commercial@1234',
       name: 'Commercial Demo',
       role: UserRole.COMMERCIAL,
     });
-    console.log('✅ Commercial créé: commercial@facturo.dz / Commercial@1234');
+    console.log('✅ Commercial créé: commercial@helpdz.dz / Commercial@1234');
   } catch (e) {
     console.log('ℹ️  Commercial existe déjà');
   }
 
   try {
     await usersService.create({
-      email: 'livreur@facturo.dz',
+      email: 'livreur@helpdz.dz',
       password: 'Livreur@1234',
       name: 'Livreur Demo',
       phone: '+213 550 000 000',
       role: UserRole.LIVREUR,
     });
-    console.log('✅ Livreur créé: livreur@facturo.dz / Livreur@1234');
+    console.log('✅ Livreur créé: livreur@helpdz.dz / Livreur@1234');
   } catch (e) {
     console.log('ℹ️  Livreur existe déjà');
   }

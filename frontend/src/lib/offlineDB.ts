@@ -1,6 +1,6 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
-interface FacturoDB extends DBSchema {
+interface HelpDZDB extends DBSchema {
   offlineQueue: {
     key: number;
     value: { method: string; url: string; data: any; timestamp: number };
@@ -10,11 +10,11 @@ interface FacturoDB extends DBSchema {
   company: { key: string; value: any };
 }
 
-let db: IDBPDatabase<FacturoDB> | null = null;
+let db: IDBPDatabase<HelpDZDB> | null = null;
 
 async function getDB() {
   if (db) return db;
-  db = await openDB<FacturoDB>('facturo-offline', 1, {
+  db = await openDB<HelpDZDB>('helpdz-offline', 1, {
     upgrade(database) {
       database.createObjectStore('offlineQueue', { autoIncrement: true });
       database.createObjectStore('invoices', { keyPath: 'id' });
@@ -47,16 +47,9 @@ export async function cacheInvoices(invoices: any[]) {
   await tx.done;
 }
 
-export async function updateCachedInvoice(id: string, patch: Record<string, any>) {
-  const database = await getDB();
-  const existing = await database.get('invoices', id);
-  if (existing) {
-    await database.put('invoices', { ...existing, ...patch });
-  }
-}
-
 export async function getCachedInvoices() {
-  return (await getDB()).getAll('invoices');
+  const database = await getDB();
+  return database.getAll('invoices');
 }
 
 export async function cacheTasks(tasks: any[]) {
@@ -66,16 +59,9 @@ export async function cacheTasks(tasks: any[]) {
   await tx.done;
 }
 
-export async function updateCachedTask(id: string, patch: Record<string, any>) {
-  const database = await getDB();
-  const existing = await database.get('tasks', id);
-  if (existing) {
-    await database.put('tasks', { ...existing, ...patch });
-  }
-}
-
 export async function getCachedTasks() {
-  return (await getDB()).getAll('tasks');
+  const database = await getDB();
+  return database.getAll('tasks');
 }
 
 export async function cacheCompany(company: any) {

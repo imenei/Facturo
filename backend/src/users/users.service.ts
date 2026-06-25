@@ -13,7 +13,7 @@ export class UsersService {
     private usersRepository: Repository<User>,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto): Promise<Partial<User>> {
     const existing = await this.usersRepository.findOne({
       where: { email: createUserDto.email },
     });
@@ -21,11 +21,13 @@ export class UsersService {
 
     const hashed = await bcrypt.hash(createUserDto.password, 12);
     const user = this.usersRepository.create({ ...createUserDto, password: hashed });
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    const { password, ...rest } = saved;
+    return rest;
   }
 
   async findAll(): Promise<User[]> {
-    return this.usersRepository.find({ select: ['id', 'email', 'name', 'phone', 'role', 'isActive', 'createdAt'] });
+    return this.usersRepository.find({ select: ['id', 'email', 'name', 'phone', 'specialty', 'role', 'isActive', 'createdAt'] });
   }
 
   async findByRole(role: UserRole): Promise<User[]> {
@@ -45,13 +47,15 @@ export class UsersService {
     return this.usersRepository.findOne({ where: { email } });
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<Partial<User>> {
     const user = await this.findOne(id);
     if (updateUserDto.password) {
       updateUserDto.password = await bcrypt.hash(updateUserDto.password, 12);
     }
     Object.assign(user, updateUserDto);
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    const { password, ...rest } = saved;
+    return rest;
   }
 
   async remove(id: string): Promise<void> {

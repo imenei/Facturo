@@ -211,7 +211,7 @@ export const useI18nStore = create<I18nState>()(
       },
     }),
     {
-      name: 'facturo_i18n_v2',
+      name: 'helpdz_i18n_v2',
       partialize: (state) => ({ locale: state.locale }),
       onRehydrateStorage: () => (state) => {
         if (state?.locale) {

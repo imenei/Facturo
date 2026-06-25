@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import api, { apiRequestWithOffline } from '@/lib/api';
+import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
-import { getCachedInvoices, cacheInvoices, updateCachedInvoice } from '@/lib/offlineDB';
+import { getCachedInvoices, cacheInvoices } from '@/lib/offlineDB';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
@@ -158,16 +158,8 @@ export default function InvoicesPage() {
   };
 
   const updateWorkflow = async (id: string, step: string) => {
-    try {
-      await apiRequestWithOffline('patch', `/invoices/${id}/workflow`, { step });
-      load();
-    } catch (e: any) {
-      if (e?.offlineQueued) {
-        await updateCachedInvoice(id, { workflowStep: step });
-        load();
-        toast('Étape enregistrée, sera synchronisée à la reconnexion', { icon: '📶', style: { background: '#f59e0b', color: '#fff' } });
-      } else toast.error(t('error_updating_workflow'));
-    }
+    try { await api.patch(`/invoices/${id}/workflow`, { step }); load(); }
+    catch { toast.error(t('error_updating_workflow')); }
   };
 
   const activeFiltersCount = [typeFilter, paymentFilter, dateFilter, statusFilter, numberSearch].filter(Boolean).length;

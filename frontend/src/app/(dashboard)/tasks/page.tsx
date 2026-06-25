@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
-import api, { apiRequestWithOffline } from '@/lib/api';
+import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
-import { getCachedTasks, cacheTasks, updateCachedTask } from '@/lib/offlineDB';
+import { getCachedTasks, cacheTasks } from '@/lib/offlineDB';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -227,51 +227,31 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
 
   const updateStatus = async (status: StatusKey) => {
     setSaving(true);
-    try {
-      await apiRequestWithOffline('put', `/tasks/${task.id}`, { status });
-      onUpdate(); toast.success(t('task_status_updated'));
-    } catch (e: any) {
-      if (e?.offlineQueued) { await updateCachedTask(task.id, { status }); onUpdate(); toast('Statut enregistré, sera synchronisé à la reconnexion', { icon: '📶', style: { background: '#f59e0b', color: '#fff' } }); }
-      else toast.error(t('error_updating_task'));
-    }
+    try { await api.put(`/tasks/${task.id}`, { status }); onUpdate(); toast.success(t('task_status_updated')); }
+    catch { toast.error(t('error_updating_task')); }
     setSaving(false);
   };
 
   const saveRemarks = async () => {
     setSaving(true);
-    try {
-      await apiRequestWithOffline('put', `/tasks/${task.id}`, { remarks });
-      setEditing(false); onUpdate(); toast.success(t('remark_saved'));
-    } catch (e: any) {
-      if (e?.offlineQueued) { await updateCachedTask(task.id, { remarks }); setEditing(false); onUpdate(); toast('Remarque enregistrée, sera synchronisée à la reconnexion', { icon: '📶', style: { background: '#f59e0b', color: '#fff' } }); }
-      else toast.error(t('error_saving_remark'));
-    }
+    try { await api.put(`/tasks/${task.id}`, { remarks }); setEditing(false); onUpdate(); toast.success(t('remark_saved')); }
+    catch { toast.error(t('error_saving_remark')); }
     setSaving(false);
   };
 
   // MOD 6: start delivery
   const startDelivery = async () => {
     setSaving(true);
-    try {
-      await apiRequestWithOffline('patch', `/tasks/${task.id}/start-delivery`);
-      onUpdate(); toast.success('Livraison démarrée !');
-    } catch (e: any) {
-      if (e?.offlineQueued) { await updateCachedTask(task.id, { deliveryStartedAt: new Date().toISOString() }); onUpdate(); toast('Démarrage enregistré, sera synchronisé à la reconnexion', { icon: '📶', style: { background: '#f59e0b', color: '#fff' } }); }
-      else toast.error(e?.response?.data?.message || 'Erreur');
-    }
+    try { await api.patch(`/tasks/${task.id}/start-delivery`); onUpdate(); toast.success('Livraison démarrée !'); }
+    catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
 
   // MOD 6: finish delivery
   const finishDelivery = async () => {
     setSaving(true);
-    try {
-      await apiRequestWithOffline('patch', `/tasks/${task.id}/finish-delivery`);
-      onUpdate(); toast.success('Livraison terminée !');
-    } catch (e: any) {
-      if (e?.offlineQueued) { await updateCachedTask(task.id, { deliveryFinishedAt: new Date().toISOString() }); onUpdate(); toast('Fin de livraison enregistrée, sera synchronisée à la reconnexion', { icon: '📶', style: { background: '#f59e0b', color: '#fff' } }); }
-      else toast.error(e?.response?.data?.message || 'Erreur');
-    }
+    try { await api.patch(`/tasks/${task.id}/finish-delivery`); onUpdate(); toast.success('Livraison terminée !'); }
+    catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
 
@@ -279,12 +259,9 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
   const saveExtraFees = async () => {
     setSaving(true);
     try {
-      await apiRequestWithOffline('patch', `/tasks/${task.id}/extra-fees`, { extraFees: Number(extraFees), extraFeesNote });
+      await api.patch(`/tasks/${task.id}/extra-fees`, { extraFees: Number(extraFees), extraFeesNote });
       setShowExtraFees(false); onUpdate(); toast.success('Frais imprévus enregistrés');
-    } catch (e: any) {
-      if (e?.offlineQueued) { await updateCachedTask(task.id, { extraFees: Number(extraFees), extraFeesNote }); setShowExtraFees(false); onUpdate(); toast('Frais enregistrés, seront synchronisés à la reconnexion', { icon: '📶', style: { background: '#f59e0b', color: '#fff' } }); }
-      else toast.error('Erreur enregistrement frais');
-    }
+    } catch { toast.error('Erreur enregistrement frais'); }
     setSaving(false);
   };
 
@@ -545,10 +522,10 @@ export default function TasksPage() {
 
       {/* Livreur stats */}
       {isLivreur && stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-slate-900">{stats.total}</div><div className="text-xs text-slate-500 mt-1">{t('total')}</div></div>
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-emerald-600">{stats.completed}</div><div className="text-xs text-slate-500 mt-1">{t('completed_tasks')}</div></div>
-          <div className="card p-4 text-center col-span-2 sm:col-span-1"><div className="text-lg font-display font-700 text-brand-600">{Number(stats.totalEarned).toLocaleString('fr-FR')}</div><div className="text-xs text-slate-500 mt-1">DZD {t('earned')}</div></div>
+          <div className="card p-4 text-center"><div className="text-lg font-display font-700 text-brand-600">{Number(stats.totalEarned).toLocaleString('fr-FR')}</div><div className="text-xs text-slate-500 mt-1">DZD {t('earned')}</div></div>
         </div>
       )}
 

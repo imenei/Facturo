@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import api, { apiRequestWithOffline } from '@/lib/api';
+import api from '@/lib/api';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import {
@@ -191,20 +191,11 @@ export default function NewInvoicePage() {
           purchasePrice: item.purchasePrice, // MOD 7: internal, stored in jsonb
         })),
       };
-      const { data } = await apiRequestWithOffline('post', '/invoices', payload);
+      const { data } = await api.post('/invoices', payload);
       toast.success(t('invoice_created_successfully'));
       router.push(`/invoices/${data.id}`);
     } catch (err: any) {
-      if (err?.offlineQueued) {
-        // Pas de réseau : la facture est mise en file d'attente et sera créée
-        // côté serveur à la reconnexion. Impossible d'avoir un ID serveur ni
-        // une page de détail tant que ce n'est pas synchronisé, donc on
-        // renvoie vers la liste plutôt que vers /invoices/[id].
-        toast.success('Aucune connexion : document enregistré, il sera créé à la reconnexion', { duration: 5000 });
-        router.push('/invoices');
-      } else {
-        toast.error(err?.response?.data?.message || t('error_during_creation'));
-      }
+      toast.error(err?.response?.data?.message || t('error_during_creation'));
     }
     setSaving(false);
   };

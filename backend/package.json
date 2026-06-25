@@ -1,7 +1,7 @@
 {
-  "name": "facturo-backend",
+  "name": "helpdz-backend",
   "version": "1.0.0",
-  "description": "Facturo Backend API - NestJS",
+  "description": "HelpDZ Backend API - NestJS",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main",

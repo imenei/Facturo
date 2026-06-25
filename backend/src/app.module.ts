@@ -23,9 +23,9 @@ import { InterventionsModule } from './intervention/intervention.module';
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT) || 5432,
-      username: process.env.DB_USER || 'facturo',
-      password: process.env.DB_PASS || 'facturo_pass',
-      database: process.env.DB_NAME || 'facturo_db',
+      username: process.env.DB_USER || 'helpdz',
+      password: process.env.DB_PASS || 'helpdz_pass',
+      database: process.env.DB_NAME || 'helpdz_db',
       autoLoadEntities: true,
       // MOD 6: synchronize will auto-add new columns (startedDeliveryAt, finishedDeliveryAt,
       //         extraFees, finalPrice, deliveryDurationMinutes) to tasks table

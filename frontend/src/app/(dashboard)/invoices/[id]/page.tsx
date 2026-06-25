@@ -158,15 +158,14 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
         </span>
       </div>
 
-      <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="bg-slate-50">
-            <th className="text-left text-xs font-600 text-slate-500 px-5 py-2.5 uppercase whitespace-nowrap">Produit</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase whitespace-nowrap">Prix achat</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase whitespace-nowrap">Prix vente</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase whitespace-nowrap">Qté</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-5 py-2.5 uppercase whitespace-nowrap">Marge totale</th>
+            <th className="text-left text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">Produit</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Prix achat</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Prix vente</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Qté</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">Marge totale</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -210,7 +209,6 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
           </tr>
         </tfoot>
       </table>
-      </div>
     </div>
   );
 }
@@ -412,14 +410,13 @@ export default function InvoiceDetailPage() {
           <h3 className="font-display font-600 text-slate-900">{t('items')}</h3>
           <span className="text-sm text-slate-400">{invoice.items?.length} {t('items_count')}</span>
         </div>
-        <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="bg-slate-50">
-              <th className="text-left text-xs font-600 text-slate-500 px-5 py-3 uppercase whitespace-nowrap">{t('description')}</th>
-              <th className="text-center text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('quantity')}</th>
-              <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase whitespace-nowrap">{t('unit_price')}</th>
-              <th className="text-right text-xs font-600 text-slate-500 px-5 py-3 uppercase whitespace-nowrap">{t('total_excl_tax')}</th>
+              <th className="text-left text-xs font-600 text-slate-500 px-5 py-3 uppercase">{t('description')}</th>
+              <th className="text-center text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('quantity')}</th>
+              <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase">{t('unit_price')}</th>
+              <th className="text-right text-xs font-600 text-slate-500 px-5 py-3 uppercase">{t('total_excl_tax')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
@@ -433,7 +430,6 @@ export default function InvoiceDetailPage() {
             ))}
           </tbody>
         </table>
-        </div>
 
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">

@@ -62,7 +62,7 @@ export class NotificationsService {
       : 'non définie';
 
     const tmpl = this.getEmailTemplate();
-    const brandName = process.env.SMTP_FROM_NAME || 'Facturo';
+    const brandName = process.env.SMTP_FROM_NAME || 'HelpDZ';
 
     // Replace variables in body
     const bodyContent = tmpl.body
@@ -86,7 +86,7 @@ export class NotificationsService {
           ${bodyContent}
         </div>
         <div style="background:#f9fafb;padding:16px 30px;border-top:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">
-          Rappel automatique envoyé par <strong>Facturo</strong>. Merci de ne pas répondre à cet email.
+          Rappel automatique envoyé par <strong>HelpDZ</strong>. Merci de ne pas répondre à cet email.
         </div>
       </div>
       </body></html>
@@ -111,9 +111,9 @@ export class NotificationsService {
     }
 
     const companyName = process.env.COMPANY_NAME || 'Mon Entreprise';
-    const senderName = process.env.SMTP_FROM_NAME || 'Facturo';
+    const senderName = process.env.SMTP_FROM_NAME || 'HelpDZ';
     const senderAddress = process.env.SMTP_FROM || process.env.SMTP_USER || '';
-    const noReplyAddress = process.env.SMTP_NOREPLY || 'noreply@facturo.app';
+    const noReplyAddress = process.env.SMTP_NOREPLY || 'noreply@helpdz.app';
 
     try {
       await this.transporter.sendMail({

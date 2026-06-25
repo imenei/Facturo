@@ -2,9 +2,10 @@
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useI18nStore } from '@/store/i18nStore';
+import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { Plus, Edit2, Trash2, Loader2, X, Save } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, X, Save, Eye, EyeOff } from 'lucide-react';
 
 const roleColors: Record<string, string> = {
   admin:       'bg-red-100 text-red-700',
@@ -21,12 +22,15 @@ const emptyForm = {
 
 export default function UsersPage() {
   const { t } = useI18nStore();
+  const currentUser = useAuthStore((s) => s.user);
+  const updateCurrentUser = useAuthStore((s) => s.updateUser);
   const [users, setUsers]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editUser, setEditUser] = useState<any>(null);
   const [form, setForm]       = useState({ ...emptyForm });
   const [saving, setSaving]   = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const load = async () => {
     try {
@@ -41,11 +45,13 @@ export default function UsersPage() {
   const openNew  = () => {
     setEditUser(null);
     setForm({ ...emptyForm });
+    setShowPassword(false);
     setShowForm(true);
   };
   const openEdit = (u: any) => {
     setEditUser(u);
     setForm({ name: u.name, email: u.email, password: '', phone: u.phone || '', role: u.role, specialty: u.specialty || '' });
+    setShowPassword(false);
     setShowForm(true);
   };
 
@@ -56,8 +62,27 @@ export default function UsersPage() {
       const payload: any = { ...form };
       if (editUser && !payload.password) delete payload.password;
       if (payload.role !== 'technicien')  delete payload.specialty;  // n'envoyer specialty que si technicien
-      if (editUser) await api.put(`/users/${editUser.id}`, payload);
-      else          await api.post('/users', payload);
+      let saved: any;
+      if (editUser) {
+        const { data } = await api.put(`/users/${editUser.id}`, payload);
+        saved = data;
+        // Mise à jour immédiate de la liste sans attendre un rechargement complet
+        setUsers((prev) => prev.map((u) => (u.id === editUser.id ? { ...u, ...saved } : u)));
+        // Si l'utilisateur modifié est celui actuellement connecté, on synchronise le store d'auth
+        if (currentUser && currentUser.id === editUser.id) {
+          updateCurrentUser({
+            name: saved.name,
+            email: saved.email,
+            phone: saved.phone,
+            role: saved.role,
+            specialty: saved.specialty,
+          });
+        }
+      } else {
+        const { data } = await api.post('/users', payload);
+        saved = data;
+        setUsers((prev) => [...prev, saved]);
+      }
       toast.success(editUser ? t('user_updated') : t('user_created'));
       setShowForm(false);
       load();
@@ -114,10 +139,21 @@ export default function UsersPage() {
                 <label className="label">
                   {editUser ? t('new_password_optional') : `${t('password')} *`}
                 </label>
-                <input className="input" type="password" required={!editUser} minLength={6}
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  placeholder="........" />
+                <div className="relative">
+                  <input className="input pr-10" type={showPassword ? 'text' : 'password'} required={!editUser} minLength={6}
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    placeholder="........" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                    aria-label={showPassword ? t('hide_password') : t('show_password')}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="label">{t('phone')}</label>

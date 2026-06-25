@@ -1,6 +1,6 @@
 {
-  "name": "Facturo — Gestion commerciale",
-  "short_name": "Facturo",
+  "name": "HelpDZ — Gestion commerciale",
+  "short_name": "HelpDZ",
   "description": "Application de facturation et gestion des livraisons",
   "start_url": "/",
   "display": "standalone",

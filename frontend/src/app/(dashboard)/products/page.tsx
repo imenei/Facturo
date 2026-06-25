@@ -102,7 +102,7 @@ export default function ProductsPage() {
               <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="label">{t('name')} *</label>
                   <input className="input" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t('product_name_placeholder')} />
@@ -155,42 +155,11 @@ export default function ProductsPage() {
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
         <div className="card overflow-hidden">
-          {/* Mobile: cards */}
-          <div className="md:hidden divide-y divide-slate-100">
-            {products.length === 0 && (
-              <div className="text-center py-12 text-slate-400">{t('no_products')}</div>
-            )}
-            {products.map((p) => {
-              const { m, pct } = margin(p);
-              return (
-                <div key={p.id} className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-medium text-slate-900 text-sm">{p.name}</div>
-                      {p.description && <div className="text-xs text-slate-400 truncate">{p.description}</div>}
-                      <div className="text-xs text-slate-400 mt-1">{p.reference || '—'} {p.unit ? `· ${p.unit}` : ''}</div>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button onClick={() => openEdit(p)} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-brand-600 transition-colors"><Edit2 size={14} /></button>
-                      <button onClick={() => handleDelete(p.id, p.name)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">{Number(p.purchasePrice).toLocaleString('fr-DZ')} DZD → <span className="font-medium text-slate-900">{Number(p.salePrice).toLocaleString('fr-DZ')} DZD</span></span>
-                    <span className="text-emerald-600 font-medium">{m.toLocaleString('fr-DZ')} DZD ({pct}%)</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Desktop: table */}
-          <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
                 {[t('product'), t('reference'), t('unit'), t('purchase_price'), t('sale_price'), t('margin'), t('actions')].map((h) => (
-                  <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -225,7 +194,6 @@ export default function ProductsPage() {
               })}
             </tbody>
           </table>
-          </div>
         </div>
       )}
     </div>

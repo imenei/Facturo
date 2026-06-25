@@ -4,10 +4,10 @@ import { Toaster } from 'react-hot-toast';
 import I18nBootstrap from '@/components/I18nBootstrap';
 
 export const metadata: Metadata = {
-  title: 'Facturo — Gestion commerciale & livraisons',
+  title: 'HelpDZ — Gestion commerciale & livraisons',
   description: 'Application de facturation, gestion commerciale et suivi des livraisons',
   manifest: '/manifest.json',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'Facturo' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HelpDZ' },
   icons: { icon: '/icons/icon-512.png', apple: '/icons/icon-192.png' },
 };
 
@@ -25,11 +25,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              // Le cache PWA (Service Worker) a été désactivé : on s'assure ici
+              // que tout Service Worker précédemment installé est bien supprimé
+              // chez les utilisateurs existants, et que le site ne garde plus
+              // aucune version en cache.
               if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js')
-                    .then(function(reg) { console.log('SW registered:', reg.scope); })
-                    .catch(function(err) { console.log('SW error:', err); });
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  registrations.forEach(function(reg) { reg.unregister(); });
+                });
+              }
+              if (window.caches && window.caches.keys) {
+                window.caches.keys().then(function(names) {
+                  names.forEach(function(name) { window.caches.delete(name); });
                 });
               }
             `,
