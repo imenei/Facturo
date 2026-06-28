@@ -42,4 +42,10 @@ export class UsersController {
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
+
+  @Delete(':id/forever')
+  @Roles(UserRole.ADMIN)
+  deleteForever(@Param('id') id: string) {
+    return this.usersService.deleteForever(id);
+  }
 }
