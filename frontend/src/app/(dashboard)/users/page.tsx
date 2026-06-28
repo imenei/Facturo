@@ -5,7 +5,7 @@ import { useI18nStore } from '@/store/i18nStore';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { Plus, Edit2, Trash2, Loader2, X, Save, Eye, EyeOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, Loader2, X, Save, Eye, EyeOff, UserX } from 'lucide-react';
 
 const roleColors: Record<string, string> = {
   admin:       'bg-red-100 text-red-700',
@@ -97,8 +97,17 @@ export default function UsersPage() {
     try {
       await api.delete(`/users/${id}`);
       toast.success(t('user_deactivated'));
-      load();
+      setUsers((prev) => prev.map((u) => u.id === id ? { ...u, isActive: false } : u));
     } catch { toast.error(t('error_deactivating_user')); }
+  };
+
+  const handleDeleteForever = async (id: string, name: string) => {
+    if (!confirm(`⚠️ Supprimer définitivement "${name}" ? Cette action est irréversible et supprimera l'utilisateur de la base de données.`)) return;
+    try {
+      await api.delete(`/users/${id}/forever`);
+      toast.success('Utilisateur supprimé définitivement');
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch { toast.error('Erreur lors de la suppression définitive'); }
   };
 
   return (
@@ -248,10 +257,13 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-brand-600 transition-colors">
+                  <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-brand-600 transition-colors" title="Modifier">
                     <Edit2 size={14} />
                   </button>
-                  <button onClick={() => handleDelete(u.id, u.name)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
+                  <button onClick={() => handleDelete(u.id, u.name)} className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500 transition-colors" title="Désactiver">
+                    <UserX size={14} />
+                  </button>
+                  <button onClick={() => handleDeleteForever(u.id, u.name)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 transition-colors" title="Supprimer définitivement">
                     <Trash2 size={14} />
                   </button>
                 </div>
