@@ -18,7 +18,6 @@ export class UsersService {
       where: { email: createUserDto.email },
     });
     if (existing) throw new ConflictException('Email déjà utilisé');
-
     const hashed = await bcrypt.hash(createUserDto.password, 12);
     const user = this.usersRepository.create({ ...createUserDto, password: hashed });
     const saved = await this.usersRepository.save(user);
@@ -62,5 +61,10 @@ export class UsersService {
     const user = await this.findOne(id);
     user.isActive = false;
     await this.usersRepository.save(user);
+  }
+
+  async deleteForever(id: string): Promise<void> {
+    const user = await this.findOne(id);
+    await this.usersRepository.remove(user);
   }
 }
