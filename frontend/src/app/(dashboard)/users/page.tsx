@@ -18,6 +18,7 @@ const emptyForm = {
   name: '', email: '', password: '', phone: '',
   role: 'commercial' as string,
   specialty: '',                                   // ← ajouté
+  isActive: true,                                   // ← ajouté
 };
 
 export default function UsersPage() {
@@ -50,7 +51,7 @@ export default function UsersPage() {
   };
   const openEdit = (u: any) => {
     setEditUser(u);
-    setForm({ name: u.name, email: u.email, password: '', phone: u.phone || '', role: u.role, specialty: u.specialty || '' });
+    setForm({ name: u.name, email: u.email, password: '', phone: u.phone || '', role: u.role, specialty: u.specialty || '', isActive: u.isActive ?? true });
     setShowPassword(false);
     setShowForm(true);
   };
@@ -76,6 +77,7 @@ export default function UsersPage() {
             phone: saved.phone,
             role: saved.role,
             specialty: saved.specialty,
+            isActive: saved.isActive,
           });
         }
       } else {
@@ -180,6 +182,35 @@ export default function UsersPage() {
                     onChange={(e) => setForm({ ...form, specialty: e.target.value })}
                     placeholder={t('specialty_placeholder')} />
                 </div>
+              )}
+
+              {/* Activer/Désactiver le compte — uniquement en modification */}
+              {editUser && (
+                <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer">
+                  <span className="text-sm text-slate-700">{t('account_active')}</span>
+                  <span className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={form.isActive}
+                      onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                    />
+                    <span
+                      onClick={() => setForm({ ...form, isActive: !form.isActive })}
+                      className={clsx(
+                        'w-10 h-5 rounded-full transition-colors relative',
+                        form.isActive ? 'bg-emerald-500' : 'bg-slate-300',
+                      )}
+                    >
+                      <span
+                        className={clsx(
+                          'absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform',
+                          form.isActive && 'translate-x-5',
+                        )}
+                      />
+                    </span>
+                  </span>
+                </label>
               )}
 
               <div className="flex gap-3 pt-2">
