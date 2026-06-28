@@ -11,14 +11,14 @@ const roleColors: Record<string, string> = {
   admin:       'bg-red-100 text-red-700',
   commercial:  'bg-blue-100 text-blue-700',
   livreur:     'bg-emerald-100 text-emerald-700',
-  technicien:  'bg-purple-100 text-purple-700',   // ← ajouté
+  technicien:  'bg-purple-100 text-purple-700',
 };
 
 const emptyForm = {
   name: '', email: '', password: '', phone: '',
   role: 'commercial' as string,
-  specialty: '',                                   // ← ajouté
-  isActive: true,                                   // ← ajouté
+  specialty: '',
+  isActive: true,
 };
 
 export default function UsersPage() {
@@ -35,7 +35,7 @@ export default function UsersPage() {
 
   const load = async () => {
     try {
-      const { data } = await api.get('/users');
+      const { data } = await api.get(`/users?_=${Date.now()}`);
       setUsers(data);
     } catch { toast.error(t('error_loading_users')); }
     setLoading(false);
@@ -62,14 +62,12 @@ export default function UsersPage() {
     try {
       const payload: any = { ...form };
       if (editUser && !payload.password) delete payload.password;
-      if (payload.role !== 'technicien')  delete payload.specialty;  // n'envoyer specialty que si technicien
+      if (payload.role !== 'technicien')  delete payload.specialty;
       let saved: any;
       if (editUser) {
         const { data } = await api.put(`/users/${editUser.id}`, payload);
         saved = data;
-        // Mise à jour immédiate de la liste sans attendre un rechargement complet
         setUsers((prev) => prev.map((u) => (u.id === editUser.id ? { ...u, ...saved } : u)));
-        // Si l'utilisateur modifié est celui actuellement connecté, on synchronise le store d'auth
         if (currentUser && currentUser.id === editUser.id) {
           updateCurrentUser({
             name: saved.name,
@@ -174,7 +172,6 @@ export default function UsersPage() {
                 </select>
               </div>
 
-              {/* Champ spécialité — affiché uniquement pour le rôle technicien */}
               {form.role === 'technicien' && (
                 <div>
                   <label className="label">{t('specialty')}</label>
@@ -184,7 +181,6 @@ export default function UsersPage() {
                 </div>
               )}
 
-              {/* Activer/Désactiver le compte — uniquement en modification */}
               {editUser && (
                 <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer">
                   <span className="text-sm text-slate-700">{t('account_active')}</span>
@@ -246,7 +242,6 @@ export default function UsersPage() {
                     <span className={clsx('badge text-xs', roleColors[u.role] ?? 'bg-slate-100 text-slate-600')}>
                       {u.role === 'technicien' ? t('technician') : t(u.role)}
                     </span>
-                    {/* Spécialité sous le badge si technicien */}
                     {u.role === 'technicien' && u.specialty && (
                       <p className="text-xs text-purple-500 mt-0.5">{u.specialty}</p>
                     )}
