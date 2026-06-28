@@ -11,6 +11,7 @@ export interface User {
   phone?: string;
   role: UserRole;
   specialty?: string; // champ spécifique au technicien
+  isActive?: boolean;
 }
 
 interface AuthState {
