@@ -1,0 +1,23 @@
+name: Build Frontend
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          CI=true npm run build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: next-build
+          path: frontend/.next
+          retention-days: 1
