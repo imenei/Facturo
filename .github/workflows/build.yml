@@ -23,4 +23,5 @@ jobs:
           name: next-build
           path: ${{ github.workspace }}/frontend/.next
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 1
