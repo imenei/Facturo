@@ -33,7 +33,6 @@ export class UsersService {
     return this.usersRepository
       .createQueryBuilder('user')
       .where('user.role = :role', { role })
-      .andWhere('COALESCE(user.isActive, true) = true')
       .select(['user.id', 'user.email', 'user.name', 'user.phone', 'user.role', 'user.isActive'])
       .orderBy('user.name', 'ASC')
       .getMany();

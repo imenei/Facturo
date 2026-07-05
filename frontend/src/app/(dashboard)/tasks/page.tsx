@@ -210,8 +210,9 @@ function DeliveryTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
-  task: any; onUpdate: () => void; isLivreur: boolean; isAdmin: boolean; t: (k: string) => string; companyName: string;
+function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName }: {
+  task: any; onUpdate: () => void; onDelete: (id: string) => void;
+  isLivreur: boolean; isAdmin: boolean; t: (k: string) => string; companyName: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [remarks, setRemarks] = useState(task.remarks || '');
@@ -280,10 +281,11 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
     setSaving(true);
     try {
       await api.delete(`/tasks/${task.id}`);
-      await removeCachedTask(task.id);
-      onUpdate();
+      onDelete(task.id);
       toast.success(t('deleted'));
-    } catch { toast.error(t('error_deleting')); }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || t('error_deleting'));
+    }
     setSaving(false);
   };
 
@@ -326,7 +328,16 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
             )}
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
-            <span className={clsx('badge flex items-center gap-1', color)}><StatusIcon size={11} />{label}</span>
+            <div className="flex items-center gap-1.5">
+              <span className={clsx('badge flex items-center gap-1', color)}><StatusIcon size={11} />{label}</span>
+              {isAdmin && (
+                <button onClick={deleteTask} disabled={saving}
+                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  title={t('delete')}>
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
             <span className="font-display font-700 text-brand-600 text-sm">{finalPrice.toLocaleString('fr-FR')} DZD</span>
             {extra > 0 && (
               <span className="text-xs text-orange-500">(base {basePrice.toLocaleString('fr-FR')} + {extra.toLocaleString('fr-FR')} imprévus)</span>
@@ -506,11 +517,24 @@ export default function TasksPage() {
 
   const loadLivreurs = async () => {
     try {
-      const { data } = await api.get('/users?role=livreur');
-      setUsers(Array.isArray(data) ? data : []);
+      const ts = Date.now();
+      const [{ data: byRole }, { data: all }] = await Promise.all([
+        api.get(`/users?role=livreur&_=${ts}`),
+        api.get(`/users?_=${ts}`),
+      ]);
+      const merged = new Map<string, any>();
+      for (const u of [...(Array.isArray(byRole) ? byRole : []), ...(Array.isArray(all) ? all.filter((x) => x.role === 'livreur') : [])]) {
+        merged.set(u.id, u);
+      }
+      setUsers([...merged.values()].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr')));
     } catch {
       setUsers([]);
     }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    setTasks((prev) => prev.filter((task) => task.id !== id));
+    await removeCachedTask(id);
   };
 
   const filterTasksForUser = (list: any[]) => {
@@ -559,6 +583,10 @@ export default function TasksPage() {
   };
 
   useEffect(() => { load(); }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if (showNew && isAdmin) loadLivreurs();
+  }, [showNew, isAdmin]);
 
   useEffect(() => {
     const onSynced = () => load();
@@ -686,12 +714,17 @@ export default function TasksPage() {
             </div>
             <div>
               <label className="label">{t('assign_to')} <span className="text-red-500">*</span></label>
-              <select className="input" required value={newTask.assignedToId} onChange={(e) => setNewTask({ ...newTask, assignedToId: e.target.value })}>
+              <select className="input" required value={newTask.assignedToId} onChange={(e) => setNewTask({ ...newTask, assignedToId: e.target.value })}
+                onFocus={loadLivreurs}>
                 <option value="">{t('choose_delivery_person')}</option>
-                {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}{u.isActive === false ? ' (inactif)' : ''}
+                  </option>
+                ))}
               </select>
               {users.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">Aucun livreur actif trouvé. Créez un utilisateur avec le rôle « Livreur ».</p>
+                <p className="text-xs text-amber-600 mt-1">Aucun livreur trouvé. Créez un utilisateur avec le rôle « Livreur » dans Utilisateurs.</p>
               )}
             </div>
             <div>
@@ -729,7 +762,7 @@ export default function TasksPage() {
         <div className="space-y-4">
           {filtered.length === 0 && <div className="card p-12 text-center text-slate-400">{t('no_tasks')}</div>}
           {filtered.map((task) => (
-            <TaskCard key={task.id} task={task} onUpdate={load} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName="Mon Entreprise" />
+            <TaskCard key={task.id} task={task} onUpdate={load} onDelete={handleDeleteTask} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName="Mon Entreprise" />
           ))}
         </div>
       )}
