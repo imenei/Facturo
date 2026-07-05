@@ -19,7 +19,7 @@ export class UsersService {
     });
     if (existing) throw new ConflictException('Email déjà utilisé');
     const hashed = await bcrypt.hash(createUserDto.password, 12);
-    const user = this.usersRepository.create({ ...createUserDto, password: hashed });
+    const user = this.usersRepository.create({ ...createUserDto, password: hashed, isActive: true });
     const saved = await this.usersRepository.save(user);
     const { password, ...rest } = saved;
     return rest;
@@ -30,10 +30,13 @@ export class UsersService {
   }
 
   async findByRole(role: UserRole): Promise<User[]> {
-    return this.usersRepository.find({
-      where: { role, isActive: true },
-      select: ['id', 'email', 'name', 'phone', 'role', 'isActive'],
-    });
+    return this.usersRepository
+      .createQueryBuilder('user')
+      .where('user.role = :role', { role })
+      .andWhere('COALESCE(user.isActive, true) = true')
+      .select(['user.id', 'user.email', 'user.name', 'user.phone', 'user.role', 'user.isActive'])
+      .orderBy('user.name', 'ASC')
+      .getMany();
   }
 
   async findOne(id: string): Promise<User> {

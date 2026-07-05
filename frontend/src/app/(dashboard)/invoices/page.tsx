@@ -141,6 +141,12 @@ export default function InvoicesPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    const onSynced = () => load();
+    window.addEventListener('offline-synced', onSynced);
+    return () => window.removeEventListener('offline-synced', onSynced);
+  }, [load]);
+
   const handleDelete = async (id: string) => {
     if (!confirm(t('confirm_delete_invoice'))) return;
     try { await api.delete(`/invoices/${id}`); toast.success(t('deleted')); load(); }

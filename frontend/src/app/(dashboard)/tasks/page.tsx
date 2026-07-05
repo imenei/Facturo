@@ -1,13 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
-import api from '@/lib/api';
+import api, { apiRequestWithOffline } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
-import { getCachedTasks, cacheTasks } from '@/lib/offlineDB';
+import { getCachedTasks, cacheTasks, addCachedTask, removeCachedTask } from '@/lib/offlineDB';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
-  Plus, CheckCircle, XCircle, Clock, Loader2, Edit2, Save, X,
+  Plus, CheckCircle, XCircle, Clock, Loader2, Edit2, Save, X, Trash2,
   MapPin, Calendar, Play, Square, Printer, DollarSign, AlertTriangle,
   Timer,
 } from 'lucide-react';
@@ -228,7 +228,7 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
   const updateStatus = async (status: StatusKey) => {
     setSaving(true);
     try { await api.put(`/tasks/${task.id}`, { status }); onUpdate(); toast.success(t('task_status_updated')); }
-    catch { toast.error(t('error_updating_task')); }
+    catch (e: any) { toast.error(e?.response?.data?.message || t('error_updating_task')); }
     setSaving(false);
   };
 
@@ -262,6 +262,18 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
       await api.patch(`/tasks/${task.id}/extra-fees`, { extraFees: Number(extraFees), extraFeesNote });
       setShowExtraFees(false); onUpdate(); toast.success('Frais imprévus enregistrés');
     } catch { toast.error('Erreur enregistrement frais'); }
+    setSaving(false);
+  };
+
+  const deleteTask = async () => {
+    if (!confirm(t('confirm_delete'))) return;
+    setSaving(true);
+    try {
+      await api.delete(`/tasks/${task.id}`);
+      await removeCachedTask(task.id);
+      onUpdate();
+      toast.success(t('deleted'));
+    } catch { toast.error(t('error_deleting')); }
     setSaving(false);
   };
 
@@ -305,6 +317,13 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             <span className={clsx('badge flex items-center gap-1', color)}><StatusIcon size={11} />{label}</span>
+            {isAdmin && (
+              <button onClick={deleteTask} disabled={saving}
+                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                title={t('delete')}>
+                <Trash2 size={14} />
+              </button>
+            )}
             {/* MOD 6: show price breakdown */}
             <span className="font-display font-700 text-brand-600 text-sm">{finalPrice.toLocaleString('fr-FR')} DZD</span>
             {extra > 0 && (
@@ -334,9 +353,9 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
         )}
 
         {/* MOD 6: livreur delivery buttons */}
-        {isLivreur && (
+        {isLivreur && task.status === 'en_attente' && (
           <div className="flex gap-2 mb-3 flex-wrap">
-            {!task.startedDeliveryAt && task.status !== 'terminee' && (
+            {!task.startedDeliveryAt && (
               <button onClick={startDelivery} disabled={saving}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-medium transition-all">
                 <Play size={14} /> Démarrer la livraison
@@ -348,26 +367,35 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
                 <Square size={14} /> Terminer la livraison
               </button>
             )}
-            {/* MOD 8a: livreur prints bon de livraison */}
-            <button onClick={() => printBonDeLivraison(task, 'Mon Entreprise')}
+            {!task.startedDeliveryAt && (
+              <>
+                <button onClick={() => updateStatus('terminee')} disabled={saving}
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
+                  <CheckCircle size={14} /> {t('task_status_completed')}
+                </button>
+                <button onClick={() => updateStatus('non_terminee')} disabled={saving}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-medium transition-all">
+                  <XCircle size={14} /> {t('task_status_not_completed')}
+                </button>
+              </>
+            )}
+            <button onClick={() => printBonDeLivraison(task, companyName)}
               className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium transition-all">
               <Printer size={14} /> Bon de livraison
             </button>
           </div>
         )}
 
-        {/* Classic status buttons for livreur (when not using delivery flow) */}
-        {isLivreur && task.finishedDeliveryAt && (
-          <div className="flex gap-2 mb-3">
-            <button onClick={() => updateStatus('terminee')} disabled={task.status === 'terminee' || saving}
-              className={clsx('flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all',
-                task.status === 'terminee' ? 'bg-emerald-500 text-white cursor-default shadow-sm' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200')}>
-              <CheckCircle size={15} /> {t('task_status_completed')}
+        {/* Admin: changer le statut d'une tâche */}
+        {isAdmin && task.status === 'en_attente' && (
+          <div className="flex gap-2 mb-3 flex-wrap">
+            <button onClick={() => updateStatus('terminee')} disabled={saving}
+              className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
+              <CheckCircle size={14} /> {t('task_status_completed')}
             </button>
-            <button onClick={() => updateStatus('non_terminee')} disabled={task.status === 'non_terminee' || saving}
-              className={clsx('flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all',
-                task.status === 'non_terminee' ? 'bg-red-500 text-white cursor-default shadow-sm' : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200')}>
-              <XCircle size={15} /> {t('task_status_not_completed')}
+            <button onClick={() => updateStatus('non_terminee')} disabled={saving}
+              className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-medium transition-all">
+              <XCircle size={14} /> {t('task_status_not_completed')}
             </button>
           </div>
         )}
@@ -449,31 +477,51 @@ export default function TasksPage() {
   const isAdmin = user?.role === 'admin';
   const statusConfig = getStatusConfig(t);
 
+  const loadLivreurs = async () => {
+    try {
+      const { data } = await api.get('/users?role=livreur');
+      setUsers(Array.isArray(data) ? data : []);
+    } catch {
+      setUsers([]);
+    }
+  };
+
   const load = async () => {
+    if (!user) return;
+    setLoading(true);
     try {
       const tRes = await api.get('/tasks');
       setTasks(tRes.data);
       await cacheTasks(tRes.data);
-      if (isLivreur) {
-        const s = await api.get('/tasks/my-stats');
-        setStats(s.data);
-      }
-      if (!isLivreur) {
-        const [u, c] = await Promise.all([
-          api.get('/users?role=livreur'),
-          api.get('/clients').catch(() => ({ data: [] })),
-        ]);
-        setUsers(u.data);
-        setClients(c.data);
-      }
     } catch {
       const cached = await getCachedTasks();
       if (cached.length) { setTasks(cached); toast(t('offline_mode'), { icon: '📶' }); }
     }
+
+    if (user.role === 'livreur') {
+      try {
+        const s = await api.get('/tasks/my-stats');
+        setStats(s.data);
+      } catch {}
+    } else if (user.role === 'admin') {
+      await loadLivreurs();
+      try {
+        const { data } = await api.get('/clients');
+        setClients(Array.isArray(data) ? data : []);
+      } catch {
+        setClients([]);
+      }
+    }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    const onSynced = () => load();
+    window.addEventListener('offline-synced', onSynced);
+    return () => window.removeEventListener('offline-synced', onSynced);
+  }, [user?.id, user?.role]);
 
   const pickClient = (c: any) => setNewTask((p) => ({ ...p, clientName: c.clientName || '', clientLogoUrl: c.clientLogoUrl || '', clientAddress: c.clientAddress || '' }));
   const clearClient = () => setNewTask((p) => ({ ...p, clientName: '', clientLogoUrl: '', clientAddress: '' }));
@@ -482,7 +530,29 @@ export default function TasksPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post('/tasks', newTask);
+      const res = await apiRequestWithOffline('POST', '/tasks', newTask);
+
+      if (res.data?._offline) {
+        const assignedUser = users.find((u) => u.id === newTask.assignedToId);
+        const offlineTask = {
+          id: `offline-${Date.now()}`,
+          ...newTask,
+          price: newTask.price,
+          finalPrice: newTask.price,
+          status: 'en_attente',
+          assignedTo: assignedUser || { id: newTask.assignedToId, name: '—' },
+          createdAt: new Date().toISOString(),
+          _pendingSync: true,
+        };
+        await addCachedTask(offlineTask);
+        setTasks((prev) => [offlineTask, ...prev]);
+        toast.success(`${t('task_created')} (hors-ligne)`);
+        setShowNew(false);
+        setNewTask({ name: '', description: '', price: 0, assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '' });
+        setSaving(false);
+        return;
+      }
+
       toast.success(t('task_created'));
       setShowNew(false);
       setNewTask({ name: '', description: '', price: 0, assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '' });
@@ -513,7 +583,7 @@ export default function TasksPage() {
             </button>
           )}
           {!isLivreur && (
-            <button onClick={() => setShowNew(!showNew)} className="btn-primary">
+            <button onClick={() => { setShowNew(!showNew); if (!showNew) loadLivreurs(); }} className="btn-primary">
               <Plus size={18} /> {t('new_task')}
             </button>
           )}
@@ -577,6 +647,9 @@ export default function TasksPage() {
                 <option value="">{t('choose_delivery_person')}</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
+              {users.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">Aucun livreur actif trouvé. Créez un utilisateur avec le rôle « Livreur ».</p>
+              )}
             </div>
             <div>
               <label className="label">{t('due_date')}</label>

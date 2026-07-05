@@ -32,7 +32,14 @@ export async function addToOfflineQueue(item: { method: string; url: string; dat
 
 export async function getOfflineQueue() {
   const database = await getDB();
-  return database.getAll('offlineQueue');
+  const keys = await database.getAllKeys('offlineQueue');
+  const values = await database.getAll('offlineQueue');
+  return values.map((value, i) => ({ key: keys[i] as number, ...value }));
+}
+
+export async function removeOfflineQueueItem(key: number) {
+  const database = await getDB();
+  await database.delete('offlineQueue', key);
 }
 
 export async function clearOfflineQueue() {
@@ -42,8 +49,9 @@ export async function clearOfflineQueue() {
 
 export async function cacheInvoices(invoices: any[]) {
   const database = await getDB();
+  const pending = (await database.getAll('invoices')).filter((i) => i._pendingSync);
   const tx = database.transaction('invoices', 'readwrite');
-  await Promise.all(invoices.map((inv) => tx.store.put(inv)));
+  await Promise.all([...pending, ...invoices].map((inv) => tx.store.put(inv)));
   await tx.done;
 }
 
@@ -52,16 +60,37 @@ export async function getCachedInvoices() {
   return database.getAll('invoices');
 }
 
+export async function addCachedInvoice(invoice: any) {
+  const database = await getDB();
+  await database.put('invoices', invoice);
+}
+
+export async function removeCachedInvoice(id: string) {
+  const database = await getDB();
+  await database.delete('invoices', id);
+}
+
 export async function cacheTasks(tasks: any[]) {
   const database = await getDB();
+  const pending = (await database.getAll('tasks')).filter((t) => t._pendingSync);
   const tx = database.transaction('tasks', 'readwrite');
-  await Promise.all(tasks.map((t) => tx.store.put(t)));
+  await Promise.all([...pending, ...tasks].map((t) => tx.store.put(t)));
   await tx.done;
 }
 
 export async function getCachedTasks() {
   const database = await getDB();
   return database.getAll('tasks');
+}
+
+export async function addCachedTask(task: any) {
+  const database = await getDB();
+  await database.put('tasks', task);
+}
+
+export async function removeCachedTask(id: string) {
+  const database = await getDB();
+  await database.delete('tasks', id);
 }
 
 export async function cacheCompany(company: any) {

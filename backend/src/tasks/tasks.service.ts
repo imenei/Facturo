@@ -2,16 +2,29 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task, TaskStatus } from './task.entity';
-import { UserRole } from '../users/user.entity';
+import { User, UserRole } from '../users/user.entity';
 
 @Injectable()
 export class TasksService {
   constructor(
     @InjectRepository(Task)
     private tasksRepository: Repository<Task>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
   ) {}
 
   async create(dto: any, adminId: string): Promise<Task> {
+    if (!dto.assignedToId) {
+      throw new BadRequestException('Un livreur doit être assigné');
+    }
+    const livreur = await this.usersRepository.findOne({ where: { id: dto.assignedToId } });
+    if (!livreur || livreur.role !== UserRole.LIVREUR) {
+      throw new BadRequestException('Livreur invalide ou introuvable');
+    }
+    if (livreur.isActive === false) {
+      throw new BadRequestException('Ce livreur est désactivé');
+    }
+
     const task = this.tasksRepository.create({
       name: dto.name,
       description: dto.description,
@@ -21,9 +34,9 @@ export class TasksService {
       clientName: dto.clientName || null,
       clientLogoUrl: dto.clientLogoUrl || null,
       clientAddress: dto.clientAddress || null,
-      finalPrice: dto.price, // initially same as price
+      finalPrice: dto.price,
       createdBy: { id: adminId } as any,
-      assignedTo: { id: dto.assignedToId } as any,
+      assignedTo: { id: livreur.id } as any,
     }) as Task;
     return this.tasksRepository.save(task);
   }
@@ -42,7 +55,7 @@ export class TasksService {
   async findOne(id: string, user: { id: string; role: UserRole }): Promise<Task> {
     const task = await this.tasksRepository.findOne({ where: { id }, relations: ['assignedTo', 'createdBy'] });
     if (!task) throw new NotFoundException('Tâche non trouvée');
-    if (user.role === UserRole.LIVREUR && task.assignedTo.id !== user.id) {
+    if (user.role === UserRole.LIVREUR && (!task.assignedTo || task.assignedTo.id !== user.id)) {
       throw new ForbiddenException('Accès refusé');
     }
     return task;
@@ -57,7 +70,8 @@ export class TasksService {
     } else {
       Object.assign(task, dto);
       if (dto.assignedToId) task.assignedTo = { id: dto.assignedToId } as any;
-      // recalculate finalPrice if price changed
+      if (dto.status === TaskStatus.TERMINEE) task.completedAt = new Date();
+      if (dto.status === TaskStatus.EN_ATTENTE) task.completedAt = null;
       task.finalPrice = Number(task.price) + Number(task.extraFees || 0);
     }
     return this.tasksRepository.save(task);
@@ -94,6 +108,9 @@ export class TasksService {
     const task = await this.findOne(id, user);
     if (!task.startedDeliveryAt) {
       throw new BadRequestException('La livraison n\'a pas encore été démarrée');
+    }
+    if (task.finishedDeliveryAt) {
+      throw new BadRequestException('La livraison est déjà terminée');
     }
     task.finishedDeliveryAt = new Date();
     const diffMs = task.finishedDeliveryAt.getTime() - task.startedDeliveryAt.getTime();

@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import api from '@/lib/api';
+import api, { apiRequestWithOffline } from '@/lib/api';
+import { addCachedInvoice } from '@/lib/offlineDB';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import {
@@ -183,17 +184,42 @@ export default function NewInvoicePage() {
     try {
       const payload = {
         ...form,
-        // MOD 7: send purchasePrice per item so backend can store it
         items: items.map((item) => ({
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          purchasePrice: item.purchasePrice, // MOD 7: internal, stored in jsonb
+          purchasePrice: item.purchasePrice,
         })),
       };
-      const { data } = await api.post('/invoices', payload);
+
+      const res = await apiRequestWithOffline('POST', '/invoices', payload);
+
+      if (res.data?._offline) {
+        const offlineInvoice = {
+          id: `offline-${Date.now()}`,
+          number: `BRO-${Date.now().toString().slice(-6)}`,
+          ...payload,
+          items: payload.items.map((item, i) => ({
+            id: String(i + 1),
+            ...item,
+            total: item.quantity * item.unitPrice,
+          })),
+          subtotal,
+          tvaAmount,
+          total,
+          paymentStatus: 'unpaid',
+          status: 'brouillon',
+          createdAt: new Date().toISOString(),
+          _pendingSync: true,
+        };
+        await addCachedInvoice(offlineInvoice);
+        toast.success(`${t('invoice_created_successfully')} (hors-ligne)`);
+        router.push('/invoices');
+        return;
+      }
+
       toast.success(t('invoice_created_successfully'));
-      router.push(`/invoices/${data.id}`);
+      router.push(`/invoices/${res.data.id}`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || t('error_during_creation'));
     }
