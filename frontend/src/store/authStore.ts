@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../lib/api';
+import { clearTasksCache } from '../lib/offlineDB';
 
 export type UserRole = 'admin' | 'commercial' | 'livreur' | 'technicien';
 
@@ -33,6 +34,7 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true });
         try {
+          await clearTasksCache();
           const { data } = await api.post('/auth/login', { email, password });
           localStorage.setItem('helpdz_token', data.access_token);
           set({ user: data.user, token: data.access_token, isLoading: false });
@@ -44,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         localStorage.removeItem('helpdz_token');
+        clearTasksCache();
         set({ user: null, token: null });
       },
 

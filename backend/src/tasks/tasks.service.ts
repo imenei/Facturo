@@ -13,6 +13,19 @@ export class TasksService {
     private usersRepository: Repository<User>,
   ) {}
 
+  private getAssigneeId(task: Task): string | null {
+    const raw = task as Task & { assignedToId?: string };
+    return raw.assignedToId || task.assignedTo?.id || null;
+  }
+
+  private ensureLivreurAccess(task: Task, user: { id: string; role: UserRole }): void {
+    if (user.role !== UserRole.LIVREUR) return;
+    const assigneeId = this.getAssigneeId(task);
+    if (!assigneeId || String(assigneeId) !== String(user.id)) {
+      throw new ForbiddenException('Accès refusé');
+    }
+  }
+
   async create(dto: any, adminId: string): Promise<Task> {
     if (!dto.assignedToId) {
       throw new BadRequestException('Un livreur doit être assigné');
@@ -36,40 +49,64 @@ export class TasksService {
       clientAddress: dto.clientAddress || null,
       finalPrice: dto.price,
       createdBy: { id: adminId } as any,
-      assignedTo: { id: livreur.id } as any,
+      assignedTo: livreur,
     }) as Task;
     return this.tasksRepository.save(task);
   }
 
   async findAll(user: { id: string; role: UserRole }): Promise<Task[]> {
-    if (user.role === UserRole.ADMIN) {
-      return this.tasksRepository.find({ order: { createdAt: 'DESC' }, relations: ['assignedTo', 'createdBy'] });
+    const qb = this.tasksRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+      .leftJoinAndSelect('task.createdBy', 'createdBy')
+      .orderBy('task.createdAt', 'DESC');
+
+    if (user.role === UserRole.LIVREUR) {
+      qb.where('task.assignedToId = :userId', { userId: user.id });
     }
-    return this.tasksRepository.find({
-      where: { assignedTo: { id: user.id } },
-      order: { createdAt: 'DESC' },
-      relations: ['assignedTo', 'createdBy'],
-    });
+
+    return qb.getMany();
   }
 
   async findOne(id: string, user: { id: string; role: UserRole }): Promise<Task> {
-    const task = await this.tasksRepository.findOne({ where: { id }, relations: ['assignedTo', 'createdBy'] });
+    const task = await this.tasksRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+      .leftJoinAndSelect('task.createdBy', 'createdBy')
+      .where('task.id = :id', { id })
+      .getOne();
+
     if (!task) throw new NotFoundException('Tâche non trouvée');
-    if (user.role === UserRole.LIVREUR && (!task.assignedTo || task.assignedTo.id !== user.id)) {
-      throw new ForbiddenException('Accès refusé');
-    }
+    this.ensureLivreurAccess(task, user);
     return task;
   }
 
   async update(id: string, dto: any, user: { id: string; role: UserRole }): Promise<Task> {
     const task = await this.findOne(id, user);
+
     if (user.role === UserRole.LIVREUR) {
       if (dto.status) task.status = dto.status;
       if (dto.remarks !== undefined) task.remarks = dto.remarks;
       if (dto.status === TaskStatus.TERMINEE) task.completedAt = new Date();
+      if (dto.status === TaskStatus.NON_TERMINEE) task.completedAt = new Date();
     } else {
-      Object.assign(task, dto);
-      if (dto.assignedToId) task.assignedTo = { id: dto.assignedToId } as any;
+      if (dto.cancelDelivery) {
+        task.startedDeliveryAt = null;
+        task.finishedDeliveryAt = null;
+        task.deliveryDurationMinutes = null;
+      }
+      if (dto.status) task.status = dto.status;
+      if (dto.remarks !== undefined) task.remarks = dto.remarks;
+      if (dto.name) task.name = dto.name;
+      if (dto.description !== undefined) task.description = dto.description;
+      if (dto.price !== undefined) task.price = dto.price;
+      if (dto.assignedToId) {
+        const livreur = await this.usersRepository.findOne({ where: { id: dto.assignedToId } });
+        if (!livreur || livreur.role !== UserRole.LIVREUR) {
+          throw new BadRequestException('Livreur invalide');
+        }
+        task.assignedTo = livreur;
+      }
       if (dto.status === TaskStatus.TERMINEE) task.completedAt = new Date();
       if (dto.status === TaskStatus.EN_ATTENTE) task.completedAt = null;
       task.finalPrice = Number(task.price) + Number(task.extraFees || 0);
@@ -78,11 +115,16 @@ export class TasksService {
   }
 
   async remove(id: string): Promise<void> {
-    await this.tasksRepository.delete(id);
+    const result = await this.tasksRepository.delete(id);
+    if (!result.affected) throw new NotFoundException('Tâche non trouvée');
   }
 
   async getLivreurStats(userId: string): Promise<any> {
-    const tasks = await this.tasksRepository.find({ where: { assignedTo: { id: userId } } });
+    const tasks = await this.tasksRepository
+      .createQueryBuilder('task')
+      .where('task.assignedToId = :userId', { userId })
+      .getMany();
+
     const completed = tasks.filter((t) => t.status === TaskStatus.TERMINEE);
     const totalEarned = completed.reduce((sum, t) => sum + Number(t.finalPrice || t.price), 0);
     return {
@@ -93,17 +135,20 @@ export class TasksService {
     };
   }
 
-  // MOD 6: livreur starts delivery
   async startDelivery(id: string, user: { id: string; role: UserRole }): Promise<Task> {
     const task = await this.findOne(id, user);
-    if (task.startedDeliveryAt) {
+    if (task.startedDeliveryAt && !task.finishedDeliveryAt) {
       throw new BadRequestException('La livraison est déjà démarrée');
     }
+    if (task.finishedDeliveryAt) {
+      throw new BadRequestException('La livraison est déjà terminée');
+    }
     task.startedDeliveryAt = new Date();
+    task.finishedDeliveryAt = null;
+    task.deliveryDurationMinutes = null;
     return this.tasksRepository.save(task);
   }
 
-  // MOD 6: livreur finishes delivery
   async finishDelivery(id: string, user: { id: string; role: UserRole }): Promise<Task> {
     const task = await this.findOne(id, user);
     if (!task.startedDeliveryAt) {
@@ -120,7 +165,6 @@ export class TasksService {
     return this.tasksRepository.save(task);
   }
 
-  // MOD 6: admin adds extra fees
   async addExtraFees(id: string, dto: { extraFees: number; extraFeesNote?: string }): Promise<Task> {
     const task = await this.tasksRepository.findOne({ where: { id } });
     if (!task) throw new NotFoundException('Tâche non trouvée');
@@ -130,13 +174,12 @@ export class TasksService {
     return this.tasksRepository.save(task);
   }
 
-  // MOD 8a: get all tasks for a specific livreur (admin only) for printing
   async getTasksByLivreur(livreurId: string, from?: string, to?: string): Promise<Task[]> {
     const qb = this.tasksRepository
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.assignedTo', 'assignedTo')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
-      .where('assignedTo.id = :livreurId', { livreurId })
+      .where('task.assignedToId = :livreurId', { livreurId })
       .orderBy('task.createdAt', 'DESC');
 
     if (from) qb.andWhere('task.createdAt >= :from', { from: new Date(from) });

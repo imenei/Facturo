@@ -265,6 +265,16 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
     setSaving(false);
   };
 
+  const cancelDelivery = async () => {
+    setSaving(true);
+    try {
+      await api.put(`/tasks/${task.id}`, { cancelDelivery: true });
+      onUpdate();
+      toast.success('Livraison annulée');
+    } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
+    setSaving(false);
+  };
+
   const deleteTask = async () => {
     if (!confirm(t('confirm_delete'))) return;
     setSaving(true);
@@ -317,14 +327,6 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             <span className={clsx('badge flex items-center gap-1', color)}><StatusIcon size={11} />{label}</span>
-            {isAdmin && (
-              <button onClick={deleteTask} disabled={saving}
-                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                title={t('delete')}>
-                <Trash2 size={14} />
-              </button>
-            )}
-            {/* MOD 6: show price breakdown */}
             <span className="font-display font-700 text-brand-600 text-sm">{finalPrice.toLocaleString('fr-FR')} DZD</span>
             {extra > 0 && (
               <span className="text-xs text-orange-500">(base {basePrice.toLocaleString('fr-FR')} + {extra.toLocaleString('fr-FR')} imprévus)</span>
@@ -352,7 +354,7 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
           </div>
         )}
 
-        {/* MOD 6: livreur delivery buttons */}
+        {/* Livreur: actions sur ses tâches en attente */}
         {isLivreur && task.status === 'en_attente' && (
           <div className="flex gap-2 mb-3 flex-wrap">
             {!task.startedDeliveryAt && (
@@ -386,9 +388,21 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
           </div>
         )}
 
-        {/* Admin: changer le statut d'une tâche */}
-        {isAdmin && task.status === 'en_attente' && (
+        {/* Admin: gérer / arrêter / supprimer une tâche */}
+        {isAdmin && task.status !== 'terminee' && task.status !== 'non_terminee' && (
           <div className="flex gap-2 mb-3 flex-wrap">
+            {task.startedDeliveryAt && !task.finishedDeliveryAt && (
+              <>
+                <button onClick={finishDelivery} disabled={saving}
+                  className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
+                  <Square size={14} /> Terminer la livraison
+                </button>
+                <button onClick={cancelDelivery} disabled={saving}
+                  className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-xl text-sm font-medium transition-all">
+                  <XCircle size={14} /> Annuler la livraison
+                </button>
+              </>
+            )}
             <button onClick={() => updateStatus('terminee')} disabled={saving}
               className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
               <CheckCircle size={14} /> {t('task_status_completed')}
@@ -396,6 +410,19 @@ function TaskCard({ task, onUpdate, isLivreur, isAdmin, t, companyName }: {
             <button onClick={() => updateStatus('non_terminee')} disabled={saving}
               className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-medium transition-all">
               <XCircle size={14} /> {t('task_status_not_completed')}
+            </button>
+            <button onClick={deleteTask} disabled={saving}
+              className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-medium transition-all">
+              <Trash2 size={14} /> {t('delete')}
+            </button>
+          </div>
+        )}
+
+        {isAdmin && (task.status === 'terminee' || task.status === 'non_terminee') && (
+          <div className="flex gap-2 mb-3">
+            <button onClick={deleteTask} disabled={saving}
+              className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-medium transition-all">
+              <Trash2 size={14} /> {t('delete')}
             </button>
           </div>
         )}
@@ -486,16 +513,32 @@ export default function TasksPage() {
     }
   };
 
+  const filterTasksForUser = (list: any[]) => {
+    if (user?.role === 'livreur') {
+      return list.filter((task) => {
+        const assigneeId = task.assignedToId || task.assignedTo?.id;
+        return assigneeId && String(assigneeId) === String(user.id);
+      });
+    }
+    return list;
+  };
+
   const load = async () => {
     if (!user) return;
     setLoading(true);
     try {
       const tRes = await api.get('/tasks');
-      setTasks(tRes.data);
-      await cacheTasks(tRes.data);
+      const scoped = filterTasksForUser(tRes.data);
+      setTasks(scoped);
+      await cacheTasks(scoped);
     } catch {
-      const cached = await getCachedTasks();
-      if (cached.length) { setTasks(cached); toast(t('offline_mode'), { icon: '📶' }); }
+      const cached = filterTasksForUser(await getCachedTasks());
+      if (cached.length) {
+        setTasks(cached);
+        toast(t('offline_mode'), { icon: '📶' });
+      } else {
+        setTasks([]);
+      }
     }
 
     if (user.role === 'livreur') {

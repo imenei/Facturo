@@ -48,16 +48,16 @@ export class TasksController {
     return this.tasksService.update(id, dto, req.user);
   }
 
-  // MOD 6: livreur clicks "Start delivery"
+  // MOD 6: livreur or admin starts delivery
   @Patch(':id/start-delivery')
-  @Roles(UserRole.LIVREUR)
+  @Roles(UserRole.LIVREUR, UserRole.ADMIN)
   startDelivery(@Param('id') id: string, @Request() req) {
     return this.tasksService.startDelivery(id, req.user);
   }
 
-  // MOD 6: livreur clicks "Finish delivery"
+  // MOD 6: livreur or admin finishes delivery
   @Patch(':id/finish-delivery')
-  @Roles(UserRole.LIVREUR)
+  @Roles(UserRole.LIVREUR, UserRole.ADMIN)
   finishDelivery(@Param('id') id: string, @Request() req) {
     return this.tasksService.finishDelivery(id, req.user);
   }

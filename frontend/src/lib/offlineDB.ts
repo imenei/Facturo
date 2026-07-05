@@ -93,6 +93,11 @@ export async function removeCachedTask(id: string) {
   await database.delete('tasks', id);
 }
 
+export async function clearTasksCache() {
+  const database = await getDB();
+  await database.clear('tasks');
+}
+
 export async function cacheCompany(company: any) {
   const database = await getDB();
   await database.put('company', company);

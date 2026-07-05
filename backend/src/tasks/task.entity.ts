@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../users/user.entity';
 
 export enum TaskStatus {
@@ -27,10 +27,12 @@ export class Task {
   @Column({ nullable: true, type: 'text' })
   remarks: string;
 
-  @ManyToOne(() => User, (user) => user.tasks, { eager: true })
+  @ManyToOne(() => User, (user) => user.tasks, { eager: true, nullable: false })
+  @JoinColumn({ name: 'assignedToId' })
   assignedTo: User;
 
   @ManyToOne(() => User, { eager: true, nullable: true })
+  @JoinColumn({ name: 'createdById' })
   createdBy: User;
 
   @Column({ nullable: true })
