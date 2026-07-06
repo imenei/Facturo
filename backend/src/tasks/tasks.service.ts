@@ -62,7 +62,7 @@ export class TasksService {
       .orderBy('task.createdAt', 'DESC');
 
     if (user.role === UserRole.LIVREUR) {
-      qb.where('task.assignedToId = :userId', { userId: user.id });
+      qb.andWhere('assignedTo.id = :userId', { userId: user.id });
     }
 
     return qb.getMany();
@@ -122,7 +122,8 @@ export class TasksService {
   async getLivreurStats(userId: string): Promise<any> {
     const tasks = await this.tasksRepository
       .createQueryBuilder('task')
-      .where('task.assignedToId = :userId', { userId })
+      .innerJoin('task.assignedTo', 'assignee')
+      .where('assignee.id = :userId', { userId })
       .getMany();
 
     const completed = tasks.filter((t) => t.status === TaskStatus.TERMINEE);
@@ -179,7 +180,7 @@ export class TasksService {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.assignedTo', 'assignedTo')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
-      .where('task.assignedToId = :livreurId', { livreurId })
+      .where('assignedTo.id = :livreurId', { livreurId })
       .orderBy('task.createdAt', 'DESC');
 
     if (from) qb.andWhere('task.createdAt >= :from', { from: new Date(from) });

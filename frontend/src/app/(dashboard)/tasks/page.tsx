@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
-import api, { apiRequestWithOffline } from '@/lib/api';
+import api, { apiRequestWithOffline, mutateTaskOffline } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
-import { getCachedTasks, cacheTasks, addCachedTask, removeCachedTask } from '@/lib/offlineDB';
+import { getCachedTasks, cacheTasks, addCachedTask, removeCachedTask, updateCachedTask } from '@/lib/offlineDB';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -210,8 +210,9 @@ function DeliveryTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName }: {
-  task: any; onUpdate: () => void; onDelete: (id: string) => void;
+function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, t, companyName }: {
+  task: any; onUpdate: () => void; onLocalPatch: (id: string, patch: Record<string, any>) => void;
+  onDelete: (id: string) => void;
   isLivreur: boolean; isAdmin: boolean; t: (k: string) => string; companyName: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -228,31 +229,73 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName
 
   const updateStatus = async (status: StatusKey) => {
     setSaving(true);
-    try { await api.put(`/tasks/${task.id}`, { status }); onUpdate(); toast.success(t('task_status_updated')); }
-    catch (e: any) { toast.error(e?.response?.data?.message || t('error_updating_task')); }
+    try {
+      const patch = { status, completedAt: new Date().toISOString() };
+      const { offline } = await mutateTaskOffline('PUT', `/tasks/${task.id}`, task.id, { status });
+      if (offline) {
+        onLocalPatch(task.id, patch);
+        toast.success(`${t('task_status_updated')} (hors-ligne)`);
+      } else {
+        onUpdate();
+        toast.success(t('task_status_updated'));
+      }
+    } catch (e: any) { toast.error(e?.response?.data?.message || t('error_updating_task')); }
     setSaving(false);
   };
 
   const saveRemarks = async () => {
     setSaving(true);
-    try { await api.put(`/tasks/${task.id}`, { remarks }); setEditing(false); onUpdate(); toast.success(t('remark_saved')); }
-    catch { toast.error(t('error_saving_remark')); }
+    try {
+      const { offline } = await mutateTaskOffline('PUT', `/tasks/${task.id}`, task.id, { remarks });
+      if (offline) {
+        onLocalPatch(task.id, { remarks });
+        setEditing(false);
+        toast.success(`${t('remark_saved')} (hors-ligne)`);
+      } else {
+        setEditing(false);
+        onUpdate();
+        toast.success(t('remark_saved'));
+      }
+    } catch { toast.error(t('error_saving_remark')); }
     setSaving(false);
   };
 
   // MOD 6: start delivery
   const startDelivery = async () => {
     setSaving(true);
-    try { await api.patch(`/tasks/${task.id}/start-delivery`); onUpdate(); toast.success('Livraison démarrée !'); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
+    try {
+      const { offline } = await mutateTaskOffline('PATCH', `/tasks/${task.id}/start-delivery`, task.id);
+      if (offline) {
+        onLocalPatch(task.id, { startedDeliveryAt: new Date().toISOString(), finishedDeliveryAt: null, deliveryDurationMinutes: null });
+        toast.success('Livraison démarrée ! (hors-ligne)');
+      } else {
+        onUpdate();
+        toast.success('Livraison démarrée !');
+      }
+    } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
 
   // MOD 6: finish delivery
   const finishDelivery = async () => {
     setSaving(true);
-    try { await api.patch(`/tasks/${task.id}/finish-delivery`); onUpdate(); toast.success('Livraison terminée !'); }
-    catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
+    try {
+      const { offline } = await mutateTaskOffline('PATCH', `/tasks/${task.id}/finish-delivery`, task.id);
+      if (offline) {
+        const started = task.startedDeliveryAt ? new Date(task.startedDeliveryAt).getTime() : Date.now();
+        const finished = new Date();
+        onLocalPatch(task.id, {
+          finishedDeliveryAt: finished.toISOString(),
+          deliveryDurationMinutes: Math.round((finished.getTime() - started) / 60000),
+          status: 'terminee',
+          completedAt: finished.toISOString(),
+        });
+        toast.success('Livraison terminée ! (hors-ligne)');
+      } else {
+        onUpdate();
+        toast.success('Livraison terminée !');
+      }
+    } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
 
@@ -269,9 +312,14 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName
   const cancelDelivery = async () => {
     setSaving(true);
     try {
-      await api.put(`/tasks/${task.id}`, { cancelDelivery: true });
-      onUpdate();
-      toast.success('Livraison annulée');
+      const { offline } = await mutateTaskOffline('PUT', `/tasks/${task.id}`, task.id, { cancelDelivery: true });
+      if (offline) {
+        onLocalPatch(task.id, { startedDeliveryAt: null, finishedDeliveryAt: null, deliveryDurationMinutes: null });
+        toast.success('Livraison annulée (hors-ligne)');
+      } else {
+        onUpdate();
+        toast.success('Livraison annulée');
+      }
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
@@ -537,6 +585,11 @@ export default function TasksPage() {
     await removeCachedTask(id);
   };
 
+  const handleLocalPatch = async (id: string, patch: Record<string, any>) => {
+    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, ...patch } : task)));
+    await updateCachedTask(id, patch);
+  };
+
   const filterTasksForUser = (list: any[]) => {
     if (user?.role === 'livreur') {
       return list.filter((task) => {
@@ -550,13 +603,14 @@ export default function TasksPage() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
+    const tasksUrl = user.role === 'livreur' ? '/tasks/my-tasks' : '/tasks';
     try {
-      const tRes = await api.get('/tasks');
+      const tRes = await api.get(tasksUrl);
       const scoped = filterTasksForUser(tRes.data);
       setTasks(scoped);
-      await cacheTasks(scoped);
+      await cacheTasks(scoped, user.id);
     } catch {
-      const cached = filterTasksForUser(await getCachedTasks());
+      const cached = filterTasksForUser(await getCachedTasks(user.id));
       if (cached.length) {
         setTasks(cached);
         toast(t('offline_mode'), { icon: '📶' });
@@ -762,7 +816,7 @@ export default function TasksPage() {
         <div className="space-y-4">
           {filtered.length === 0 && <div className="card p-12 text-center text-slate-400">{t('no_tasks')}</div>}
           {filtered.map((task) => (
-            <TaskCard key={task.id} task={task} onUpdate={load} onDelete={handleDeleteTask} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName="Mon Entreprise" />
+            <TaskCard key={task.id} task={task} onUpdate={load} onLocalPatch={handleLocalPatch} onDelete={handleDeleteTask} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName="Mon Entreprise" />
           ))}
         </div>
       )}

@@ -70,22 +70,43 @@ export async function removeCachedInvoice(id: string) {
   await database.delete('invoices', id);
 }
 
-export async function cacheTasks(tasks: any[]) {
+export async function cacheTasks(tasks: any[], userId?: string) {
   const database = await getDB();
-  const pending = (await database.getAll('tasks')).filter((t) => t._pendingSync);
+  const all = await database.getAll('tasks');
+  const pending = all.filter((t) => t._pendingSync);
   const tx = database.transaction('tasks', 'readwrite');
-  await Promise.all([...pending, ...tasks].map((t) => tx.store.put(t)));
+  for (const t of all) {
+    if (!t._pendingSync) await tx.store.delete(t.id);
+  }
+  const toStore = [...pending, ...tasks].map((t) => ({
+    ...t,
+    _cachedForUserId: userId || t._cachedForUserId,
+  }));
+  await Promise.all(toStore.map((t) => tx.store.put(t)));
   await tx.done;
 }
 
-export async function getCachedTasks() {
+export async function getCachedTasks(userId?: string) {
   const database = await getDB();
-  return database.getAll('tasks');
+  const all = await database.getAll('tasks');
+  if (!userId) return all;
+  return all.filter((t) => {
+    const assigneeId = t.assignedToId || t.assignedTo?.id;
+    return t._pendingSync || (assigneeId && String(assigneeId) === String(userId));
+  });
 }
 
 export async function addCachedTask(task: any) {
   const database = await getDB();
   await database.put('tasks', task);
+}
+
+export async function updateCachedTask(id: string, patch: Record<string, any>) {
+  const database = await getDB();
+  const existing = await database.get('tasks', id);
+  if (existing) {
+    await database.put('tasks', { ...existing, ...patch });
+  }
 }
 
 export async function removeCachedTask(id: string) {

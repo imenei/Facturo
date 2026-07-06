@@ -21,6 +21,12 @@ export class TasksController {
     return this.tasksService.findAll(req.user);
   }
 
+  @Get('my-tasks')
+  @Roles(UserRole.LIVREUR)
+  getMyTasks(@Request() req) {
+    return this.tasksService.findAll(req.user);
+  }
+
   @Get('my-stats')
   @Roles(UserRole.LIVREUR)
   getMyStats(@Request() req) {

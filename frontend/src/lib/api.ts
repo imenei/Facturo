@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getOfflineQueue, addToOfflineQueue, removeOfflineQueueItem, getCachedInvoices, removeCachedInvoice, getCachedTasks, removeCachedTask } from './offlineDB';
+import { getOfflineQueue, addToOfflineQueue, removeOfflineQueueItem, getCachedInvoices, removeCachedInvoice, getCachedTasks, removeCachedTask, updateCachedTask } from './offlineDB';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.helpdz.com/api';
 
@@ -29,11 +29,42 @@ api.interceptors.response.use(
 
 // Offline-aware POST/PUT/PATCH/DELETE
 export async function apiRequestWithOffline(method: string, url: string, data?: any) {
-  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+  const queueOffline = async () => {
     await addToOfflineQueue({ method, url, data, timestamp: Date.now() });
     return { data: { _offline: true }, status: 202, statusText: 'Queued', headers: {}, config: {} as any };
+  };
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return queueOffline();
   }
-  return api.request({ method, url, data });
+
+  try {
+    return await api.request({ method, url, data });
+  } catch (err: any) {
+    if (!err.response) return queueOffline();
+    throw err;
+  }
+}
+
+function applyTaskPatch(task: any, method: string, url: string, data?: any): Record<string, any> {
+  if (method === 'DELETE') return { _deleted: true };
+  if (url.endsWith('/start-delivery')) {
+    return { startedDeliveryAt: new Date().toISOString(), finishedDeliveryAt: null, deliveryDurationMinutes: null };
+  }
+  if (url.endsWith('/finish-delivery')) {
+    const started = task.startedDeliveryAt ? new Date(task.startedDeliveryAt).getTime() : Date.now();
+    const finished = new Date();
+    return {
+      finishedDeliveryAt: finished.toISOString(),
+      deliveryDurationMinutes: Math.round((finished.getTime() - started) / 60000),
+      status: 'terminee',
+      completedAt: finished.toISOString(),
+    };
+  }
+  if (data?.cancelDelivery) {
+    return { startedDeliveryAt: null, finishedDeliveryAt: null, deliveryDurationMinutes: null };
+  }
+  return data || {};
 }
 
 export async function syncOfflineQueue() {
@@ -53,6 +84,10 @@ export async function syncOfflineQueue() {
           .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
         if (pending[0]) await removeCachedTask(pending[0].id);
       }
+      if ((item.method === 'PUT' || item.method === 'PATCH' || item.method === 'DELETE') && item.url.startsWith('/tasks/')) {
+        const taskId = item.url.split('/')[2]?.split('?')[0];
+        if (taskId && item.method === 'DELETE') await removeCachedTask(taskId);
+      }
       synced++;
     } catch (e) {
       console.error('Sync failed for', item);
@@ -62,6 +97,29 @@ export async function syncOfflineQueue() {
     window.dispatchEvent(new CustomEvent('offline-synced'));
   }
   return synced;
+}
+
+/** Mutation tâche avec mise à jour optimiste du cache local si hors-ligne */
+export async function mutateTaskOffline(
+  method: 'PUT' | 'PATCH' | 'DELETE',
+  url: string,
+  taskId: string,
+  data?: any,
+) {
+  const res = await apiRequestWithOffline(method, url, data);
+  if (res.data?._offline) {
+    const cached = (await getCachedTasks()).find((t) => t.id === taskId);
+    if (cached) {
+      const patch = applyTaskPatch(cached, method, url, data);
+      if (patch._deleted) {
+        await removeCachedTask(taskId);
+      } else {
+        await updateCachedTask(taskId, patch);
+      }
+    }
+    return { offline: true as const };
+  }
+  return { offline: false as const };
 }
 
 export default api;
