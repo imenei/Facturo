@@ -1,3 +1,9 @@
 {
-  "presets": ["next/babel"]
+  "presets": ["next/babel"],
+  "overrides": [
+    {
+      "test": /\.mjs$/,
+      "sourceType": "module"
+    }
+  ]
 }
