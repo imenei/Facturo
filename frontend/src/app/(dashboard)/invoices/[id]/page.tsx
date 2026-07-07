@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
-import { generateInvoiceWord } from '@/lib/wordGenerator';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
 import PDFPreviewModal from '@/components/PDFPreviewModal';
@@ -16,6 +15,11 @@ import {
   ShieldCheck, Briefcase, Lock, TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
+
+const generateInvoiceWord = async (...args: any[]) => {
+  const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
+  return fn(...args);
+};
 
 const STATUS_COLORS: Record<string, string> = {
   brouillon: 'bg-slate-100 text-slate-600',
@@ -128,10 +132,8 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   );
 }
 
-// MOD 7: Internal margin section — never printed on PDF
 function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) => string }) {
   const items = Array.isArray(invoice.items) ? invoice.items : [];
-  // Only show if at least one item has purchasePrice
   const hasData = items.some((item: any) => item.purchasePrice !== undefined && item.purchasePrice !== null);
   if (!hasData && Number(invoice.totalMargin) === 0) return null;
 
@@ -146,7 +148,6 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
 
   return (
     <div className="card overflow-hidden mb-6 border-2 border-dashed border-slate-300">
-      {/* Internal banner — not printed */}
       <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
         <Lock size={14} className="text-slate-500" />
         <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -157,7 +158,6 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
           Marge brute : {totalMargin.toLocaleString('fr-DZ')} DZD ({marginRate}%)
         </span>
       </div>
-
       <table className="w-full">
         <thead>
           <tr className="bg-slate-50">
@@ -276,8 +276,6 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
-
-      {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
         <div className="flex items-center gap-4">
           <Link href="/invoices" className="p-2 hover:bg-slate-100 rounded-lg text-slate-500">
@@ -306,8 +304,6 @@ export default function InvoiceDetailPage() {
               {invoice.clientName} · {new Date(invoice.createdAt).toLocaleDateString('fr-DZ')}
               {invoice.dueDate && ` · ${t('due_date')}: ${new Date(invoice.dueDate).toLocaleDateString('fr-DZ')}`}
             </p>
-
-            {/* MOD 3: Creator + last modifier info */}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               {invoice.createdBy && (
                 <span className={clsx(
@@ -328,7 +324,6 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
         </div>
-
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setShowPreview(true)} className="btn-primary text-sm">
             <Eye size={15} /> {t('preview_pdf')}
@@ -342,7 +337,6 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Workflow stepper */}
       {invoice.workflowStep && (
         <div className="card p-5 mb-6">
           <h3 className="text-sm font-600 text-slate-500 mb-3">{t('workflow_progress')}</h3>
@@ -351,7 +345,6 @@ export default function InvoiceDetailPage() {
       )}
 
       <div className="grid md:grid-cols-2 gap-5 mb-6">
-        {/* Client */}
         <div className="card p-5">
           <h3 className="font-display font-600 text-slate-900 mb-3">{t('client_information')}</h3>
           <div className="space-y-1.5 text-sm text-slate-600">
@@ -368,8 +361,6 @@ export default function InvoiceDetailPage() {
             </Link>
           )}
         </div>
-
-        {/* Admin controls */}
         {isAdmin ? (
           <div className="card p-5 space-y-4">
             <div>
@@ -404,7 +395,6 @@ export default function InvoiceDetailPage() {
 
       {isAdmin && isUnpaid && <div className="mb-6"><ReminderPanel invoice={invoice} t={t} /></div>}
 
-      {/* Items table (customer-facing) */}
       <div className="card overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="font-display font-600 text-slate-900">{t('items')}</h3>
@@ -430,7 +420,6 @@ export default function InvoiceDetailPage() {
             ))}
           </tbody>
         </table>
-
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
             <span>{t('subtotal_excl_tax')}</span>
@@ -449,7 +438,6 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* MOD 7: Internal margin section (admin + commercial only, never in PDF) */}
       {isAdminOrCommercial && invoice.type === 'facture' && (
         <InternalMarginSection invoice={invoice} t={t} />
       )}
