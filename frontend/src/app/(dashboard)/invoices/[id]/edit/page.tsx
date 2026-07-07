@@ -45,7 +45,13 @@ export default function EditInvoicePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put(`/invoices/${id}`, { ...form, items });
+      const payload = {
+        ...form,
+        items,
+        hasTva: Boolean(form.hasTva),
+        tvaRate: form.hasTva ? Number(form.tvaRate) || 19 : 0,
+      };
+      await api.put(`/invoices/${id}`, payload);
       toast.success(t('document_updated'));
       router.push(`/invoices/${id}`);
     } catch (err: any) { toast.error(err?.response?.data?.message || t('error_updating_document')); }
