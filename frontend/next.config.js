@@ -13,6 +13,7 @@ const withPWA = require('next-pwa')({
 const nextConfig = {
   reactStrictMode: true,
   i18n,
+  swcMinify: false,
   experimental: {
     cpus: 1,
     workerThreads: false,
