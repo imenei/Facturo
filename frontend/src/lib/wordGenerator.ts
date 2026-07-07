@@ -1,8 +1,7 @@
-import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, BorderStyle, WidthType, HeadingLevel } from 'docx';
-
 export async function generateInvoiceWord(invoice: any, company: any) {
-  const typeLabel = invoice.type === 'facture' ? 'FACTURE' : invoice.type === 'proforma' ? 'PROFORMA' : 'BON DE LIVRAISON';
+  const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, HeadingLevel } = await import('docx');
 
+  const typeLabel = invoice.type === 'facture' ? 'FACTURE' : invoice.type === 'proforma' ? 'PROFORMA' : 'BON DE LIVRAISON';
   const rows = invoice.items.map((item: any) =>
     new TableRow({
       children: [
@@ -13,7 +12,6 @@ export async function generateInvoiceWord(invoice: any, company: any) {
       ],
     })
   );
-
   const doc = new Document({
     sections: [{
       children: [
@@ -47,7 +45,6 @@ export async function generateInvoiceWord(invoice: any, company: any) {
       ],
     }],
   });
-
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

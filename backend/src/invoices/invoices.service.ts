@@ -26,7 +26,6 @@ export class InvoicesService {
     const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
     const total = subtotal + tvaAmount;
 
-    // MOD 7: calculate margin per item and total
     const items = dto.items.map((item, i) => {
       const purchasePrice = (item as any).purchasePrice ?? 0;
       const margin = (item.unitPrice - purchasePrice) * item.quantity;
@@ -35,8 +34,8 @@ export class InvoicesService {
         description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
-        purchasePrice,  // stored internally
-        margin,         // stored internally
+        purchasePrice,
+        margin,
         total: item.quantity * item.unitPrice,
       };
     });
@@ -69,7 +68,7 @@ export class InvoicesService {
       status?: string;
       type?: string;
       paymentStatus?: string;
-      number?: string; // MOD 2: search by invoice number
+      number?: string;
     },
   ): Promise<Invoice[]> {
     const qb = this.invoicesRepository
@@ -85,7 +84,6 @@ export class InvoicesService {
     if (filters?.client) {
       qb.andWhere('LOWER(inv.clientName) LIKE :client', { client: `%${filters.client.toLowerCase()}%` });
     }
-    // MOD 2: filter by invoice number (partial, case insensitive)
     if (filters?.number) {
       qb.andWhere('UPPER(inv.number) LIKE :number', {
         number: `%${filters.number.toUpperCase()}%`,
@@ -132,7 +130,6 @@ export class InvoicesService {
       const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
       const total = subtotal + tvaAmount;
 
-      // MOD 7: recalculate margins on update
       const items = dto.items.map((item, i) => {
         const purchasePrice = (item as any).purchasePrice ?? 0;
         const margin = (item.unitPrice - purchasePrice) * item.quantity;
@@ -154,7 +151,9 @@ export class InvoicesService {
     // MOD 3: record who modified
     invoice.lastModifiedBy = { id: user.id } as any;
 
-    Object.assign(invoice, dto);
+    // Applique les champs scalaires du DTO sans écraser items/totaux déjà recalculés
+    const { items: _items, ...scalarDto } = dto as any;
+    Object.assign(invoice, scalarDto);
     return this.invoicesRepository.save(invoice);
   }
 
