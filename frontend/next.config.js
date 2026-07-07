@@ -15,15 +15,12 @@ const nextConfig = {
     cpus: 1,
     workerThreads: false,
   },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback = { ...config.resolve.fallback, fs: false };
-    }
-    // Exclure docx du bundle webpack côté serveur (build time)
-    config.externals = config.externals || [];
-    if (isServer) {
-      config.externals.push('docx');
-    }
+  webpack: (config) => {
+    config.module.rules.push({
+      test: /\.mjs$/,
+      include: /node_modules/,
+      type: 'javascript/auto',
+    });
     return config;
   },
 };
