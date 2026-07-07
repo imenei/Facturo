@@ -14,6 +14,7 @@ const nextConfig = {
   reactStrictMode: true,
   i18n,
   swcMinify: false,
+  transpilePackages: ['docx'],
   experimental: {
     cpus: 1,
     workerThreads: false,
