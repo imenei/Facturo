@@ -16,9 +16,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-const generateInvoiceWord = async (...args: any[]) => {
+const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
-  return fn(...args);
+  return fn(invoice, company);
 };
 
 const STATUS_COLORS: Record<string, string> = {
