@@ -30,6 +30,8 @@ const navItems = {
     { href: '/dashboard',              icon: LayoutDashboard, label: 'nav.dashboard' },
     { href: '/invoices',               icon: FileText,        label: 'nav.invoices' },
     { href: '/clients',                icon: UserSquare2,     label: 'nav.clients' },
+    { href: '/tasks',                  icon: CheckSquare,     label: 'nav.tasks' },
+    { href: '/deliveries',             icon: Truck,           label: 'nav.deliveries' },
     { href: '/invoices/new?type=proforma',      icon: FileStack, label: 'nav.proforma' },
     { href: '/invoices/new?type=bon_livraison', icon: Package,   label: 'nav.delivery_note' },
     { href: '/products',               icon: ShoppingBag,     label: 'nav.products' },

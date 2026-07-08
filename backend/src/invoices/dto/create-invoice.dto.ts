@@ -1,16 +1,26 @@
-import { IsString, IsEnum, IsOptional, IsBoolean, IsNumber, IsArray, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsEnum, IsOptional, IsBoolean, IsNumber, IsArray, ValidateNested, IsDateString } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
 import { InvoiceType } from '../invoice.entity';
+
+const emptyToUndefined = ({ value }: { value: unknown }) =>
+  value === '' || value === null || value === undefined ? undefined : value;
 
 class InvoiceItemDto {
   @IsString()
-  description!: string; // ✅
+  description!: string;
 
   @IsNumber()
-  quantity!: number; // ✅
+  @Type(() => Number)
+  quantity!: number;
 
   @IsNumber()
-  unitPrice!: number; // ✅
+  @Type(() => Number)
+  unitPrice!: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  purchasePrice?: number;
 }
 
 export class CreateInvoiceDto {
@@ -61,5 +71,17 @@ export class CreateInvoiceDto {
   notes?: string;
 
   @IsOptional()
-  dueDate?: Date;
+  @Transform(emptyToUndefined)
+  @IsDateString()
+  dueDate?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsDateString()
+  deliveryDate?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  templateType?: string;
 }

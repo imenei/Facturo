@@ -15,7 +15,7 @@ interface Props {
   invoice: any;
   company: any;
   onClose: () => void;
-  onDownload: (invoice: any, company: any) => void;
+  onDownload: (invoice: any, company: any) => void | Promise<void>;
   onTemplateChange?: (t: string) => Promise<void>;
 }
 
@@ -29,8 +29,9 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
   const renderPreview = useCallback(async (tmpl: string) => {
     setRendering(true);
     try {
-      const { generateInvoicePDFDoc } = await import('@/lib/pdfGenerator');
-      const doc = generateInvoicePDFDoc({ ...invoice, templateType: tmpl }, company);
+      const { generateInvoicePDFDoc, prepareCompanyForPdf } = await import('@/lib/pdfGenerator');
+      const prepared = await prepareCompanyForPdf(company);
+      const doc = generateInvoicePDFDoc({ ...invoice, templateType: tmpl }, prepared);
       const blob = doc.output('blob');
       // Revoke previous blob URL to avoid memory leak
       if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);

@@ -3,7 +3,6 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
-import { getCachedInvoices, cacheInvoices } from '@/lib/offlineDB';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
@@ -80,7 +79,8 @@ function CreatorBadge({ invoice }: { invoice: any }) {
         isAdmin ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600',
       )}>
         {isAdmin ? <ShieldCheck size={10} /> : <Briefcase size={10} />}
-        {isAdmin ? 'Admin' : creator.name}
+        {creator.name}
+        <span className="opacity-60">· {creator.role === 'commercial' ? 'Commercial' : creator.role === 'admin' ? 'Administrateur' : creator.role}</span>
       </span>
       {invoice.lastModifiedBy && invoice.lastModifiedBy.id !== creator.id && (
         <span className="text-xs text-slate-400">
@@ -128,10 +128,8 @@ export default function InvoicesPage() {
       ]);
       setInvoices(inv.data);
       setCompany(comp.data);
-      await cacheInvoices(inv.data);
     } catch {
-      const cached = await getCachedInvoices();
-      if (cached.length) { setInvoices(cached); toast(t('offline_mode'), { icon: '📶' }); }
+      toast.error(t('error_loading'));
     }
     setLoading(false);
   }, [search, numberSearch, typeFilter, paymentFilter, dateFilter, statusFilter, t]);
@@ -139,12 +137,6 @@ export default function InvoicesPage() {
   useEffect(() => {
     const timer = setTimeout(() => load(), 300);
     return () => clearTimeout(timer);
-  }, [load]);
-
-  useEffect(() => {
-    const onSynced = () => load();
-    window.addEventListener('offline-synced', onSynced);
-    return () => window.removeEventListener('offline-synced', onSynced);
   }, [load]);
 
   const handleDelete = async (id: string) => {
@@ -309,7 +301,7 @@ export default function InvoicesPage() {
                         <Link href={`/invoices/${inv.id}/edit`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600" title={t('edit')}>
                           <Edit size={15} />
                         </Link>
-                        <button onClick={() => generateInvoicePDF(inv, company)} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
+                        <button onClick={async () => { await generateInvoicePDF(inv, company); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
                           <FileDown size={15} />
                         </button>
                         {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (

@@ -1,8 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import api, { apiRequestWithOffline } from '@/lib/api';
-import { addCachedInvoice } from '@/lib/offlineDB';
+import api from '@/lib/api';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import {
@@ -183,43 +182,31 @@ export default function NewInvoicePage() {
     setSaving(true);
     try {
       const payload = {
-        ...form,
+        type: form.type,
+        clientName: form.clientName.trim(),
+        clientEmail: form.clientEmail.trim() || undefined,
+        clientPhone: form.clientPhone.trim() || undefined,
+        clientAddress: form.clientAddress.trim() || undefined,
+        clientNif: form.clientNif.trim() || undefined,
+        clientNis: form.clientNis.trim() || undefined,
+        clientLogoUrl: form.clientLogoUrl || undefined,
+        hasTva: form.hasTva,
+        tvaRate: form.hasTva ? Number(form.tvaRate) : undefined,
+        notes: form.notes.trim() || undefined,
+        dueDate: form.dueDate || undefined,
+        deliveryDate: form.deliveryDate || undefined,
+        templateType: form.templateType || undefined,
         items: items.map((item) => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          purchasePrice: item.purchasePrice,
+          description: item.description.trim(),
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+          purchasePrice: Number(item.purchasePrice) || 0,
         })),
       };
 
-      const res = await apiRequestWithOffline('POST', '/invoices', payload);
-
-      if (res.data?._offline) {
-        const offlineInvoice = {
-          id: `offline-${Date.now()}`,
-          number: `BRO-${Date.now().toString().slice(-6)}`,
-          ...payload,
-          items: payload.items.map((item, i) => ({
-            id: String(i + 1),
-            ...item,
-            total: item.quantity * item.unitPrice,
-          })),
-          subtotal,
-          tvaAmount,
-          total,
-          paymentStatus: 'unpaid',
-          status: 'brouillon',
-          createdAt: new Date().toISOString(),
-          _pendingSync: true,
-        };
-        await addCachedInvoice(offlineInvoice);
-        toast.success(`${t('invoice_created_successfully')} (hors-ligne)`);
-        router.push('/invoices');
-        return;
-      }
-
+      const { data } = await api.post('/invoices', payload);
       toast.success(t('invoice_created_successfully'));
-      router.push(`/invoices/${res.data.id}`);
+      router.push(`/invoices/${data.id}`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || t('error_during_creation'));
     }

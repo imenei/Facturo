@@ -11,7 +11,7 @@ export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   create(@Body() dto: any, @Request() req) {
     return this.tasksService.create(dto, req.user.id);
   }

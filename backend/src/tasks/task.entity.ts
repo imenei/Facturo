@@ -51,6 +51,12 @@ export class Task {
   clientAddress: string;
 
   @Column({ nullable: true })
+  clientPhone: string;
+
+  @Column({ nullable: true })
+  clientEmail: string;
+
+  @Column({ nullable: true })
   completedAt: Date;
 
   // MOD 6: delivery tracking by livreur

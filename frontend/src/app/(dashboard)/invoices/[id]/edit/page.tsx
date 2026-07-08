@@ -27,7 +27,11 @@ export default function EditInvoicePage() {
         hasTva: data.hasTva, tvaRate: data.tvaRate, notes: data.notes || '',
         status: data.status,
       });
-      setItems(data.items.map((i: any) => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice })));
+      setItems(data.items.map((i: any) => ({
+        description: i.description,
+        quantity: Number(i.quantity),
+        unitPrice: Number(i.unitPrice),
+      })));
       setLoading(false);
     }).catch(() => { toast.error(t('error_loading_invoice')); router.push('/invoices'); });
   }, [id, router, t]);
@@ -46,10 +50,22 @@ export default function EditInvoicePage() {
     setSaving(true);
     try {
       const payload = {
-        ...form,
-        items,
+        type: form.type,
+        status: form.status,
+        clientName: form.clientName.trim(),
+        clientEmail: form.clientEmail?.trim() || undefined,
+        clientPhone: form.clientPhone?.trim() || undefined,
+        clientAddress: form.clientAddress?.trim() || undefined,
+        clientNif: form.clientNif?.trim() || undefined,
+        clientNis: form.clientNis?.trim() || undefined,
+        notes: form.notes?.trim() || undefined,
         hasTva: Boolean(form.hasTva),
         tvaRate: form.hasTva ? Number(form.tvaRate) || 19 : 0,
+        items: items.map((item) => ({
+          description: item.description.trim(),
+          quantity: Number(item.quantity),
+          unitPrice: Number(item.unitPrice),
+        })),
       };
       await api.put(`/invoices/${id}`, payload);
       toast.success(t('document_updated'));

@@ -1,16 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
-import api, { apiRequestWithOffline, mutateTaskOffline } from '@/lib/api';
+import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
-import { getCachedTasks, cacheTasks, addCachedTask, removeCachedTask, updateCachedTask } from '@/lib/offlineDB';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
   Plus, CheckCircle, XCircle, Clock, Loader2, Edit2, Save, X, Trash2,
   MapPin, Calendar, Play, Square, Printer, DollarSign, AlertTriangle,
-  Timer,
+  Timer, Phone, Mail, User,
 } from 'lucide-react';
+import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
 
@@ -18,6 +18,13 @@ function logoSrc(url: string | null | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('data:') || url.startsWith('http')) return url;
   return `${API_BASE}${url}`;
+}
+
+function roleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    admin: 'Administrateur', commercial: 'Commercial', livreur: 'Livreur', technicien: 'Technicien',
+  };
+  return labels[role] || role;
 }
 
 function getStatusConfig(t: (key: string) => string) {
@@ -81,7 +88,9 @@ function printBonDeLivraison(task: any, companyName: string) {
   <div class="info-box">
     <h3>Client</h3>
     <div style="font-size:16px;font-weight:bold">${task.clientName || '—'}</div>
-    ${task.clientAddress ? `<div style="color:#64748b;font-size:13px;margin-top:4px">${task.clientAddress}</div>` : ''}
+    ${task.clientAddress ? `<div style="color:#64748b;font-size:13px;margin-top:4px">📍 ${task.clientAddress}</div>` : ''}
+    ${task.clientPhone ? `<div style="color:#64748b;font-size:13px;margin-top:4px">📞 ${task.clientPhone}</div>` : ''}
+    ${task.clientEmail ? `<div style="color:#64748b;font-size:13px;margin-top:4px">✉ ${task.clientEmail}</div>` : ''}
   </div>
   <div class="info-box">
     <h3>Tâche / Description</h3>
@@ -210,9 +219,8 @@ function DeliveryTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, t, companyName }: {
-  task: any; onUpdate: () => void; onLocalPatch: (id: string, patch: Record<string, any>) => void;
-  onDelete: (id: string) => void;
+function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName }: {
+  task: any; onUpdate: () => void; onDelete: (id: string) => void;
   isLivreur: boolean; isAdmin: boolean; t: (k: string) => string; companyName: string;
 }) {
   const [editing, setEditing] = useState(false);
@@ -230,15 +238,9 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
   const updateStatus = async (status: StatusKey) => {
     setSaving(true);
     try {
-      const patch = { status, completedAt: new Date().toISOString() };
-      const { offline } = await mutateTaskOffline('PUT', `/tasks/${task.id}`, task.id, { status });
-      if (offline) {
-        onLocalPatch(task.id, patch);
-        toast.success(`${t('task_status_updated')} (hors-ligne)`);
-      } else {
-        onUpdate();
-        toast.success(t('task_status_updated'));
-      }
+      await api.put(`/tasks/${task.id}`, { status });
+      onUpdate();
+      toast.success(t('task_status_updated'));
     } catch (e: any) { toast.error(e?.response?.data?.message || t('error_updating_task')); }
     setSaving(false);
   };
@@ -246,55 +248,30 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
   const saveRemarks = async () => {
     setSaving(true);
     try {
-      const { offline } = await mutateTaskOffline('PUT', `/tasks/${task.id}`, task.id, { remarks });
-      if (offline) {
-        onLocalPatch(task.id, { remarks });
-        setEditing(false);
-        toast.success(`${t('remark_saved')} (hors-ligne)`);
-      } else {
-        setEditing(false);
-        onUpdate();
-        toast.success(t('remark_saved'));
-      }
+      await api.put(`/tasks/${task.id}`, { remarks });
+      setEditing(false);
+      onUpdate();
+      toast.success(t('remark_saved'));
     } catch { toast.error(t('error_saving_remark')); }
     setSaving(false);
   };
 
-  // MOD 6: start delivery
   const startDelivery = async () => {
     setSaving(true);
     try {
-      const { offline } = await mutateTaskOffline('PATCH', `/tasks/${task.id}/start-delivery`, task.id);
-      if (offline) {
-        onLocalPatch(task.id, { startedDeliveryAt: new Date().toISOString(), finishedDeliveryAt: null, deliveryDurationMinutes: null });
-        toast.success('Livraison démarrée ! (hors-ligne)');
-      } else {
-        onUpdate();
-        toast.success('Livraison démarrée !');
-      }
+      await api.patch(`/tasks/${task.id}/start-delivery`);
+      onUpdate();
+      toast.success('Livraison démarrée !');
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
 
-  // MOD 6: finish delivery
   const finishDelivery = async () => {
     setSaving(true);
     try {
-      const { offline } = await mutateTaskOffline('PATCH', `/tasks/${task.id}/finish-delivery`, task.id);
-      if (offline) {
-        const started = task.startedDeliveryAt ? new Date(task.startedDeliveryAt).getTime() : Date.now();
-        const finished = new Date();
-        onLocalPatch(task.id, {
-          finishedDeliveryAt: finished.toISOString(),
-          deliveryDurationMinutes: Math.round((finished.getTime() - started) / 60000),
-          status: 'terminee',
-          completedAt: finished.toISOString(),
-        });
-        toast.success('Livraison terminée ! (hors-ligne)');
-      } else {
-        onUpdate();
-        toast.success('Livraison terminée !');
-      }
+      await api.patch(`/tasks/${task.id}/finish-delivery`);
+      onUpdate();
+      toast.success('Livraison terminée !');
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
@@ -312,14 +289,9 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
   const cancelDelivery = async () => {
     setSaving(true);
     try {
-      const { offline } = await mutateTaskOffline('PUT', `/tasks/${task.id}`, task.id, { cancelDelivery: true });
-      if (offline) {
-        onLocalPatch(task.id, { startedDeliveryAt: null, finishedDeliveryAt: null, deliveryDurationMinutes: null });
-        toast.success('Livraison annulée (hors-ligne)');
-      } else {
-        onUpdate();
-        toast.success('Livraison annulée');
-      }
+      await api.put(`/tasks/${task.id}`, { cancelDelivery: true });
+      onUpdate();
+      toast.success('Livraison annulée');
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
@@ -343,17 +315,33 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
 
   return (
     <div className={clsx('card overflow-hidden animate-slide-up', task.status === 'terminee' && 'opacity-75')}>
-      {isLivreur && hasClient && (
-        <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-slate-100 bg-slate-50/60">
-          <ClientLogo name={task.clientName} logoUrl={task.clientLogoUrl} size="md" />
-          <div className="min-w-0">
-            <p className="text-xs text-slate-400 uppercase tracking-wide font-600">{t('client')}</p>
-            <p className="font-display font-700 text-slate-900 text-base truncate">{task.clientName}</p>
-            {task.clientAddress && (
-              <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
-                <MapPin size={10} /> {task.clientAddress}
+      {isLivreur && (
+        <div className="px-5 pt-4 pb-3 border-b border-slate-100 bg-slate-50/60">
+          <p className="text-xs text-slate-400 uppercase tracking-wide font-600 mb-2">{t('client')}</p>
+          <div className="flex items-start gap-3">
+            <ClientLogo name={task.clientName || task.name} logoUrl={task.clientLogoUrl} size="md" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="font-display font-700 text-slate-900 text-base">{task.clientName || task.name}</p>
+              {task.clientAddress && (
+                <p className="text-xs text-slate-500 flex items-start gap-1">
+                  <MapPin size={10} className="mt-0.5 shrink-0" /> {task.clientAddress}
+                </p>
+              )}
+              {task.clientPhone && (
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                  <Phone size={10} /> {task.clientPhone}
+                </p>
+              )}
+              {task.clientEmail && (
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                  <Mail size={10} /> {task.clientEmail}
+                </p>
+              )}
+              <p className="text-sm font-display font-700 text-brand-600 pt-1">
+                Total : {finalPrice.toLocaleString('fr-FR')} DZD
+                {extra > 0 && <span className="text-xs text-orange-500 font-normal ml-1">(+{extra.toLocaleString('fr-FR')} imprévus)</span>}
               </p>
-            )}
+            </div>
           </div>
         </div>
       )}
@@ -370,8 +358,11 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
             {!isLivreur && task.assignedTo && <p className="text-xs text-slate-400 mt-0.5">👤 {task.assignedTo.name}</p>}
             {/* MOD 3: created by */}
             {task.createdBy && (
-              <p className="text-xs text-slate-400 mt-0.5">
-                {task.createdBy.role === 'admin' ? '🛡 Admin' : `💼 ${task.createdBy.name}`}
+              <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
+                <User size={10} />
+                Créé par {task.createdBy.name}
+                <span className="text-slate-300">·</span>
+                {roleLabel(task.createdBy.role)}
               </p>
             )}
           </div>
@@ -413,10 +404,10 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
           </div>
         )}
 
-        {/* Livreur: actions sur ses tâches en attente */}
-        {isLivreur && task.status === 'en_attente' && (
+        {/* Livreur: actions livraison */}
+        {isLivreur && (task.status === 'en_attente' || (task.startedDeliveryAt && !task.finishedDeliveryAt)) && (
           <div className="flex gap-2 mb-3 flex-wrap">
-            {!task.startedDeliveryAt && (
+            {!task.startedDeliveryAt && task.status === 'en_attente' && (
               <button onClick={startDelivery} disabled={saving}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-medium transition-all">
                 <Play size={14} /> Démarrer la livraison
@@ -424,11 +415,11 @@ function TaskCard({ task, onUpdate, onLocalPatch, onDelete, isLivreur, isAdmin, 
             )}
             {task.startedDeliveryAt && !task.finishedDeliveryAt && (
               <button onClick={finishDelivery} disabled={saving}
-                className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
-                <Square size={14} /> Terminer la livraison
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 rounded-xl text-sm font-semibold transition-all shadow-sm">
+                <CheckCircle size={16} /> Terminer
               </button>
             )}
-            {!task.startedDeliveryAt && (
+            {!task.startedDeliveryAt && task.status === 'en_attente' && (
               <>
                 <button onClick={() => updateStatus('terminee')} disabled={saving}
                   className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
@@ -554,13 +545,16 @@ export default function TasksPage() {
   const [newTask, setNewTask] = useState({
     name: '', description: '', price: 0,
     assignedToId: '', dueDate: '', deliveryDate: '',
-    clientName: '', clientLogoUrl: '', clientAddress: '',
+    clientName: '', clientLogoUrl: '', clientAddress: '', clientPhone: '', clientEmail: '',
   });
   const [saving, setSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
 
   const isLivreur = user?.role === 'livreur';
   const isAdmin = user?.role === 'admin';
+  const isCommercial = user?.role === 'commercial';
+  const canManageTasks = isAdmin || isCommercial;
+  const [companyName, setCompanyName] = useState('Mon Entreprise');
   const statusConfig = getStatusConfig(t);
 
   const loadLivreurs = async () => {
@@ -580,14 +574,8 @@ export default function TasksPage() {
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
+  const handleDeleteTask = (id: string) => {
     setTasks((prev) => prev.filter((task) => task.id !== id));
-    await removeCachedTask(id);
-  };
-
-  const handleLocalPatch = async (id: string, patch: Record<string, any>) => {
-    setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, ...patch } : task)));
-    await updateCachedTask(id, patch);
   };
 
   const filterTasksForUser = (list: any[]) => {
@@ -606,29 +594,31 @@ export default function TasksPage() {
     const tasksUrl = user.role === 'livreur' ? '/tasks/my-tasks' : '/tasks';
     try {
       const tRes = await api.get(tasksUrl);
-      const scoped = filterTasksForUser(tRes.data);
-      setTasks(scoped);
-      await cacheTasks(scoped, user.id);
+      setTasks(filterTasksForUser(tRes.data));
     } catch {
-      const cached = filterTasksForUser(await getCachedTasks(user.id));
-      if (cached.length) {
-        setTasks(cached);
-        toast(t('offline_mode'), { icon: '📶' });
-      } else {
-        setTasks([]);
-      }
+      setTasks([]);
+      toast.error(t('error_loading'));
     }
+
+    try {
+      const { data: companyData } = await api.get('/company');
+      if (companyData?.name) setCompanyName(companyData.name);
+    } catch {}
 
     if (user.role === 'livreur') {
       try {
         const s = await api.get('/tasks/my-stats');
         setStats(s.data);
       } catch {}
-    } else if (user.role === 'admin') {
+    } else if (canManageTasks) {
       await loadLivreurs();
       try {
-        const { data } = await api.get('/clients');
-        setClients(Array.isArray(data) ? data : []);
+        const [{ data: clientsData }, { data: companyData }] = await Promise.all([
+          api.get('/clients'),
+          api.get('/company'),
+        ]);
+        setClients(Array.isArray(clientsData) ? clientsData : []);
+        if (companyData?.name) setCompanyName(companyData.name);
       } catch {
         setClients([]);
       }
@@ -639,50 +629,38 @@ export default function TasksPage() {
   useEffect(() => { load(); }, [user?.id, user?.role]);
 
   useEffect(() => {
-    if (showNew && isAdmin) loadLivreurs();
-  }, [showNew, isAdmin]);
+    if (showNew && canManageTasks) loadLivreurs();
+  }, [showNew, canManageTasks]);
 
-  useEffect(() => {
-    const onSynced = () => load();
-    window.addEventListener('offline-synced', onSynced);
-    return () => window.removeEventListener('offline-synced', onSynced);
-  }, [user?.id, user?.role]);
-
-  const pickClient = (c: any) => setNewTask((p) => ({ ...p, clientName: c.clientName || '', clientLogoUrl: c.clientLogoUrl || '', clientAddress: c.clientAddress || '' }));
-  const clearClient = () => setNewTask((p) => ({ ...p, clientName: '', clientLogoUrl: '', clientAddress: '' }));
+  const pickClient = (c: any) => setNewTask((p) => ({
+    ...p,
+    clientName: c.clientName || '',
+    clientLogoUrl: c.clientLogoUrl || '',
+    clientAddress: c.clientAddress || '',
+    clientPhone: c.clientPhone || '',
+    clientEmail: c.clientEmail || '',
+  }));
+  const clearClient = () => setNewTask((p) => ({
+    ...p, clientName: '', clientLogoUrl: '', clientAddress: '', clientPhone: '', clientEmail: '',
+  }));
 
   const createTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await apiRequestWithOffline('POST', '/tasks', newTask);
-
-      if (res.data?._offline) {
-        const assignedUser = users.find((u) => u.id === newTask.assignedToId);
-        const offlineTask = {
-          id: `offline-${Date.now()}`,
-          ...newTask,
-          price: newTask.price,
-          finalPrice: newTask.price,
-          status: 'en_attente',
-          assignedTo: assignedUser || { id: newTask.assignedToId, name: '—' },
-          createdAt: new Date().toISOString(),
-          _pendingSync: true,
-        };
-        await addCachedTask(offlineTask);
-        setTasks((prev) => [offlineTask, ...prev]);
-        toast.success(`${t('task_created')} (hors-ligne)`);
-        setShowNew(false);
-        setNewTask({ name: '', description: '', price: 0, assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '' });
-        setSaving(false);
-        return;
-      }
-
+      await api.post('/tasks', {
+        ...newTask,
+        dueDate: newTask.dueDate || undefined,
+        deliveryDate: newTask.deliveryDate || undefined,
+        price: Number(newTask.price),
+      });
       toast.success(t('task_created'));
       setShowNew(false);
-      setNewTask({ name: '', description: '', price: 0, assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '' });
+      setNewTask({ name: '', description: '', price: 0, assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '', clientPhone: '', clientEmail: '' });
       load();
-    } catch { toast.error(t('error_creating_task')); }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || t('error_creating_task'));
+    }
     setSaving(false);
   };
 
@@ -700,17 +678,21 @@ export default function TasksPage() {
           </h1>
           <p className="text-slate-500 text-sm mt-1">{tasks.length} {t('tasks_count')}</p>
         </div>
-        <div className="flex gap-2">
-          {/* MOD 8a: admin print recap button */}
+        <div className="flex gap-2 flex-wrap">
           {isAdmin && (
             <button onClick={() => setShowPrintRecap(true)} className="btn-secondary">
               <Printer size={16} /> Imprimer récap livreur
             </button>
           )}
-          {!isLivreur && (
-            <button onClick={() => { setShowNew(!showNew); if (!showNew) loadLivreurs(); }} className="btn-primary">
-              <Plus size={18} /> {t('new_task')}
-            </button>
+          {canManageTasks && (
+            <>
+              <Link href="/invoices/new?type=bon_livraison" className="btn-secondary">
+                <Printer size={16} /> Bon de livraison
+              </Link>
+              <button onClick={() => { setShowNew(!showNew); if (!showNew) loadLivreurs(); }} className="btn-primary">
+                <Plus size={18} /> {t('new_task')}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -754,6 +736,22 @@ export default function TasksPage() {
                 </>
               )}
             </div>
+            {(newTask.clientName || !clients.length) && (
+              <>
+                <div className="md:col-span-2">
+                  <label className="label">Adresse client</label>
+                  <input className="input" value={newTask.clientAddress} onChange={(e) => setNewTask((p) => ({ ...p, clientAddress: e.target.value }))} placeholder="Adresse de livraison" />
+                </div>
+                <div>
+                  <label className="label">Téléphone</label>
+                  <input className="input" value={newTask.clientPhone} onChange={(e) => setNewTask((p) => ({ ...p, clientPhone: e.target.value }))} placeholder="05x xx xx xx" />
+                </div>
+                <div>
+                  <label className="label">Email</label>
+                  <input className="input" type="email" value={newTask.clientEmail} onChange={(e) => setNewTask((p) => ({ ...p, clientEmail: e.target.value }))} placeholder="client@email.com" />
+                </div>
+              </>
+            )}
             <div className="md:col-span-2">
               <label className="label">{t('task_name')} <span className="text-red-500">*</span></label>
               <input className="input" required value={newTask.name} onChange={(e) => setNewTask({ ...newTask, name: e.target.value })} placeholder={t('task_name_placeholder')} />
@@ -816,7 +814,7 @@ export default function TasksPage() {
         <div className="space-y-4">
           {filtered.length === 0 && <div className="card p-12 text-center text-slate-400">{t('no_tasks')}</div>}
           {filtered.map((task) => (
-            <TaskCard key={task.id} task={task} onUpdate={load} onLocalPatch={handleLocalPatch} onDelete={handleDeleteTask} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName="Mon Entreprise" />
+            <TaskCard key={task.id} task={task} onUpdate={load} onDelete={handleDeleteTask} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName={companyName} />
           ))}
         </div>
       )}

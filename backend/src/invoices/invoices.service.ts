@@ -52,7 +52,11 @@ export class InvoicesService {
       total,
       totalMargin,
       clientId,
-      clientLogoUrl: dto.clientLogoUrl ?? undefined,
+      clientLogoUrl: dto.clientLogoUrl || null,
+      dueDate: dto.dueDate || null,
+      deliveryDate: dto.deliveryDate || null,
+      templateType: dto.templateType || null,
+      notes: dto.notes || null,
       paymentStatus: PaymentStatus.UNPAID,
       createdBy: { id: userId } as any,
     });
@@ -124,14 +128,32 @@ export class InvoicesService {
 
   async update(id: string, dto: UpdateInvoiceDto, user: { id: string; role: UserRole }): Promise<Invoice> {
     const invoice = await this.findOne(id, user);
+    invoice.lastModifiedBy = { id: user.id } as any;
 
-    if (dto.items) {
+    if (dto.type !== undefined) invoice.type = dto.type;
+    if (dto.status !== undefined) invoice.status = dto.status;
+    if (dto.clientName !== undefined) invoice.clientName = dto.clientName;
+    if (dto.clientEmail !== undefined) invoice.clientEmail = dto.clientEmail || null;
+    if (dto.clientPhone !== undefined) invoice.clientPhone = dto.clientPhone || null;
+    if (dto.clientAddress !== undefined) invoice.clientAddress = dto.clientAddress || null;
+    if (dto.clientNif !== undefined) invoice.clientNif = dto.clientNif || null;
+    if (dto.clientNis !== undefined) invoice.clientNis = dto.clientNis || null;
+    if (dto.notes !== undefined) invoice.notes = dto.notes || null;
+    if (dto.dueDate !== undefined) invoice.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
+    if (dto.deliveryDate !== undefined) invoice.deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
+    if (dto.templateType !== undefined) invoice.templateType = dto.templateType || null;
+    if (dto.hasTva !== undefined) invoice.hasTva = dto.hasTva;
+    if (dto.tvaRate !== undefined) invoice.tvaRate = dto.tvaRate;
+
+    if (dto.items && dto.items.length > 0) {
+      const hasTva = dto.hasTva ?? invoice.hasTva;
+      const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
       const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
+      const tvaAmount = hasTva ? (subtotal * tvaRate) / 100 : 0;
       const total = subtotal + tvaAmount;
 
       const items = dto.items.map((item, i) => {
-        const purchasePrice = (item as any).purchasePrice ?? 0;
+        const purchasePrice = item.purchasePrice ?? 0;
         const margin = (item.unitPrice - purchasePrice) * item.quantity;
         return {
           id: String(i + 1),
@@ -144,16 +166,23 @@ export class InvoicesService {
         };
       });
 
-      const totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
-      Object.assign(invoice, { subtotal, tvaAmount, total, items, totalMargin });
+      invoice.items = items;
+      invoice.subtotal = subtotal;
+      invoice.tvaAmount = tvaAmount;
+      invoice.total = total;
+      invoice.totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
+    } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined) {
+      const hasTva = dto.hasTva ?? invoice.hasTva;
+      const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
+      const subtotal = Number(invoice.subtotal);
+      invoice.tvaAmount = hasTva ? (subtotal * tvaRate) / 100 : 0;
+      invoice.total = subtotal + Number(invoice.tvaAmount);
     }
 
-    // MOD 3: record who modified
-    invoice.lastModifiedBy = { id: user.id } as any;
+    if (dto.clientName) {
+      invoice.clientId = this.buildClientId(dto.clientName, dto.clientPhone ?? invoice.clientPhone);
+    }
 
-    // Applique les champs scalaires du DTO sans écraser items/totaux déjà recalculés
-    const { items: _items, ...scalarDto } = dto as any;
-    Object.assign(invoice, scalarDto);
     return this.invoicesRepository.save(invoice);
   }
 

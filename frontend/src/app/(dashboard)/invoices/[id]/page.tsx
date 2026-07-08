@@ -11,14 +11,15 @@ import clsx from 'clsx';
 import {
   ArrowLeft, FileDown, FileText, Edit, CheckCircle,
   XCircle, Loader2, Bell, ChevronRight, Mail,
-  AlertTriangle, Eye,
+  AlertTriangle, Eye, Trash2,
   ShieldCheck, Briefcase, Lock, TrendingUp,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const generateInvoiceWord = async (...args: any[]) => {
+const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
-  return fn(...args);
+  return fn(invoice, company);
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -215,6 +216,7 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
+  const router = useRouter();
   const { t } = useI18nStore();
   const [invoice, setInvoice] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
@@ -262,9 +264,24 @@ export default function InvoiceDetailPage() {
   };
 
   const handleTemplateChange = async (templateType: string) => {
-    await api.put(`/invoices/${id}`, { templateType });
-    setInvoice((p: any) => ({ ...p, templateType }));
-    toast.success(t('template_saved'));
+    try {
+      await api.put(`/invoices/${id}`, { templateType });
+      setInvoice((p: any) => ({ ...p, templateType }));
+      toast.success(t('template_saved'));
+    } catch {
+      toast.error(t('error_updating'));
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm(t('confirm_delete_invoice'))) return;
+    try {
+      await api.delete(`/invoices/${id}`);
+      toast.success(t('deleted'));
+      router.push('/invoices');
+    } catch {
+      toast.error(t('error_deleting'));
+    }
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
@@ -311,7 +328,9 @@ export default function InvoiceDetailPage() {
                   invoice.createdBy.role === 'admin' ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600',
                 )}>
                   {invoice.createdBy.role === 'admin' ? <ShieldCheck size={10} /> : <Briefcase size={10} />}
-                  Créé par {invoice.createdBy.role === 'admin' ? 'Admin' : invoice.createdBy.name}
+                  Créé par {invoice.createdBy.name}
+                  <span className="text-slate-300"> · </span>
+                  {invoice.createdBy.role === 'commercial' ? 'Commercial' : invoice.createdBy.role === 'admin' ? 'Administrateur' : invoice.createdBy.role}
                   · {new Date(invoice.createdAt).toLocaleDateString('fr-FR')} à {new Date(invoice.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
@@ -334,6 +353,11 @@ export default function InvoiceDetailPage() {
           <Link href={`/invoices/${id}/edit`} className="btn-secondary text-sm">
             <Edit size={15} /> {t('edit')}
           </Link>
+          {isAdmin && (
+            <button onClick={handleDelete} className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200">
+              <Trash2 size={15} /> {t('delete')}
+            </button>
+          )}
         </div>
       </div>
 

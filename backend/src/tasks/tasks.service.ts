@@ -47,6 +47,8 @@ export class TasksService {
       clientName: dto.clientName || null,
       clientLogoUrl: dto.clientLogoUrl || null,
       clientAddress: dto.clientAddress || null,
+      clientPhone: dto.clientPhone || null,
+      clientEmail: dto.clientEmail || null,
       finalPrice: dto.price,
       createdBy: { id: adminId } as any,
       assignedTo: livreur,

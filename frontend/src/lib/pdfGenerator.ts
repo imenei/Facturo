@@ -1,7 +1,52 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function resolveLogoSrc(company: any): string | null {
+  const raw = company?.logo || company?.logoUrl;
+  if (!raw) return null;
+  if (raw.startsWith('data:') || raw.startsWith('http')) return raw;
+  return `${API_BASE}${raw.startsWith('/') ? '' : '/'}${raw}`;
+}
+
+async function logoToBase64(url: string): Promise<string | null> {
+  if (url.startsWith('data:')) return url;
+  try {
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Prépare logo (base64) et nom entreprise avant génération PDF */
+export async function prepareCompanyForPdf(company: any): Promise<any> {
+  if (!company) return { name: 'Mon Entreprise' };
+  const prepared = { ...company, name: (company.name || '').trim() || 'Mon Entreprise' };
+  const src = resolveLogoSrc(company);
+  if (!src) return prepared;
+  if (src.startsWith('data:')) {
+    prepared._pdfLogo = src;
+    return prepared;
+  }
+  const b64 = await logoToBase64(src);
+  if (b64) prepared._pdfLogo = b64;
+  return prepared;
+}
+
+function companyName(company: any): string {
+  return (company?.name || '').trim() || 'Mon Entreprise';
+}
 
 function fmt(n: number): string {
   const num = Number(n) || 0;
@@ -17,20 +62,23 @@ function fDate(d: any) {
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-// ✅ FIX: si pas de logo → rien n'est dessiné (ni placeholder, ni boîte grise)
 function addLogo(doc: jsPDF, company: any, x: number, y: number, w: number, h: number) {
-  const src = company?.logo || company?.logoUrl;
-  if (!src) return; // Pas de logo → on ne dessine rien du tout
-
-  try {
-    const imgData = src;
-    const fmt2 = src.startsWith('data:image/png') ? 'PNG'
-      : src.startsWith('data:image/webp') ? 'WEBP'
-      : 'JPEG';
-    doc.addImage(imgData, fmt2, x, y, w, h);
-  } catch {
-    // Image invalide/corrompue → on ignore silencieusement, rien n'est affiché
+  const src = company?._pdfLogo || resolveLogoSrc(company);
+  if (src) {
+    try {
+      const fmt2 = src.startsWith('data:image/png') ? 'PNG'
+        : src.startsWith('data:image/webp') ? 'WEBP'
+        : 'JPEG';
+      doc.addImage(src, fmt2, x, y, w, h);
+      return;
+    } catch {
+      // fallback texte ci-dessous
+    }
   }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(Math.min(11, w / 3));
+  doc.setTextColor(10, 10, 10);
+  doc.text(companyName(company), x, y + h * 0.45, { maxWidth: w + 20 });
 }
 
 // Company info block helper
@@ -39,7 +87,7 @@ function companyBlock(doc: jsPDF, company: any, x: number, y: number, align: 'le
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(10, 10, 10);
-  doc.text(company?.name || 'Mon Entreprise', ax, y, { align });
+  doc.text(companyName(company), ax, y, { align });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(90, 90, 90);
@@ -55,11 +103,11 @@ function companyBlock(doc: jsPDF, company: any, x: number, y: number, align: 'le
 }
 
 // Client block helper
-function clientBlock(doc: jsPDF, invoice: any, x: number, y: number) {
+function clientBlock(doc: jsPDF, invoice: any, x: number, y: number, label = 'FACTURER À :') {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
   doc.setTextColor(120, 120, 120);
-  doc.text('FACTURER À :', x, y);
+  doc.text(label, x, y);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(10, 10, 10);
@@ -413,7 +461,7 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(100, 100, 100);
-  doc.text(company?.name || '', W - 14, 12, { align: 'right' });
+  doc.text(companyName(company), W - 14, 12, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(130, 130, 130);
@@ -477,10 +525,143 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   return (doc as any).lastAutoTable.finalY as number;
 }
 
+// ─── BON DE LIVRAISON ────────────────────────────────────────────────────────
+function deliveryItemsTable(doc: jsPDF, invoice: any, startY: number) {
+  const body = invoice.items.map((i: any, idx: number) => [
+    { content: String(idx + 1), styles: { halign: 'center', textColor: [100, 100, 100] } },
+    i.description,
+    { content: String(i.quantity), styles: { halign: 'center', fontStyle: 'bold' } },
+    { content: '☐', styles: { halign: 'center', fontSize: 10 } },
+  ]);
+  autoTable(doc, {
+    startY,
+    head: [['#', 'Désignation / Référence', 'Qté', 'Reçu']],
+    body,
+    theme: 'grid',
+    styles: { fontSize: 9, textColor: [20, 20, 20], lineColor: [180, 180, 180], lineWidth: 0.3, cellPadding: 4 },
+    headStyles: { fillColor: [26, 84, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, cellPadding: 4 },
+    columnStyles: {
+      0: { cellWidth: 12, halign: 'center' },
+      1: { cellWidth: 'auto' },
+      2: { cellWidth: 22, halign: 'center' },
+      3: { cellWidth: 18, halign: 'center' },
+    },
+    margin: { left: 14, right: 14 },
+  });
+  return (doc as any).lastAutoTable.finalY as number;
+}
+
+function deliveryNoteFooter(doc: jsPDF, invoice: any, company: any, startY: number) {
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  let y = startY + 12;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(60, 60, 60);
+  doc.text(`Nombre d'articles : ${invoice.items?.length || 0}`, 14, y);
+  const totalQty = (invoice.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
+  doc.text(`Quantité totale : ${totalQty}`, 14, y + 5);
+  y += 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(26, 84, 255);
+  doc.text(`Montant livraison : ${fmt(invoice.total)}`, W - 14, y, { align: 'right' });
+  y += 6;
+
+  if (invoice.notes) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(90, 90, 90);
+    doc.text(`Remarques : ${invoice.notes}`, 14, y + 6, { maxWidth: W - 28 });
+    y += 10;
+  }
+
+  y += 18;
+  const sigW = (W - 28 - 12) / 2;
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.3);
+  doc.rect(14, y, sigW, 28);
+  doc.rect(14 + sigW + 12, y, sigW, 28);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(80, 80, 80);
+  doc.text('Signature & cachet expéditeur', 14 + sigW / 2, y - 2, { align: 'center' });
+  doc.text('Signature client (bon pour accord)', 14 + sigW + 12 + sigW / 2, y - 2, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(130, 130, 130);
+  doc.text(company?.name || '', 14 + sigW / 2, y + 22, { align: 'center' });
+  doc.text('Date : ___/___/______', 14 + sigW + 12 + sigW / 2, y + 22, { align: 'center' });
+
+  doc.setDrawColor(26, 84, 255);
+  doc.setLineWidth(0.6);
+  doc.line(14, H - 18, W - 14, H - 18);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(120, 120, 120);
+  doc.text(
+    `Document généré le ${fDate(new Date())} — ${company?.name || ''} — Ce document atteste la livraison des marchandises listées ci-dessus.`,
+    W / 2, H - 12, { align: 'center', maxWidth: W - 40 },
+  );
+}
+
+function renderDeliveryNote(doc: jsPDF, invoice: any, company: any): number {
+  const W = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(26, 84, 255);
+  doc.rect(0, 0, W, 28, 'F');
+  addLogo(doc, company, 14, 4, 28, 20);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text(companyName(company), 46, 11);
+  doc.setFontSize(14);
+  doc.text('BON DE LIVRAISON', W / 2, 12, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(220, 230, 255);
+  doc.text(`N° ${invoice.number}`, W / 2, 19, { align: 'center' });
+  doc.text(fDate(invoice.createdAt), W - 14, 10, { align: 'right' });
+  if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 16, { align: 'right' });
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(10, 10, 10);
+  doc.text(companyName(company), 14, 38);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(80, 80, 80);
+  let cy = 43;
+  if (company?.address) { doc.text(company.address, 14, cy); cy += 4; }
+  if (company?.phone) { doc.text(`Tél : ${company.phone}`, 14, cy); cy += 4; }
+
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.3);
+  doc.line(14, 52, W - 14, 52);
+
+  const clientEnd = clientBlock(doc, invoice, 14, 58, 'LIVRÉ À :');
+
+  doc.setDrawColor(220, 220, 220);
+  doc.line(14, clientEnd + 4, W - 14, clientEnd + 4);
+
+  const finalY = deliveryItemsTable(doc, invoice, clientEnd + 10);
+  deliveryNoteFooter(doc, invoice, company, finalY);
+  return finalY;
+}
+
 // ─── Main generators ──────────────────────────────────────────────────────────
 export function generateInvoicePDFDoc(invoice: any, company: any): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   doc.setDrawColor(0); doc.setTextColor(0);
+
+  if (invoice.type === 'bon_livraison') {
+    renderDeliveryNote(doc, invoice, company);
+    return doc;
+  }
 
   let finalY = 0;
   switch (invoice.templateType || 'classic') {
@@ -495,6 +676,7 @@ export function generateInvoicePDFDoc(invoice: any, company: any): jsPDF {
   return doc;
 }
 
-export function generateInvoicePDF(invoice: any, company: any) {
-  generateInvoicePDFDoc(invoice, company).save(`${invoice.number}.pdf`);
+export async function generateInvoicePDF(invoice: any, company: any) {
+  const prepared = await prepareCompanyForPdf(company);
+  generateInvoicePDFDoc(invoice, prepared).save(`${invoice.number}.pdf`);
 }
