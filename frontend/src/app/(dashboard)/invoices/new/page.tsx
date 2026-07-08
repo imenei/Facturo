@@ -181,6 +181,29 @@ export default function NewInvoicePage() {
     e.preventDefault();
     setSaving(true);
     try {
+      // FIX: upload base64 logo first, then use the returned URL
+      let clientLogoUrl: string | undefined = undefined;
+      if (form.clientLogoUrl) {
+        if (form.clientLogoUrl.startsWith('data:')) {
+          // Upload base64 image to server first
+          try {
+            const blob = await fetch(form.clientLogoUrl).then(r => r.blob());
+            const formData = new FormData();
+            formData.append('logo', blob, 'logo.png');
+            const { data: uploadData } = await api.post('/upload/logo', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            clientLogoUrl = uploadData.url || uploadData.path || undefined;
+          } catch {
+            // If upload fails, skip the logo silently
+            clientLogoUrl = undefined;
+          }
+        } else {
+          // Already a URL, use as-is
+          clientLogoUrl = form.clientLogoUrl;
+        }
+      }
+
       const payload = {
         type: form.type,
         clientName: form.clientName.trim(),
@@ -189,7 +212,7 @@ export default function NewInvoicePage() {
         clientAddress: form.clientAddress.trim() || undefined,
         clientNif: form.clientNif.trim() || undefined,
         clientNis: form.clientNis.trim() || undefined,
-        clientLogoUrl: form.clientLogoUrl || undefined,
+        clientLogoUrl,
         hasTva: form.hasTva,
         tvaRate: form.hasTva ? Number(form.tvaRate) : undefined,
         notes: form.notes.trim() || undefined,
