@@ -13,29 +13,26 @@ import {
   UserSquare2, LayoutTemplate, Bell, Wrench, Menu, X,
 } from 'lucide-react';
 
+const adminNav = [
+  { href: '/dashboard',    icon: LayoutDashboard, label: 'nav.dashboard' },
+  { href: '/invoices',     icon: FileText,        label: 'nav.invoices' },
+  { href: '/clients',      icon: UserSquare2,     label: 'nav.clients' },
+  { href: '/deliveries',   icon: Truck,           label: 'nav.deliveries' },
+  { href: '/tasks',        icon: CheckSquare,     label: 'nav.tasks' },
+  { href: '/interventions',icon: Wrench,          label: 'nav.interventions' },
+  { href: '/products',     icon: ShoppingBag,     label: 'nav.products' },
+  { href: '/templates',    icon: LayoutTemplate,  label: 'nav.templates' },
+  { href: '/users',        icon: Users,           label: 'nav.users' },
+  { href: '/company',      icon: Building2,       label: 'nav.company' },
+];
+
 const navItems = {
-  admin: [
-    { href: '/dashboard',    icon: LayoutDashboard, label: 'nav.dashboard' },
-    { href: '/invoices',     icon: FileText,        label: 'nav.invoices' },
-    { href: '/clients',      icon: UserSquare2,     label: 'nav.clients' },
-    { href: '/deliveries',   icon: Truck,           label: 'nav.deliveries' },
-    { href: '/tasks',        icon: CheckSquare,     label: 'nav.tasks' },
-    { href: '/interventions',icon: Wrench,          label: 'nav.interventions' },
-    { href: '/products',     icon: ShoppingBag,     label: 'nav.products' },
-    { href: '/templates',    icon: LayoutTemplate,  label: 'nav.templates' },
-    { href: '/users',        icon: Users,           label: 'nav.users' },
-    { href: '/company',      icon: Building2,       label: 'nav.company' },
-  ],
+  admin: adminNav,
   commercial: [
-    { href: '/dashboard',              icon: LayoutDashboard, label: 'nav.dashboard' },
-    { href: '/invoices',               icon: FileText,        label: 'nav.invoices' },
-    { href: '/clients',                icon: UserSquare2,     label: 'nav.clients' },
-    { href: '/tasks',                  icon: CheckSquare,     label: 'nav.tasks' },
-    { href: '/deliveries',             icon: Truck,           label: 'nav.deliveries' },
-    { href: '/invoices/new?type=proforma',      icon: FileStack, label: 'nav.proforma' },
+    ...adminNav.filter((item) => !['/dashboard', '/users'].includes(item.href)),
+    { href: '/invoices/new?type=proforma',       icon: FileStack, label: 'nav.proforma' },
     { href: '/invoices/new?type=bon_livraison', icon: Package,   label: 'nav.delivery_note' },
-    { href: '/products',               icon: ShoppingBag,     label: 'nav.products' },
-    { href: '/notifications',          icon: Bell,            label: 'nav.notifications' },
+    { href: '/notifications',                   icon: Bell,      label: 'nav.notifications' },
   ],
   livreur: [
     { href: '/dashboard', icon: LayoutDashboard, label: 'nav.dashboard' },

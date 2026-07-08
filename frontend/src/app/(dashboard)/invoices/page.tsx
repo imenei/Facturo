@@ -4,6 +4,7 @@ import Link from 'next/link';
 import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import { useAuthStore } from '@/store/authStore';
+import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -283,7 +284,7 @@ export default function InvoicesPage() {
                       {inv.workflowStep ? (
                         <div className="relative">
                           <WorkflowBar step={inv.workflowStep} t={t} />
-                          {user?.role === 'admin' && (
+                          {isManager(user?.role) && (
                             <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={inv.workflowStep}
                               onChange={(e) => { e.stopPropagation(); updateWorkflow(inv.id, e.target.value); }}>
                               {WORKFLOW_STEPS.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -310,7 +311,7 @@ export default function InvoicesPage() {
                             {reminding === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
                           </button>
                         )}
-                        {user?.role === 'admin' && (
+                        {isManager(user?.role) && (
                           <button onClick={() => handleDelete(inv.id)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={t('delete')}>
                             <Trash2 size={15} />
                           </button>

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
+import { homeRouteForRole } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import { FileText, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -23,7 +24,7 @@ export default function LoginPage() {
     try {
       await login(email, password);
       toast.success(t('login_success'));
-      router.push('/dashboard');
+      router.push(homeRouteForRole(useAuthStore.getState().user?.role));
     } catch (err: any) {
       toast.error(err?.response?.data?.message || t('invalid_credentials'));
     }

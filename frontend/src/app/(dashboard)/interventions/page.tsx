@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -44,7 +45,7 @@ export default function InterventionsListPage() {
   const { user } = useAuthStore();
   const { t } = useI18nStore();
   const isTech = user?.role === 'technicien';
-  const isAdmin = user?.role === 'admin';
+  const canManage = isManager(user?.role);
 
   const [interventions, setInterventions] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -118,7 +119,7 @@ export default function InterventionsListPage() {
           <button onClick={() => setShowHistory(!showHistory)} className="btn-secondary">
             <History size={16} /> {t('history')}
           </button>
-          {(isAdmin || isTech) && (
+          {(canManage || isTech) && (
             <Link href="/interventions/new" className="btn-primary">
               <Plus size={18} /> {t('new')}
             </Link>
@@ -298,7 +299,7 @@ export default function InterventionsListPage() {
                             className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600 transition-colors">
                             <Eye size={15} />
                           </Link>
-                          {isAdmin && (
+                          {canManage && (
                             <button onClick={() => remove(iv.id)}
                               className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500 transition-colors">
                               <Trash2 size={15} />

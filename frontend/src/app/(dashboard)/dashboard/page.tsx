@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
 import api from '@/lib/api';
@@ -108,7 +109,12 @@ function UnpaidByClientWidget({ data }: { data: any[] }) {
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const router = useRouter();
   const { t } = useI18nStore();
+
+  useEffect(() => {
+    if (user?.role === 'commercial') router.replace('/invoices');
+  }, [user?.role, router]);
 
   const [overview, setOverview] = useState<any>(null);
   const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
@@ -431,7 +437,7 @@ export default function DashboardPage() {
                   {/* MOD 3: creator on dashboard */}
                   {inv.createdBy && (
                     <div className="text-xs text-slate-400">
-                      {inv.createdBy.role === 'admin' ? '🛡 Admin' : `💼 ${inv.createdBy.name}`}
+                      {inv.createdBy.role === 'admin' ? '🛡 Admin' : inv.createdBy.role === 'commercial' ? `💼 ${inv.createdBy.name} · Commercial` : inv.createdBy.name}
                     </div>
                   )}
                 </div>

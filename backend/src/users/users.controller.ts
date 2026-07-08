@@ -25,6 +25,12 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('livreurs')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
+  findLivreurs() {
+    return this.usersService.findByRole(UserRole.LIVREUR);
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN)
   findOne(@Param('id') id: string) {

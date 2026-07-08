@@ -35,7 +35,7 @@ export class TasksController {
 
   // MOD 8a: admin fetches tasks of a specific livreur to print summary
   @Get('by-livreur/:livreurId')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   getByLivreur(
     @Param('livreurId') livreurId: string,
     @Query('from') from?: string,
@@ -56,21 +56,21 @@ export class TasksController {
 
   // MOD 6: livreur or admin starts delivery
   @Patch(':id/start-delivery')
-  @Roles(UserRole.LIVREUR, UserRole.ADMIN)
+  @Roles(UserRole.LIVREUR, UserRole.ADMIN, UserRole.COMMERCIAL)
   startDelivery(@Param('id') id: string, @Request() req) {
     return this.tasksService.startDelivery(id, req.user);
   }
 
   // MOD 6: livreur or admin finishes delivery
   @Patch(':id/finish-delivery')
-  @Roles(UserRole.LIVREUR, UserRole.ADMIN)
+  @Roles(UserRole.LIVREUR, UserRole.ADMIN, UserRole.COMMERCIAL)
   finishDelivery(@Param('id') id: string, @Request() req) {
     return this.tasksService.finishDelivery(id, req.user);
   }
 
   // MOD 6: admin adds unexpected extra fees
   @Patch(':id/extra-fees')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   addExtraFees(
     @Param('id') id: string,
     @Body() body: { extraFees: number; extraFeesNote?: string },
@@ -79,7 +79,7 @@ export class TasksController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   remove(@Param('id') id: string) {
     return this.tasksService.remove(id);
   }

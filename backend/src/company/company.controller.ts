@@ -17,7 +17,7 @@ export class CompanyController {
 
   @Put()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   update(@Body() dto: any) {
     return this.companyService.update(dto);
   }

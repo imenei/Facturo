@@ -53,7 +53,7 @@ export class InvoicesController {
   }
 
   @Patch(':id/delivery-status')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   updateDelivery(@Param('id') id: string, @Body('status') status: DeliveryStatus) {
     return this.invoicesService.updateDeliveryStatus(id, status);
   }
@@ -71,7 +71,7 @@ export class InvoicesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   remove(@Param('id') id: string) {
     return this.invoicesService.remove(id);
   }

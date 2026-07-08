@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import api from '@/lib/api';
 import { generateInvoicePDF } from '@/lib/pdfGenerator';
 import { useAuthStore } from '@/store/authStore';
+import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import PDFPreviewModal from '@/components/PDFPreviewModal';
 import toast from 'react-hot-toast';
@@ -287,9 +288,8 @@ export default function InvoiceDetailPage() {
   if (loading) return <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
   if (!invoice) return <div className="p-8 text-slate-500">{t('invoice_not_found')}</div>;
 
-  const isAdmin = user?.role === 'admin';
+  const canManage = isManager(user?.role);
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
-  const isAdminOrCommercial = isAdmin || user?.role === 'commercial';
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -337,6 +337,9 @@ export default function InvoiceDetailPage() {
               {invoice.lastModifiedBy && invoice.lastModifiedBy.id !== invoice.createdBy?.id && (
                 <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
                   Modifié par {invoice.lastModifiedBy.name}
+                  {invoice.lastModifiedBy.role === 'commercial' && (
+                    <span className="text-amber-500">· Commercial</span>
+                  )}
                   · {new Date(invoice.updatedAt).toLocaleDateString('fr-FR')}
                 </span>
               )}
@@ -353,7 +356,7 @@ export default function InvoiceDetailPage() {
           <Link href={`/invoices/${id}/edit`} className="btn-secondary text-sm">
             <Edit size={15} /> {t('edit')}
           </Link>
-          {isAdmin && (
+          {canManage && (
             <button onClick={handleDelete} className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200">
               <Trash2 size={15} /> {t('delete')}
             </button>
@@ -364,7 +367,7 @@ export default function InvoiceDetailPage() {
       {invoice.workflowStep && (
         <div className="card p-5 mb-6">
           <h3 className="text-sm font-600 text-slate-500 mb-3">{t('workflow_progress')}</h3>
-          <WorkflowStepper current={invoice.workflowStep} invoiceId={invoice.id} onUpdate={load} canEdit={isAdmin} t={t} />
+          <WorkflowStepper current={invoice.workflowStep} invoiceId={invoice.id} onUpdate={load} canEdit={canManage} t={t} />
         </div>
       )}
 
@@ -385,7 +388,7 @@ export default function InvoiceDetailPage() {
             </Link>
           )}
         </div>
-        {isAdmin ? (
+        {canManage ? (
           <div className="card p-5 space-y-4">
             <div>
               <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('document_status')}</p>
@@ -412,12 +415,10 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
           </div>
-        ) : (
-          isUnpaid && <ReminderPanel invoice={invoice} t={t} />
-        )}
+        ) : null}
       </div>
 
-      {isAdmin && isUnpaid && <div className="mb-6"><ReminderPanel invoice={invoice} t={t} /></div>}
+      {canManage && isUnpaid && <div className="mb-6"><ReminderPanel invoice={invoice} t={t} /></div>}
 
       <div className="card overflow-hidden mb-6">
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -462,7 +463,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {isAdminOrCommercial && invoice.type === 'facture' && (
+      {canManage && invoice.type === 'facture' && (
         <InternalMarginSection invoice={invoice} t={t} />
       )}
 

@@ -36,7 +36,7 @@ export class NotificationsController {
 
   // MOD 8b: Reset email template to default
   @Delete('email-template')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   resetEmailTemplate() {
     this.notificationsService.resetEmailTemplate();
     return { success: true, message: 'Modèle réinitialisé au défaut' };

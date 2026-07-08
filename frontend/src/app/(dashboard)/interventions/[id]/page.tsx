@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
+import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -279,7 +280,7 @@ export default function InterventionWorkspacePage() {
   const { user } = useAuthStore();
   const { t } = useI18nStore();
   const isTech = user?.role === 'technicien';
-  const isAdmin = user?.role === 'admin';
+  const canManage = isManager(user?.role);
 
   const [item, setItem] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -445,7 +446,7 @@ export default function InterventionWorkspacePage() {
             </p>
           </div>
         </div>
-        {isAdmin && (
+        {canManage && (
           <Link href={`/interventions/${id}/edit`} className="btn-secondary text-sm">{t('edit')}</Link>
         )}
       </div>
@@ -519,7 +520,7 @@ export default function InterventionWorkspacePage() {
         )}
 
         {/* Technical report — collapsible */}
-        {(isTech || isAdmin) && (
+        {(isTech || canManage) && (
           <div className="card overflow-hidden">
             <button
               onClick={() => setShowReport(!showReport)}

@@ -53,7 +53,7 @@ export class TemplatesController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   remove(@Param('id') id: string) {
     return this.templatesService.remove(id);
   }

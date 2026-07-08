@@ -16,7 +16,7 @@ export class InterventionsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.TECHNICIEN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL, UserRole.TECHNICIEN)
   create(@Body() dto: any, @Request() req: any) {
     return this.svc.create(dto, req.user.id);
   }
@@ -94,7 +94,7 @@ export class InterventionsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   remove(@Param('id') id: string) {
     return this.svc.remove(id);
   }

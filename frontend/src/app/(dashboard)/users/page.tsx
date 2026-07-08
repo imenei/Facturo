@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import { useI18nStore } from '@/store/i18nStore';
 import { useAuthStore } from '@/store/authStore';
@@ -23,11 +24,18 @@ const emptyForm = {
 
 export default function UsersPage() {
   const { t } = useI18nStore();
+  const router = useRouter();
   const currentUser = useAuthStore((s) => s.user);
   const updateCurrentUser = useAuthStore((s) => s.updateUser);
   const [users, setUsers]     = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin') {
+      router.replace('/invoices');
+    }
+  }, [currentUser, router]);
   const [editUser, setEditUser] = useState<any>(null);
   const [form, setForm]       = useState({ ...emptyForm });
   const [saving, setSaving]   = useState(false);

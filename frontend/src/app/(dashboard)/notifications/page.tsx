@@ -251,7 +251,7 @@ export default function NotificationsPage() {
                     {/* MOD 3: creator */}
                     {inv.createdBy && (
                       <div className={clsx('text-xs mt-1', inv.createdBy.role === 'admin' ? 'text-blue-500' : 'text-violet-500')}>
-                        {inv.createdBy.role === 'admin' ? '🛡 Admin' : `💼 ${inv.createdBy.name}`}
+                        {inv.createdBy.role === 'admin' ? '🛡 Admin' : inv.createdBy.role === 'commercial' ? `💼 ${inv.createdBy.name} · Commercial` : inv.createdBy.name}
                       </div>
                     )}
                   </div>

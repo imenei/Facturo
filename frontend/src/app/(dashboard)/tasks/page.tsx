@@ -11,6 +11,7 @@ import {
   Timer, Phone, Mail, User,
 } from 'lucide-react';
 import Link from 'next/link';
+import { isManager } from '@/lib/roles';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
 
@@ -219,9 +220,9 @@ function DeliveryTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName }: {
+function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyName }: {
   task: any; onUpdate: () => void; onDelete: (id: string) => void;
-  isLivreur: boolean; isAdmin: boolean; t: (k: string) => string; companyName: string;
+  isLivreur: boolean; canManage: boolean; t: (k: string) => string; companyName: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [remarks, setRemarks] = useState(task.remarks || '');
@@ -369,7 +370,7 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName
           <div className="flex flex-col items-end gap-1.5 shrink-0">
             <div className="flex items-center gap-1.5">
               <span className={clsx('badge flex items-center gap-1', color)}><StatusIcon size={11} />{label}</span>
-              {isAdmin && (
+              {canManage && (
                 <button onClick={deleteTask} disabled={saving}
                   className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title={t('delete')}>
@@ -439,7 +440,7 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName
         )}
 
         {/* Admin: gérer / arrêter / supprimer une tâche */}
-        {isAdmin && task.status !== 'terminee' && task.status !== 'non_terminee' && (
+        {canManage && task.status !== 'terminee' && task.status !== 'non_terminee' && (
           <div className="flex gap-2 mb-3 flex-wrap">
             {task.startedDeliveryAt && !task.finishedDeliveryAt && (
               <>
@@ -468,7 +469,7 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName
           </div>
         )}
 
-        {isAdmin && (task.status === 'terminee' || task.status === 'non_terminee') && (
+        {canManage && (task.status === 'terminee' || task.status === 'non_terminee') && (
           <div className="flex gap-2 mb-3">
             <button onClick={deleteTask} disabled={saving}
               className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-medium transition-all">
@@ -478,7 +479,7 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, isAdmin, t, companyName
         )}
 
         {/* MOD 6: Admin — extra fees section */}
-        {isAdmin && (
+        {canManage && (
           <div className="mb-3">
             {showExtraFees ? (
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
@@ -551,24 +552,14 @@ export default function TasksPage() {
   const [filterStatus, setFilterStatus] = useState('');
 
   const isLivreur = user?.role === 'livreur';
-  const isAdmin = user?.role === 'admin';
-  const isCommercial = user?.role === 'commercial';
-  const canManageTasks = isAdmin || isCommercial;
+  const canManage = isManager(user?.role);
   const [companyName, setCompanyName] = useState('Mon Entreprise');
   const statusConfig = getStatusConfig(t);
 
   const loadLivreurs = async () => {
     try {
-      const ts = Date.now();
-      const [{ data: byRole }, { data: all }] = await Promise.all([
-        api.get(`/users?role=livreur&_=${ts}`),
-        api.get(`/users?_=${ts}`),
-      ]);
-      const merged = new Map<string, any>();
-      for (const u of [...(Array.isArray(byRole) ? byRole : []), ...(Array.isArray(all) ? all.filter((x) => x.role === 'livreur') : [])]) {
-        merged.set(u.id, u);
-      }
-      setUsers([...merged.values()].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr')));
+      const { data } = await api.get('/users/livreurs');
+      setUsers(Array.isArray(data) ? [...data].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'fr')) : []);
     } catch {
       setUsers([]);
     }
@@ -610,7 +601,7 @@ export default function TasksPage() {
         const s = await api.get('/tasks/my-stats');
         setStats(s.data);
       } catch {}
-    } else if (canManageTasks) {
+    } else if (canManage) {
       await loadLivreurs();
       try {
         const [{ data: clientsData }, { data: companyData }] = await Promise.all([
@@ -629,8 +620,8 @@ export default function TasksPage() {
   useEffect(() => { load(); }, [user?.id, user?.role]);
 
   useEffect(() => {
-    if (showNew && canManageTasks) loadLivreurs();
-  }, [showNew, canManageTasks]);
+    if (showNew && canManage) loadLivreurs();
+  }, [showNew, canManage]);
 
   const pickClient = (c: any) => setNewTask((p) => ({
     ...p,
@@ -679,12 +670,12 @@ export default function TasksPage() {
           <p className="text-slate-500 text-sm mt-1">{tasks.length} {t('tasks_count')}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {isAdmin && (
+          {canManage && (
             <button onClick={() => setShowPrintRecap(true)} className="btn-secondary">
               <Printer size={16} /> Imprimer récap livreur
             </button>
           )}
-          {canManageTasks && (
+          {canManage && (
             <>
               <Link href="/invoices/new?type=bon_livraison" className="btn-secondary">
                 <Printer size={16} /> Bon de livraison
@@ -814,7 +805,7 @@ export default function TasksPage() {
         <div className="space-y-4">
           {filtered.length === 0 && <div className="card p-12 text-center text-slate-400">{t('no_tasks')}</div>}
           {filtered.map((task) => (
-            <TaskCard key={task.id} task={task} onUpdate={load} onDelete={handleDeleteTask} isLivreur={isLivreur} isAdmin={isAdmin} t={t} companyName={companyName} />
+            <TaskCard key={task.id} task={task} onUpdate={load} onDelete={handleDeleteTask} isLivreur={isLivreur} canManage={canManage} t={t} companyName={companyName} />
           ))}
         </div>
       )}

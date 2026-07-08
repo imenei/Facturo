@@ -81,7 +81,8 @@ export class InvoicesService {
       .leftJoinAndSelect('inv.lastModifiedBy', 'lastModifiedBy')
       .orderBy('inv.createdAt', 'DESC');
 
-    if (user.role !== UserRole.ADMIN) {
+    const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
+    if (!canSeeAll) {
       qb.where('createdBy.id = :userId', { userId: user.id });
     }
 
@@ -120,7 +121,8 @@ export class InvoicesService {
       relations: ['createdBy', 'lastModifiedBy'],
     });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
-    if (user.role !== UserRole.ADMIN && invoice.createdBy.id !== user.id) {
+    const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
+    if (!canSeeAll && invoice.createdBy.id !== user.id) {
       throw new ForbiddenException('Accès refusé');
     }
     return invoice;
