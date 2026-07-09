@@ -16,8 +16,27 @@ export class InvoicesService {
   private async generateNumber(type: InvoiceType): Promise<string> {
     const prefix = type === InvoiceType.FACTURE ? 'FAC' : type === InvoiceType.PROFORMA ? 'PRO' : 'BL';
     const year = new Date().getFullYear();
-    const count = await this.invoicesRepository.count({ where: { type } });
-    return `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
+
+    // FIX: on calcule le prochain numéro à partir du VRAI dernier numéro utilisé
+    // (trié sur la colonne `number` elle-même), au lieu d'un simple COUNT() qui
+    // divergeait dès qu'une facture était supprimée -> causait des doublons
+    // et violait la contrainte unique UQ_6b20aa66f2a835a4f2fbde48724.
+    const result = await this.invoicesRepository
+      .createQueryBuilder('inv')
+      .select('inv.number', 'number')
+      .where('inv.type = :type', { type })
+      .andWhere('inv.number LIKE :pattern', { pattern: `${prefix}-${year}-%` })
+      .orderBy('inv.number', 'DESC')
+      .limit(1)
+      .getRawOne();
+
+    let nextSeq = 1;
+    if (result?.number) {
+      const match = result.number.match(/-(\d+)$/);
+      if (match) nextSeq = parseInt(match[1], 10) + 1;
+    }
+
+    return `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
   }
 
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
