@@ -88,39 +88,61 @@ export class InvoicesService {
       number?: string;
     },
   ): Promise<Invoice[]> {
-    const qb = this.invoicesRepository
-      .createQueryBuilder('inv')
-      .leftJoinAndSelect('inv.createdBy', 'createdBy')
-      .leftJoinAndSelect('inv.lastModifiedBy', 'lastModifiedBy')
-      .orderBy('inv.createdAt', 'DESC');
+    try {
+      const qb = this.invoicesRepository
+        .createQueryBuilder('inv')
+        .leftJoinAndSelect('inv.createdBy', 'createdBy')
+        .leftJoinAndSelect('inv.lastModifiedBy', 'lastModifiedBy')
+        .orderBy('inv.createdAt', 'DESC');
 
-    const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
-    if (!canSeeAll) {
-      qb.where('createdBy.id = :userId', { userId: user.id });
-    }
+      const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
+      if (!canSeeAll) {
+        qb.where('createdBy.id = :userId', { userId: user.id });
+      }
 
-    if (filters?.client) {
-      qb.andWhere('LOWER(inv.clientName) LIKE :client', { client: `%${filters.client.toLowerCase()}%` });
-    }
-    if (filters?.number) {
-      qb.andWhere('UPPER(inv.number) LIKE :number', {
-        number: `%${filters.number.toUpperCase()}%`,
-      });
-    }
-    if (filters?.date) {
-      qb.andWhere('DATE(inv.createdAt) = :date', { date: filters.date });
-    }
-    if (filters?.status) {
-      qb.andWhere('inv.status = :status', { status: filters.status });
-    }
-    if (filters?.paymentStatus) {
-      qb.andWhere('inv.paymentStatus = :paymentStatus', { paymentStatus: filters.paymentStatus });
-    }
-    if (filters?.type) {
-      qb.andWhere('inv.type = :type', { type: filters.type });
-    }
+      if (filters?.client) {
+        qb.andWhere('LOWER(inv.clientName) LIKE :client', { client: `%${filters.client.toLowerCase()}%` });
+      }
+      if (filters?.number) {
+        qb.andWhere('UPPER(inv.number) LIKE :number', {
+          number: `%${filters.number.toUpperCase()}%`,
+        });
+      }
+      if (filters?.date) {
+        qb.andWhere('DATE(inv.createdAt) = :date', { date: filters.date });
+      }
+      if (filters?.status) {
+        qb.andWhere('inv.status = :status', { status: filters.status });
+      }
+      if (filters?.paymentStatus) {
+        qb.andWhere('inv.paymentStatus = :paymentStatus', { paymentStatus: filters.paymentStatus });
+      }
+      if (filters?.type) {
+        qb.andWhere('inv.type = :type', { type: filters.type });
+      }
 
-    return qb.getMany();
+      return await qb.getMany();
+    } catch (error) {
+      console.error('=== ERROR in invoices.service.findAll ===');
+      console.error('user id:', user.id, 'role:', user.role);
+      console.error('filters:', JSON.stringify(filters));
+      console.error('Error:', error instanceof Error ? error.message : error);
+      console.error('Stack:', error instanceof Error ? error.stack : '');
+      console.error('========================================');
+      // Fallback: try without the lastModifiedBy join (column may not exist in production)
+      try {
+        const qb = this.invoicesRepository
+          .createQueryBuilder('inv')
+          .leftJoinAndSelect('inv.createdBy', 'createdBy')
+          .orderBy('inv.createdAt', 'DESC');
+        const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
+        if (!canSeeAll) qb.where('createdBy.id = :userId', { userId: user.id });
+        return await qb.getMany();
+      } catch (fallbackError) {
+        console.error('=== FALLBACK also failed ===', fallbackError);
+        throw error;
+      }
+    }
   }
 
   private buildClientId(name: string, phone?: string): string {
@@ -129,16 +151,34 @@ export class InvoicesService {
   }
 
   async findOne(id: string, user: { id: string; role: UserRole }): Promise<Invoice> {
-    const invoice = await this.invoicesRepository.findOne({
-      where: { id },
-      relations: ['createdBy', 'lastModifiedBy'],
-    });
-    if (!invoice) throw new NotFoundException('Facture non trouvée');
-    const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
-    if (!canSeeAll && invoice.createdBy.id !== user.id) {
-      throw new ForbiddenException('Accès refusé');
+    try {
+      const invoice = await this.invoicesRepository.findOne({
+        where: { id },
+        relations: ['createdBy', 'lastModifiedBy'],
+      });
+      if (!invoice) throw new NotFoundException('Facture non trouvée');
+      const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
+      if (!canSeeAll && invoice.createdBy.id !== user.id) {
+        throw new ForbiddenException('Accès refusé');
+      }
+      return invoice;
+    } catch (error) {
+      if (error instanceof NotFoundException || error instanceof ForbiddenException) throw error;
+      console.error('=== ERROR in invoices.service.findOne (fallback without lastModifiedBy) ===');
+      console.error('id:', id, 'user:', user.id, 'role:', user.role);
+      console.error('Error:', error instanceof Error ? error.message : error);
+      // Fallback without lastModifiedBy
+      const invoice = await this.invoicesRepository.findOne({
+        where: { id },
+        relations: ['createdBy'],
+      });
+      if (!invoice) throw new NotFoundException('Facture non trouvée');
+      const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
+      if (!canSeeAll && invoice.createdBy.id !== user.id) {
+        throw new ForbiddenException('Accès refusé');
+      }
+      return invoice;
     }
-    return invoice;
   }
 
   async update(id: string, dto: UpdateInvoiceDto, user: { id: string; role: UserRole }): Promise<Invoice> {
