@@ -182,50 +182,42 @@ export default function NewInvoicePage() {
     setSaving(true);
     try {
       // FIX: upload base64 logo first, then use the returned URL
-      let clientLogoUrl: string | undefined = undefined;
-      if (form.clientLogoUrl) {
-        if (form.clientLogoUrl.startsWith('data:')) {
-          // Upload base64 image to server first
-          try {
-            const blob = await fetch(form.clientLogoUrl).then(r => r.blob());
-            const formData = new FormData();
-            formData.append('logo', blob, 'logo.png');
-            const { data: uploadData } = await api.post('/upload/logo', formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            clientLogoUrl = uploadData.url || uploadData.path || undefined;
-          } catch {
-            // If upload fails, skip the logo silently
-            clientLogoUrl = undefined;
-          }
-        } else {
-          // Already a URL, use as-is
-          clientLogoUrl = form.clientLogoUrl;
-        }
+      // Send base64 logo directly in the payload (no separate upload)
+      let clientLogoUrl: string | undefined = form.clientLogoUrl || undefined;
+      if (clientLogoUrl && !clientLogoUrl.startsWith('data:') && !clientLogoUrl.startsWith('http')) {
+        // Already a server path, use as-is
       }
 
-      const payload = {
+      const payload: Record<string, any> = {
         type: form.type,
         clientName: form.clientName.trim(),
-        clientEmail: form.clientEmail.trim() || undefined,
-        clientPhone: form.clientPhone.trim() || undefined,
-        clientAddress: form.clientAddress.trim() || undefined,
-        clientNif: form.clientNif.trim() || undefined,
-        clientNis: form.clientNis.trim() || undefined,
-        clientLogoUrl,
-        hasTva: form.hasTva,
-        tvaRate: form.hasTva ? Number(form.tvaRate) : undefined,
-        notes: form.notes.trim() || undefined,
-        dueDate: form.dueDate || undefined,
-        deliveryDate: form.deliveryDate || undefined,
-        templateType: form.templateType || undefined,
         items: items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
           purchasePrice: Number(item.purchasePrice) || 0,
         })),
+        hasTva: form.hasTva,
       };
+
+      // Only add optional fields if they have a value
+      const clientEmail = form.clientEmail.trim();
+      if (clientEmail) payload.clientEmail = clientEmail;
+      const clientPhone = form.clientPhone.trim();
+      if (clientPhone) payload.clientPhone = clientPhone;
+      const clientAddress = form.clientAddress.trim();
+      if (clientAddress) payload.clientAddress = clientAddress;
+      const clientNif = form.clientNif.trim();
+      if (clientNif) payload.clientNif = clientNif;
+      const clientNis = form.clientNis.trim();
+      if (clientNis) payload.clientNis = clientNis;
+      if (clientLogoUrl) payload.clientLogoUrl = clientLogoUrl;
+      if (form.hasTva) payload.tvaRate = Number(form.tvaRate);
+      const notes = form.notes.trim();
+      if (notes) payload.notes = notes;
+      if (form.dueDate) payload.dueDate = form.dueDate;
+      if (form.deliveryDate) payload.deliveryDate = form.deliveryDate;
+      if (form.templateType) payload.templateType = form.templateType;
 
       const { data } = await api.post('/invoices', payload);
       toast.success(t('invoice_created_successfully'));
