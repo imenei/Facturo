@@ -1,12 +1,17 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, HttpException, HttpStatus } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { join } from 'path';
 import { existsSync, mkdirSync } from 'fs';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { json, urlencoded } from 'express';
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // Log everything to stderr so PM2 captures it
+    logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+  });
+
   // Ensure uploads directory exists
   const uploadsDir = join(process.cwd(), 'uploads', 'logos');
   if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
@@ -31,5 +36,14 @@ async function bootstrap() {
   console.log(`🚀 HelpDZ API running on port ${port}`);
   console.log(`📁 Uploads served at /uploads/`);
 }
+
+// Global unhandled rejection/exception handlers so PM2 logs them
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+
 bootstrap();
 

@@ -15,8 +15,27 @@ export class InvoicesController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
-  create(@Body() dto: CreateInvoiceDto, @Request() req) {
-    return this.invoicesService.create(dto, req.user.id);
+  async create(@Body() dto: CreateInvoiceDto, @Request() req) {
+    try {
+      return await this.invoicesService.create(dto, req.user.id);
+    } catch (error) {
+      console.error('=== ERROR in InvoicesController.create ===');
+      console.error('User ID:', req.user?.id);
+      console.error('User Role:', req.user?.role);
+      console.error('DTO type:', dto?.type);
+      console.error('DTO clientName:', dto?.clientName);
+      console.error('DTO items length:', dto?.items?.length);
+      if (dto?.clientLogoUrl && typeof dto.clientLogoUrl === 'string') {
+        const preview = dto.clientLogoUrl.substring(0, 100);
+        console.error('DTO clientLogoUrl (first 100 chars):', preview);
+        console.error('DTO clientLogoUrl length:', dto.clientLogoUrl.length);
+      }
+      console.error('Error name:', error?.constructor?.name);
+      console.error('Error message:', error instanceof Error ? error.message : error);
+      console.error('Stack:', error instanceof Error ? error.stack : '');
+      console.error('========================================');
+      throw error;
+    }
   }
 
   // MOD 2: added ?number= query param for invoice number search

@@ -21,47 +21,60 @@ export class InvoicesService {
   }
 
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
-    const number = await this.generateNumber(dto.type);
-    const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-    const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
-    const total = subtotal + tvaAmount;
+    try {
+      const number = await this.generateNumber(dto.type);
+      const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+      const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
+      const total = subtotal + tvaAmount;
 
-    const items = dto.items.map((item, i) => {
-      const purchasePrice = (item as any).purchasePrice ?? 0;
-      const margin = (item.unitPrice - purchasePrice) * item.quantity;
-      return {
-        id: String(i + 1),
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        purchasePrice,
-        margin,
-        total: item.quantity * item.unitPrice,
-      };
-    });
+      const items = dto.items.map((item, i) => {
+        const purchasePrice = (item as any).purchasePrice ?? 0;
+        const margin = (item.unitPrice - purchasePrice) * item.quantity;
+        return {
+          id: String(i + 1),
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          purchasePrice,
+          margin,
+          total: item.quantity * item.unitPrice,
+        };
+      });
 
-    const totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
-    const clientId = this.buildClientId(dto.clientName, dto.clientPhone);
+      const totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
+      const clientId = this.buildClientId(dto.clientName, dto.clientPhone);
 
-    const invoice = this.invoicesRepository.create({
-      ...dto,
-      number,
-      items,
-      subtotal,
-      tvaAmount,
-      total,
-      totalMargin,
-      clientId,
-      clientLogoUrl: dto.clientLogoUrl || null,
-      dueDate: dto.dueDate || null,
-      deliveryDate: dto.deliveryDate || null,
-      templateType: dto.templateType || null,
-      notes: dto.notes || null,
-      paymentStatus: PaymentStatus.UNPAID,
-      createdBy: { id: userId } as any,
-    });
+      const invoice = this.invoicesRepository.create({
+        ...dto,
+        number,
+        items,
+        subtotal,
+        tvaAmount,
+        total,
+        totalMargin,
+        clientId,
+        clientLogoUrl: dto.clientLogoUrl || null,
+        dueDate: dto.dueDate || null,
+        deliveryDate: dto.deliveryDate || null,
+        templateType: dto.templateType || null,
+        notes: dto.notes || null,
+        paymentStatus: PaymentStatus.UNPAID,
+        createdBy: { id: userId } as any,
+      });
 
-    return this.invoicesRepository.save(invoice);
+      return await this.invoicesRepository.save(invoice);
+    } catch (error) {
+      console.error('=== ERROR in invoices.service.create ===');
+      console.error('userId:', userId);
+      console.error('dto.type:', dto.type);
+      console.error('dto.clientName:', dto.clientName);
+      console.error('dto.items count:', dto.items?.length);
+      console.error('dto.hasTva:', dto.hasTva);
+      console.error('Error details:', error instanceof Error ? error.message : error);
+      console.error('Error stack:', error instanceof Error ? error.stack : '');
+      console.error('========================================');
+      throw error;
+    }
   }
 
   async findAll(
