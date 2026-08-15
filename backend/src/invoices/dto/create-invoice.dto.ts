@@ -84,4 +84,9 @@ export class CreateInvoiceDto {
   @Transform(emptyToUndefined)
   @IsString()
   templateType?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  issuerName?: string;
 }

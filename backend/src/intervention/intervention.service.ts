@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
 import { Intervention, InterventionStatus, MaterialItem } from './intervention.entity';
 import { UserRole } from '../users/user.entity';
+import { DeliveryGateway } from '../gateway/delivery.gateway';
 
 // Type local pour ne pas dépendre du shape exact du JWT guard
 interface RequestUser {
@@ -16,6 +17,7 @@ export class InterventionsService {
   constructor(
     @InjectRepository(Intervention)
     private repo: Repository<Intervention>,
+    private deliveryGateway: DeliveryGateway,
   ) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -135,10 +137,19 @@ export class InterventionsService {
     item.partsCost = partsCost;
     item.totalPrice = totalPrice;
 
-    return this.repo.save(item) as Promise<Intervention>;
-  }
+    const saved = await this.repo.save(item) as Intervention;
 
-  // ── Technicien workflow actions ───────────────────────────────────────────
+    // Lien technicien → commercial : notification en temps réel si le statut a changé
+    if (this.isTech(user) && dto.status !== undefined) {
+      this.deliveryGateway.emitInterventionStatusUpdated(saved.id, {
+        ticketNumber: saved.ticketNumber,
+        clientName: saved.clientName,
+        status: saved.status,
+      });
+    }
+
+    return saved;
+  }
 
   async startIntervention(id: string, user: RequestUser): Promise<Intervention> {
     const item = await this.findOne(id, user);
@@ -198,7 +209,16 @@ export class InterventionsService {
     item.partsCost = partsCost;
     item.totalPrice = totalPrice;
 
-    return this.repo.save(item) as Promise<Intervention>;
+    const saved = await this.repo.save(item) as Intervention;
+
+    // Lien technicien → commercial : l'intervention est terminée, le commercial est notifié
+    this.deliveryGateway.emitInterventionStatusUpdated(saved.id, {
+      ticketNumber: saved.ticketNumber,
+      clientName: saved.clientName,
+      status: saved.status,
+    });
+
+    return saved;
   }
 
   async addPhoto(id: string, user: RequestUser, photoBase64: string): Promise<Intervention> {

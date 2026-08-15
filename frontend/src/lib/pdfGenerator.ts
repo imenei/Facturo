@@ -50,11 +50,64 @@ function companyName(company: any): string {
 
 function fmt(n: number): string {
   const num = Number(n) || 0;
-  return num.toLocaleString('fr-FR').replace(/\u202f/g, ' ').replace(/,/g, '.') + ' DZD';
+  return num.toLocaleString('fr-FR', { maximumFractionDigits: 0 }).replace(/\u202f/g, ' ').replace(/,/g, '.');
+}
+
+// ─── Nombre en lettres (DZD) ────────────────────────────────────────────────
+const UNITS = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix',
+  'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+const TENS = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+
+function twoDigitsToWords(n: number): string {
+  if (n < 20) return UNITS[n];
+  const t = Math.floor(n / 10), u = n % 10;
+  if (t === 7 || t === 9) {
+    return TENS[t - 1] + '-' + (u === 1 && t === 7 ? 'et-' : '') + UNITS[10 + u];
+  }
+  let word = TENS[t];
+  if (u === 1 && t !== 8) word += '-et-un';
+  else if (u > 0) word += '-' + UNITS[u];
+  if (t === 8 && u === 0) word += 's';
+  return word;
+}
+
+function threeDigitsToWords(n: number): string {
+  const h = Math.floor(n / 100), r = n % 100;
+  let word = '';
+  if (h > 0) word += (h === 1 ? 'cent' : UNITS[h] + ' cent') + (h > 1 && r === 0 ? 's' : '');
+  if (r > 0) word += (word ? ' ' : '') + twoDigitsToWords(r);
+  return word;
+}
+
+function numberToFrenchWords(n: number): string {
+  n = Math.floor(Math.abs(n));
+  if (n === 0) return 'zéro';
+  const groups = [
+    { value: 1000000000, singular: 'milliard', plural: 'milliards' },
+    { value: 1000000, singular: 'million', plural: 'millions' },
+    { value: 1000, singular: 'mille', plural: 'mille' },
+  ];
+  let remaining = n;
+  let parts: string[] = [];
+  for (const g of groups) {
+    const count = Math.floor(remaining / g.value);
+    if (count > 0) {
+      const label = count === 1 && g.value === 1000 ? g.singular : `${threeDigitsToWords(count)} ${count > 1 ? g.plural : g.singular}`;
+      parts.push(label);
+      remaining -= count * g.value;
+    }
+  }
+  if (remaining > 0) parts.push(threeDigitsToWords(remaining));
+  return parts.join(' ');
+}
+
+function amountInWords(n: number): string {
+  const num = Math.round(Number(n) || 0);
+  return `Arrêtée la présente facture à la somme de : ${numberToFrenchWords(num)} dinars algériens`.replace(/\s+/g, ' ');
 }
 
 function tLabel(type: string) {
-  return type === 'facture' ? 'FACTURE' : type === 'proforma' ? 'PROFORMA' : 'BON DE LIVRAISON';
+  return type === 'facture' ? 'FACTURE' : type === 'proforma' ? 'PROFORMA' : 'REÇU';
 }
 
 function fDate(d: any) {
@@ -85,7 +138,7 @@ function addLogo(doc: jsPDF, company: any, x: number, y: number, w: number, h: n
 function companyBlock(doc: jsPDF, company: any, x: number, y: number, align: 'left' | 'right' = 'left') {
   const ax = align === 'right' ? x : x;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(12.5);
   doc.setTextColor(10, 10, 10);
   doc.text(companyName(company), ax, y, { align });
   doc.setFont('helvetica', 'normal');
@@ -178,7 +231,18 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   doc.text('TOTAL TTC :', labelX, ty + 7.5);
   doc.text(fmt(invoice.total), valX, ty + 7.5, { align: 'right' });
 
-  return ty + 11;
+  ty += 11;
+
+  // Montant en lettres sous le TTC
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(7.5);
+  doc.setTextColor(60, 60, 60);
+  const words = amountInWords(invoice.total);
+  const wrapped = doc.splitTextToSize(words, W - 28);
+  doc.text(wrapped, 14, ty + 6);
+  ty += 6 + wrapped.length * 3.6;
+
+  return ty;
 }
 
 // Footer block
@@ -280,7 +344,7 @@ function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   doc.setFillColor(35, 35, 35);
   doc.rect(0, 0, W, 16, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(11.5);
   doc.setTextColor(255, 255, 255);
   doc.text(company?.name || 'Mon Entreprise', 14, 10.5);
   doc.setFont('helvetica', 'normal');
@@ -397,7 +461,7 @@ function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   addLogo(doc, company, W / 2 - 16, 4, 32, 22);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(11.5);
   doc.setTextColor(10, 10, 10);
   doc.text((company?.name || 'Mon Entreprise').toUpperCase(), W / 2, 40, { align: 'center' });
 
@@ -459,8 +523,8 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   addLogo(doc, company, 14, 8, 24, 18);
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
   doc.text(companyName(company), W - 14, 12, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -525,26 +589,30 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   return (doc as any).lastAutoTable.finalY as number;
 }
 
-// ─── BON DE LIVRAISON ────────────────────────────────────────────────────────
+// ─── BON DE LIVRAISON / REÇU ─────────────────────────────────────────────────
 function deliveryItemsTable(doc: jsPDF, invoice: any, startY: number) {
   const body = invoice.items.map((i: any, idx: number) => [
     { content: String(idx + 1), styles: { halign: 'center', textColor: [100, 100, 100] } },
     i.description,
     { content: String(i.quantity), styles: { halign: 'center', fontStyle: 'bold' } },
+    { content: fmt(i.unitPrice), styles: { halign: 'right' } },
+    { content: fmt(i.total), styles: { halign: 'right', fontStyle: 'bold' } },
     { content: '☐', styles: { halign: 'center', fontSize: 10 } },
   ]);
   autoTable(doc, {
     startY,
-    head: [['#', 'Désignation / Référence', 'Qté', 'Reçu']],
+    head: [['#', 'Désignation / Référence', 'Qté', 'Prix', 'Total', 'Reçu']],
     body,
     theme: 'grid',
     styles: { fontSize: 9, textColor: [20, 20, 20], lineColor: [180, 180, 180], lineWidth: 0.3, cellPadding: 4 },
     headStyles: { fillColor: [26, 84, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, cellPadding: 4 },
     columnStyles: {
-      0: { cellWidth: 12, halign: 'center' },
+      0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 'auto' },
-      2: { cellWidth: 22, halign: 'center' },
-      3: { cellWidth: 18, halign: 'center' },
+      2: { cellWidth: 16, halign: 'center' },
+      3: { cellWidth: 30, halign: 'right' },
+      4: { cellWidth: 30, halign: 'right' },
+      5: { cellWidth: 16, halign: 'center' },
     },
     margin: { left: 14, right: 14 },
   });
@@ -612,38 +680,25 @@ function deliveryNoteFooter(doc: jsPDF, invoice: any, company: any, startY: numb
 function renderDeliveryNote(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
+  // En-tête volontairement vide : ni nom de société ni logo (reçu générique)
   doc.setFillColor(26, 84, 255);
   doc.rect(0, 0, W, 28, 'F');
-  addLogo(doc, company, 14, 4, 28, 20);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text(companyName(company), 46, 11);
   doc.setFontSize(14);
-  doc.text('BON DE LIVRAISON', W / 2, 12, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.text('REÇU', W / 2, 14, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(220, 230, 255);
-  doc.text(`N° ${invoice.number}`, W / 2, 19, { align: 'center' });
+  doc.text(`N° ${invoice.number}`, W / 2, 21, { align: 'center' });
   doc.text(fDate(invoice.createdAt), W - 14, 10, { align: 'right' });
   if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 16, { align: 'right' });
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(10, 10, 10);
-  doc.text(companyName(company), 14, 38);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(80, 80, 80);
-  let cy = 43;
-  if (company?.address) { doc.text(company.address, 14, cy); cy += 4; }
-  if (company?.phone) { doc.text(`Tél : ${company.phone}`, 14, cy); cy += 4; }
-
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.3);
-  doc.line(14, 52, W - 14, 52);
+  doc.line(14, 36, W - 14, 36);
 
-  const clientEnd = clientBlock(doc, invoice, 14, 58, 'LIVRÉ À :');
+  const clientEnd = clientBlock(doc, invoice, 14, 44, 'LIVRÉ À :');
 
   doc.setDrawColor(220, 220, 220);
   doc.line(14, clientEnd + 4, W - 14, clientEnd + 4);
@@ -657,6 +712,10 @@ function renderDeliveryNote(doc: jsPDF, invoice: any, company: any): number {
 export function generateInvoicePDFDoc(invoice: any, company: any): jsPDF {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   doc.setDrawColor(0); doc.setTextColor(0);
+
+  // Si une identité société a été choisie pour ce document (invoice.issuerName),
+  // elle remplace le nom de la société par défaut sur le document généré.
+  company = invoice.issuerName ? { ...company, name: invoice.issuerName } : company;
 
   if (invoice.type === 'bon_livraison') {
     renderDeliveryNote(doc, invoice, company);

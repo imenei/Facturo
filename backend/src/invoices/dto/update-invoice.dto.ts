@@ -95,4 +95,9 @@ export class UpdateInvoiceDto {
   @Transform(emptyToUndefined)
   @IsString()
   templateType?: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  issuerName?: string;
 }

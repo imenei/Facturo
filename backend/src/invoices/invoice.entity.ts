@@ -67,6 +67,11 @@ export class Invoice {
   @Column({ nullable: true })
   templateType: string;
 
+  // Identité société choisie pour ce document (parmi les identités configurées),
+  // remplace le nom de la société par défaut sur le PDF / Word généré.
+  @Column({ nullable: true })
+  issuerName: string;
+
   @Column()
   clientName: string;
 

@@ -3,11 +3,16 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 import Sidebar from '@/components/Sidebar';
+import { useRealtimeDelivery } from '@/hooks/useRealtimeDelivery';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+
+  // Branche les notifications temps réel (technicien ↔ commercial ↔ livreur)
+  // pour tout le dashboard, quelle que soit la page affichée.
+  useRealtimeDelivery();
 
   useEffect(() => {
     setMounted(true);

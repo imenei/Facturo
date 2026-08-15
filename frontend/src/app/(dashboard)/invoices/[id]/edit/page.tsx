@@ -61,6 +61,7 @@ export default function EditInvoicePage() {
         notes: form.notes?.trim() || undefined,
         hasTva: Boolean(form.hasTva),
         tvaRate: form.hasTva ? Number(form.tvaRate) || 19 : 0,
+        issuerName: form.type !== 'bon_livraison' ? form.issuerName || undefined : undefined,
         items: items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
@@ -93,6 +94,19 @@ export default function EditInvoicePage() {
               </label>
             ))}
           </div>
+          {form.type !== 'bon_livraison' && (
+            <div className="mt-4">
+              <label className="label">Émis au nom de</label>
+              <div className="flex gap-2 flex-wrap">
+                {['Lm company', 'Louassaa Nabil', 'Helping Hands company'].map((name) => (
+                  <label key={name} className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all text-sm ${form.issuerName === name ? 'border-brand-500 bg-brand-50 font-medium' : 'border-slate-200 hover:border-slate-300'}`}>
+                    <input type="radio" name="issuerName" value={name} checked={form.issuerName === name} onChange={(e) => setForm({ ...form, issuerName: e.target.value })} className="hidden" />
+                    {name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="card p-6">

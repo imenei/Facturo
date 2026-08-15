@@ -31,6 +31,10 @@ const TEMPLATE_LABELS: Record<string, string> = {
   corporate: '🏢 Corporate', table_focus: '📊 Tableau Focus',
 };
 
+// Les 3 identités société utilisées pour émettre les documents.
+// Sélectionnable (case à cocher) à chaque création de facture/proforma.
+const COMPANY_IDENTITIES = ['Lm company', 'Louassaa Nabil', 'Helping Hands company'];
+
 function ClientLogoPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -109,6 +113,7 @@ export default function NewInvoicePage() {
     clientAddress: '', clientNif: '', clientNis: '',
     clientLogoUrl: '', hasTva: false, tvaRate: 19,
     notes: '', dueDate: '', deliveryDate: '', templateType: '',
+    issuerName: COMPANY_IDENTITIES[0],
   });
 
   // MOD 7: items include purchasePrice
@@ -218,6 +223,7 @@ export default function NewInvoicePage() {
       if (form.dueDate) payload.dueDate = form.dueDate;
       if (form.deliveryDate) payload.deliveryDate = form.deliveryDate;
       if (form.templateType) payload.templateType = form.templateType;
+      if (form.type !== 'bon_livraison' && form.issuerName) payload.issuerName = form.issuerName;
 
       const { data } = await api.post('/invoices', payload);
       toast.success(t('invoice_created_successfully'));
@@ -263,6 +269,25 @@ export default function NewInvoicePage() {
                     className={clsx('px-3 py-1.5 rounded-lg border text-sm transition-all',
                       form.templateType === (tmpl.type || tmpl.id) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-brand-300')}>
                     {TEMPLATE_LABELS[tmpl.type] || tmpl.name || tmpl.type}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {form.type !== 'bon_livraison' && (
+            <div className="mt-4">
+              <label className="label flex items-center gap-1.5"><Building2 size={14} /> Émis au nom de</label>
+              <div className="flex flex-wrap gap-2">
+                {COMPANY_IDENTITIES.map((name) => (
+                  <button key={name} type="button" onClick={() => setForm({ ...form, issuerName: name })}
+                    className={clsx('flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition-all',
+                      form.issuerName === name ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-brand-300')}>
+                    <span className={clsx('w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center',
+                      form.issuerName === name ? 'border-brand-500' : 'border-slate-300')}>
+                      {form.issuerName === name && <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />}
+                    </span>
+                    {name}
                   </button>
                 ))}
               </div>
@@ -316,13 +341,13 @@ export default function NewInvoicePage() {
                 onChange={(e) => setForm({ ...form, clientEmail: e.target.value })} placeholder={t('client_email_placeholder')} />
             </div>
             <div>
-              <label className="label">{t('phone')}</label>
-              <input className="input" value={form.clientPhone}
+              <label className="label">{t('phone')} {form.type === 'bon_livraison' && <span className="text-red-500">*</span>}</label>
+              <input className="input" required={form.type === 'bon_livraison'} value={form.clientPhone}
                 onChange={(e) => setForm({ ...form, clientPhone: e.target.value })} placeholder={t('phone_placeholder')} />
             </div>
             <div className="md:col-span-2">
-              <label className="label">{t('address')}</label>
-              <input className="input" value={form.clientAddress}
+              <label className="label">{t('address')} {form.type === 'bon_livraison' && <span className="text-red-500">*</span>}</label>
+              <input className="input" required={form.type === 'bon_livraison'} value={form.clientAddress}
                 onChange={(e) => setForm({ ...form, clientAddress: e.target.value })} placeholder={t('full_address')} />
             </div>
             <div>

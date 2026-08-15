@@ -29,6 +29,16 @@ export function useRealtimeDelivery(onUpdate?: (data: any) => void) {
         onUpdate?.(data);
       });
 
+      socket.on('intervention:status-updated', (data: any) => {
+        toast(`Intervention ${data.ticketNumber} — ${data.clientName} : ${data.status}`, { icon: '🛠️' });
+        onUpdate?.(data);
+      });
+
+      socket.on('delivery:updated-by-livreur', (data: any) => {
+        toast(`Livraison ${data.number} — ${data.clientName} : ${data.status}`, { icon: '📦' });
+        onUpdate?.(data);
+      });
+
       socket.on('task:assigned', (data: any) => {
         toast.success(`Nouvelle tâche assignée: ${data.task?.name}`);
         onUpdate?.(data);

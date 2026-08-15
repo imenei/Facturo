@@ -65,6 +65,26 @@ export class DeliveryGateway implements OnGatewayConnection, OnGatewayDisconnect
     });
   }
 
+  // Lien technicien → commercial : notifie le service commercial quand une
+  // intervention change de statut (ex: terminée par le technicien).
+  emitInterventionStatusUpdated(interventionId: string, payload: any) {
+    this.server.to('role:admin').to('role:commercial').emit('intervention:status-updated', {
+      interventionId,
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Lien livreur → commercial : notifie le commercial dès qu'un livreur
+  // marque une livraison comme livrée / non livrée.
+  emitDeliveryUpdatedByLivreur(invoiceId: string, payload: any) {
+    this.server.to('role:admin').to('role:commercial').emit('delivery:updated-by-livreur', {
+      invoiceId,
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   // Emit notification reminder sent
   emitReminderSent(clientName: string, invoiceNumber: string) {
     this.server.to('role:admin').emit('notification:reminder-sent', {

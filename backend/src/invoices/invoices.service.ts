@@ -5,12 +5,14 @@ import { Invoice, InvoiceType, InvoiceStatus, DeliveryStatus, PaymentStatus, Wor
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UserRole } from '../users/user.entity';
+import { DeliveryGateway } from '../gateway/delivery.gateway';
 
 @Injectable()
 export class InvoicesService {
   constructor(
     @InjectRepository(Invoice)
     private invoicesRepository: Repository<Invoice>,
+    private deliveryGateway: DeliveryGateway,
   ) {}
 
   private async generateNumber(type: InvoiceType): Promise<string> {
@@ -216,6 +218,7 @@ export class InvoicesService {
     if (dto.dueDate !== undefined) invoice.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
     if (dto.deliveryDate !== undefined) invoice.deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
     if (dto.templateType !== undefined) invoice.templateType = dto.templateType || null;
+    if (dto.issuerName !== undefined) invoice.issuerName = dto.issuerName || null;
     if (dto.hasTva !== undefined) invoice.hasTva = dto.hasTva;
     if (dto.tvaRate !== undefined) invoice.tvaRate = dto.tvaRate;
 
@@ -264,7 +267,14 @@ export class InvoicesService {
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
     invoice.deliveryStatus = status;
-    return this.invoicesRepository.save(invoice);
+    const saved = await this.invoicesRepository.save(invoice);
+    // Lien livreur → commercial : le commercial est notifié en temps réel
+    this.deliveryGateway.emitDeliveryUpdatedByLivreur(saved.id, {
+      number: saved.number,
+      clientName: saved.clientName,
+      status: saved.deliveryStatus,
+    });
+    return saved;
   }
 
   async updatePaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<Invoice> {
