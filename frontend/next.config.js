@@ -1,4 +1,4 @@
-/** @type {import('next').NextConfig} */
+﻿/** @type {import('next').NextConfig} */
 const { i18n } = require('./next-i18next.config')
 
 const withPWA = require('next-pwa')({
@@ -9,7 +9,10 @@ const withPWA = require('next-pwa')({
 
 const nextConfig = {
   reactStrictMode: true,
-  i18n,
+  i18n: {
+    ...i18n,
+    localeDetection: false,
+  },
   swcMinify: false,
   experimental: {
     cpus: 1,
