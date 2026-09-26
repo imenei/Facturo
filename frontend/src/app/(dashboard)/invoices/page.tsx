@@ -7,6 +7,8 @@ import { useAuthStore } from '@/store/authStore';
 import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 import clsx from 'clsx';
 import {
   Plus, Search, Eye, Edit, Trash2, FileDown, Loader2,
@@ -106,6 +108,10 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [reminding, setReminding] = useState<string | null>(null);
+  const [reminderTarget, setReminderTarget] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const typeLabels: Record<string, string> = {
     facture: t('invoice'),
@@ -140,14 +146,32 @@ export default function InvoicesPage() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('confirm_delete_invoice'))) return;
-    try { await api.delete(`/invoices/${id}`); toast.success(t('deleted')); load(); }
-    catch { toast.error(t('error_deleting')); }
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    if (user?.role === 'commercial' && !deleteReason.trim()) {
+      toast.error('Le motif de suppression est obligatoire');
+      return;
+    }
+    setDeleting(true);
+    try {
+      if (user?.role === 'commercial') {
+        await api.post(`/invoices/${deleteTarget.id}/deletion-requests`, { reason: deleteReason.trim() });
+        setInvoices((current) => current.map((invoice) => invoice.id === deleteTarget.id ? { ...invoice, deletionRequestPending: true } : invoice));
+        toast.success('Demande de suppression envoyée à l’administrateur');
+      } else {
+        await api.delete(`/invoices/${deleteTarget.id}`);
+        toast.success(t('deleted'));
+      }
+      setDeleteTarget(null);
+      setDeleteReason('');
+      load();
+    } catch { toast.error(user?.role === 'commercial' ? 'Impossible d’envoyer la demande de suppression' : t('error_deleting')); }
+    setDeleting(false);
   };
 
   const sendReminder = async (inv: any) => {
-    if (!inv.clientEmail && !inv.clientPhone) { toast.error(t('no_contact_for_reminder')); return; }
+    if (!inv.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
+    setReminderTarget(null);
     setReminding(inv.id);
     try {
       await api.post(`/notifications/send-reminder/${inv.id}`);
@@ -271,7 +295,7 @@ export default function InvoicesPage() {
                       {inv.clientEmail && <div className="text-xs text-slate-400 truncate max-w-36">{inv.clientEmail}</div>}
                     </td>
                     <td className="px-4 py-3 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">
-                      {Number(inv.total).toLocaleString('fr-DZ')} DZD
+                      {formatMoneyDzd(inv.total)}
                     </td>
                     <td className="px-4 py-3">
                       {inv.type === 'facture' ? (
@@ -306,13 +330,13 @@ export default function InvoicesPage() {
                           <FileDown size={15} />
                         </button>
                         {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
-                          <button onClick={() => sendReminder(inv)} disabled={reminding === inv.id}
+                          <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
                             className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
                             {reminding === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
                           </button>
                         )}
                         {isManager(user?.role) && (
-                          <button onClick={() => handleDelete(inv.id)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={t('delete')}>
+                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}>
                             <Trash2 size={15} />
                           </button>
                         )}
@@ -327,18 +351,48 @@ export default function InvoicesPage() {
           {invoices.length > 0 && (
             <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500">
               <span>{t('total_amount')} : <strong className="text-slate-900">
-                {invoices.reduce((s, i) => s + Number(i.total), 0).toLocaleString('fr-DZ')} DZD
+                {formatMoneyDzd(invoices.reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
               <span>{t('paid_amount')} : <strong className="text-emerald-700">
-                {invoices.filter((i) => i.paymentStatus === 'paid').reduce((s, i) => s + Number(i.total), 0).toLocaleString('fr-DZ')} DZD
+                {formatMoneyDzd(invoices.filter((i) => i.paymentStatus === 'paid').reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
               <span>{t('unpaid_amount')} : <strong className="text-red-600">
-                {invoices.filter((i) => i.paymentStatus !== 'paid' && i.type === 'facture').reduce((s, i) => s + Number(i.total), 0).toLocaleString('fr-DZ')} DZD
+                {formatMoneyDzd(invoices.filter((i) => i.paymentStatus !== 'paid' && i.type === 'facture').reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
             </div>
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(reminderTarget)}
+        title="Confirmer l'envoi du rappel"
+        confirmLabel="Envoyer"
+        loading={Boolean(reminding)}
+        onCancel={() => setReminderTarget(null)}
+        onConfirm={() => reminderTarget && void sendReminder(reminderTarget)}
+      >
+        <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
+        <p><strong>{reminderTarget?.clientEmail}</strong></p>
+        <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title={user?.role === 'commercial' ? 'Demande de suppression' : 'Supprimer la facture'}
+        confirmLabel={user?.role === 'commercial' ? 'Envoyer la demande' : 'Supprimer'}
+        danger={user?.role !== 'commercial'}
+        loading={deleting}
+        onCancel={() => { setDeleteTarget(null); setDeleteReason(''); }}
+        onConfirm={handleDelete}
+      >
+        {user?.role === 'commercial' ? (
+          <>
+            <p>La facture {deleteTarget?.number} ne sera supprimée qu’après validation par un administrateur.</p>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="listDeleteReason">Motif de la suppression *</label>
+            <textarea id="listDeleteReason" className="input min-h-24 resize-y" required value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)} placeholder="Expliquez pourquoi cette facture doit être supprimée." />
+          </>
+        ) : <p>{t('confirm_delete_invoice')}</p>}
+      </ConfirmDialog>
     </div>
   );
 }

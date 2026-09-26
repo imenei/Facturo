@@ -4,6 +4,7 @@ import api from '@/lib/api';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 import { CheckCircle, XCircle, Clock, Loader2, Search } from 'lucide-react';
 
 function getDeliveryConfig(t: (key: string) => string) {
@@ -126,7 +127,7 @@ export default function DeliveriesPage() {
                       <div className="text-xs text-slate-400 capitalize">{t(inv.type.replace('_', ' '))}</div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{inv.clientName}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900 text-right">{Number(inv.total).toLocaleString('fr-DZ')} DZD</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900 text-right">{formatMoneyDzd(inv.total)}</td>
                     <td className="px-4 py-3">
                       <span className={clsx('badge', cfg.color)}><Icon size={11} className="mr-1" />{cfg.label}</span>
                     </td>

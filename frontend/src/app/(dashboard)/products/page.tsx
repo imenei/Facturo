@@ -5,6 +5,7 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { Plus, Edit2, Trash2, Loader2, X, Save, TrendingUp, Search } from 'lucide-react';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 
 const emptyForm = { name: '', description: '', reference: '', unit: '', purchasePrice: 0, salePrice: 0 };
 
@@ -131,7 +132,7 @@ export default function ProductsPage() {
                 {form.salePrice > form.purchasePrice && form.purchasePrice > 0 && (
                   <div className="col-span-2 bg-emerald-50 rounded-lg px-3 py-2 flex items-center gap-2 text-sm text-emerald-700">
                     <TrendingUp size={14} />
-                    {t('margin')} : {(Number(form.salePrice) - Number(form.purchasePrice)).toLocaleString('fr-DZ')} DZD
+                    {t('margin')} : {formatMoneyDzd(Number(form.salePrice) - Number(form.purchasePrice))}
                     ({(((form.salePrice - form.purchasePrice) / form.purchasePrice) * 100).toFixed(1)}%)
                   </div>
                 )}
@@ -177,10 +178,10 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.reference || '—'}</td>
                     <td className="px-4 py-3 text-sm text-slate-500">{p.unit || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{Number(p.purchasePrice).toLocaleString('fr-DZ')} DZD</td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{Number(p.salePrice).toLocaleString('fr-DZ')} DZD</td>
+                    <td className="px-4 py-3 text-sm text-slate-600">{formatMoneyDzd(p.purchasePrice)}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatMoneyDzd(p.salePrice)}</td>
                     <td className="px-4 py-3">
-                      <div className="text-sm text-emerald-600 font-medium">{m.toLocaleString('fr-DZ')} DZD</div>
+                      <div className="text-sm text-emerald-600 font-medium">{formatMoneyDzd(m)}</div>
                       <div className="text-xs text-slate-400">{pct}%</div>
                     </td>
                     <td className="px-4 py-3">

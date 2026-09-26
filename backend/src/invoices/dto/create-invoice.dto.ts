@@ -89,4 +89,24 @@ export class CreateInvoiceDto {
   @Transform(emptyToUndefined)
   @IsString()
   issuerName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  issuerNameSize?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  otherCharge?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  deliveryPrice?: number;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  deliveryPersonId?: string;
 }

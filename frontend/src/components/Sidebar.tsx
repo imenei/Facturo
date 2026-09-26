@@ -16,6 +16,7 @@ import {
 const adminNav = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'nav.dashboard' },
   { href: '/invoices',     icon: FileText,        label: 'nav.invoices' },
+  { href: '/invoice-deletion-requests', icon: FileText, label: 'Demandes de suppression' },
   { href: '/clients',      icon: UserSquare2,     label: 'nav.clients' },
   { href: '/deliveries',   icon: Truck,           label: 'nav.deliveries' },
   { href: '/tasks',        icon: CheckSquare,     label: 'nav.tasks' },
@@ -29,7 +30,7 @@ const adminNav = [
 const navItems = {
   admin: adminNav,
   commercial: [
-    ...adminNav.filter((item) => !['/dashboard', '/users'].includes(item.href)),
+    ...adminNav.filter((item) => !['/dashboard', '/users', '/invoice-deletion-requests'].includes(item.href)),
     { href: '/invoices/new?type=proforma',       icon: FileStack, label: 'nav.proforma' },
     { href: '/invoices/new?type=bon_livraison', icon: Package,   label: 'nav.delivery_note' },
     { href: '/notifications',                   icon: Bell,      label: 'nav.notifications' },

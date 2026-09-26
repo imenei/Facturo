@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { isManager } from '@/lib/roles';
+import { formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
 
@@ -99,8 +100,8 @@ function printBonDeLivraison(task: any, companyName: string) {
     ${task.description ? `<div style="color:#64748b;font-size:13px;margin-top:4px">${task.description}</div>` : ''}
   </div>
   <div class="row"><span class="label">Date de livraison prévue</span><span class="value">${task.deliveryDate ? new Date(task.deliveryDate).toLocaleDateString('fr-FR') : '___/___/______'}</span></div>
-  <div class="row"><span class="label">Prix final</span><span class="value">${Number(task.finalPrice || task.price).toLocaleString('fr-FR')} DZD</span></div>
-  ${task.extraFees > 0 ? `<div class="row"><span class="label">Frais imprévus</span><span class="value">+${Number(task.extraFees).toLocaleString('fr-FR')} DZD${task.extraFeesNote ? ' (' + task.extraFeesNote + ')' : ''}</span></div>` : ''}
+  <div class="row"><span class="label">Prix final</span><span class="value">${formatMoneyDzd(task.finalPrice || task.price)}</span></div>
+  ${task.extraFees > 0 ? `<div class="row"><span class="label">Frais imprévus</span><span class="value">+${formatMoneyDzd(task.extraFees)}${task.extraFeesNote ? ' (' + task.extraFeesNote + ')' : ''}</span></div>` : ''}
   <div class="row"><span class="label">Livré le</span><span class="value">___/___/______</span></div>
   <div class="signature-zone">
     <div class="sig-box"><div class="sig-label">Signature du client</div></div>
@@ -139,9 +140,9 @@ function PrintRecapModal({ users, onClose }: { users: any[]; onClose: () => void
           <td>${t.clientName || '—'}</td>
           <td>${t.clientAddress || '—'}</td>
           <td><span class="${t.status === 'terminee' ? 'ok' : t.status === 'non_terminee' ? 'ko' : 'wait'}">${t.status === 'terminee' ? 'Terminé' : t.status === 'non_terminee' ? 'Non terminé' : 'En attente'}</span></td>
-          <td class="r">${Number(t.price).toLocaleString('fr-FR')} DZD</td>
-          <td class="r">${Number(t.extraFees || 0).toLocaleString('fr-FR')} DZD</td>
-          <td class="r"><strong>${Number(t.finalPrice || t.price).toLocaleString('fr-FR')} DZD</strong></td>
+          <td class="r">${formatMoneyDzd(t.price)}</td>
+          <td class="r">${formatMoneyDzd(t.extraFees || 0)}</td>
+          <td class="r"><strong>${formatMoneyDzd(t.finalPrice || t.price)}</strong></td>
         </tr>`).join('');
       w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap tâches</title>
       <style>body{font-family:Arial;padding:24px;color:#1e293b} h1{color:#1a54ff;font-size:20px} h2{font-size:14px;color:#64748b;font-weight:normal}
@@ -152,7 +153,7 @@ function PrintRecapModal({ users, onClose }: { users: any[]; onClose: () => void
       <h1>Récapitulatif des tâches</h1>
       <h2>Livreur : <strong>${livreur?.name || livreurId}</strong> · Période : ${from || '—'} → ${to || '—'}</h2>
       <table><thead><tr><th>Date</th><th>Client</th><th>Adresse</th><th>Statut</th><th class="r">Prix base</th><th class="r">Frais imprévus</th><th class="r">Prix final</th></tr></thead>
-      <tbody>${rows}<tr class="total"><td colspan="6">TOTAL</td><td class="r">${totalFinal.toLocaleString('fr-FR')} DZD</td></tr></tbody></table>
+      <tbody>${rows}<tr class="total"><td colspan="6">TOTAL</td><td class="r">${formatMoneyDzd(totalFinal)}</td></tr></tbody></table>
       </body></html>`);
       w.document.close();
       setTimeout(() => w.print(), 500);
@@ -339,8 +340,8 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
                 </p>
               )}
               <p className="text-sm font-display font-700 text-brand-600 pt-1">
-                Total : {finalPrice.toLocaleString('fr-FR')} DZD
-                {extra > 0 && <span className="text-xs text-orange-500 font-normal ml-1">(+{extra.toLocaleString('fr-FR')} imprévus)</span>}
+                Total : {formatMoneyDzd(finalPrice)}
+                {extra > 0 && <span className="text-xs text-orange-500 font-normal ml-1">(+{formatMoney(extra)} imprévus)</span>}
               </p>
             </div>
           </div>
@@ -378,9 +379,9 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
                 </button>
               )}
             </div>
-            <span className="font-display font-700 text-brand-600 text-sm">{finalPrice.toLocaleString('fr-FR')} DZD</span>
+            <span className="font-display font-700 text-brand-600 text-sm">{formatMoneyDzd(finalPrice)}</span>
             {extra > 0 && (
-              <span className="text-xs text-orange-500">(base {basePrice.toLocaleString('fr-FR')} + {extra.toLocaleString('fr-FR')} imprévus)</span>
+              <span className="text-xs text-orange-500">(base {formatMoney(basePrice)} + {formatMoney(extra)} imprévus)</span>
             )}
           </div>
         </div>
@@ -500,7 +501,7 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
             ) : (
               <button onClick={() => setShowExtraFees(true)}
                 className="text-xs text-orange-500 hover:text-orange-700 flex items-center gap-1 py-1">
-                <DollarSign size={12} /> Ajouter frais imprévus {extra > 0 && `(actuel: +${extra.toLocaleString('fr-FR')} DZD)`}
+                <DollarSign size={12} /> Ajouter frais imprévus {extra > 0 && `(actuel: +${formatMoneyDzd(extra)})`}
               </button>
             )}
           </div>
@@ -693,7 +694,7 @@ export default function TasksPage() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-slate-900">{stats.total}</div><div className="text-xs text-slate-500 mt-1">{t('total')}</div></div>
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-emerald-600">{stats.completed}</div><div className="text-xs text-slate-500 mt-1">{t('completed_tasks')}</div></div>
-          <div className="card p-4 text-center"><div className="text-lg font-display font-700 text-brand-600">{Number(stats.totalEarned).toLocaleString('fr-FR')}</div><div className="text-xs text-slate-500 mt-1">DZD {t('earned')}</div></div>
+          <div className="card p-4 text-center"><div className="text-lg font-display font-700 text-brand-600">{formatMoney(stats.totalEarned)}</div><div className="text-xs text-slate-500 mt-1">DZD {t('earned')}</div></div>
         </div>
       )}
 

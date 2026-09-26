@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import PDFPreviewModal from '@/components/PDFPreviewModal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import {
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { computeNetProfit, formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
 
 const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
@@ -87,9 +89,11 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
 function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => string }) {
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const send = async () => {
     if (!invoice.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
+    setConfirmOpen(false);
     setSending(true);
     try {
       const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`);
@@ -112,7 +116,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         </p>
       )}
       <button
-        onClick={send}
+        onClick={() => setConfirmOpen(true)}
         disabled={!invoice.clientEmail || sending}
         className={clsx(
           'w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 text-sm font-medium transition-all',
@@ -130,6 +134,18 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
           <AlertTriangle size={12} /> {t('add_contact_for_reminders')}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Confirmer l'envoi du rappel"
+        confirmLabel="Envoyer"
+        loading={sending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={send}
+      >
+        <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
+        <p><strong>{invoice.clientEmail || 'Aucune adresse email'}</strong></p>
+        <p>Un email de rappel de paiement sera envoyé à ce destinataire.</p>
+      </ConfirmDialog>
     </div>
   );
 }
@@ -137,28 +153,32 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
 function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) => string }) {
   const items = Array.isArray(invoice.items) ? invoice.items : [];
   const hasData = items.some((item: any) => item.purchasePrice !== undefined && item.purchasePrice !== null);
-  if (!hasData && Number(invoice.totalMargin) === 0) return null;
+  if (!hasData && Number(invoice.totalMargin) === 0 && !Number(invoice.otherCharge) && !Number(invoice.deliveryPrice) && !invoice.deliveryPersonName) return null;
 
   const totalRevenue = Number(invoice.total) || 0;
-  const totalMargin = items.reduce((sum: number, item: any) => {
-    if (item.purchasePrice != null) {
-      return sum + (Number(item.unitPrice) - Number(item.purchasePrice)) * Number(item.quantity);
-    }
-    return sum;
-  }, 0);
-  const marginRate = totalRevenue > 0 ? ((totalMargin / totalRevenue) * 100).toFixed(1) : '0';
+  const grossMargin = roundMoney(items.reduce((sum: number, item: any) => {
+    if (item.purchasePrice == null) return sum;
+    return sum + lineGrossMargin(Number(item.unitPrice), Number(item.purchasePrice), Number(item.quantity));
+  }, 0) || Number(invoice.totalMargin) || 0);
+  const netProfit = computeNetProfit(grossMargin, Number(invoice.otherCharge) || 0, Number(invoice.deliveryPrice) || 0);
+  const marginRate = totalRevenue > 0 ? ((grossMargin / totalRevenue) * 100).toFixed(1) : '0';
 
   return (
     <div className="card overflow-hidden mb-6 border-2 border-dashed border-slate-300">
-      <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
+      <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center gap-2 flex-wrap">
         <Lock size={14} className="text-slate-500" />
         <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
           Données internes — non incluses dans le PDF client
         </span>
         <TrendingUp size={14} className="text-emerald-500 ml-auto" />
-        <span className="text-xs font-bold text-emerald-600">
-          Marge brute : {totalMargin.toLocaleString('fr-DZ')} DZD ({marginRate}%)
-        </span>
+        <span className="text-xs font-bold text-emerald-700">Bénéfice net : {formatMoneyDzd(netProfit)}</span>
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm text-slate-600">
+        <span>Marge brute : <strong>{formatMoneyDzd(grossMargin)}</strong></span>
+        <span>Autre charge : <strong>{formatMoneyDzd(invoice.otherCharge || 0)}</strong></span>
+        <span>Prix de livraison : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
+        {invoice.deliveryPersonName && <span>Livreur : <strong>{invoice.deliveryPersonName}</strong></span>}
+        <span className="text-xs text-slate-400">Marge brute / chiffre d'affaires : {marginRate}%</span>
       </div>
       <table className="w-full">
         <thead>
@@ -175,22 +195,20 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
             const purchase = Number(item.purchasePrice || 0);
             const sale = Number(item.unitPrice);
             const qty = Number(item.quantity);
-            const margin = (sale - purchase) * qty;
+            const margin = lineGrossMargin(sale, purchase, qty);
             const marginPct = sale > 0 ? (((sale - purchase) / sale) * 100).toFixed(0) : '0';
             return (
               <tr key={i} className="hover:bg-slate-50/50">
                 <td className="px-5 py-2.5 text-sm text-slate-700">{item.description}</td>
                 <td className="px-4 py-2.5 text-sm text-right text-slate-500 font-mono">
-                  {purchase > 0 ? `${purchase.toLocaleString('fr-DZ')} DZD` : <span className="text-slate-300">—</span>}
+                  {purchase > 0 ? formatMoneyDzd(purchase) : <span className="text-slate-300">—</span>}
                 </td>
-                <td className="px-4 py-2.5 text-sm text-right text-slate-700 font-mono">
-                  {sale.toLocaleString('fr-DZ')} DZD
-                </td>
+                <td className="px-4 py-2.5 text-sm text-right text-slate-700 font-mono">{formatMoneyDzd(sale)}</td>
                 <td className="px-4 py-2.5 text-sm text-right text-slate-500">{qty}</td>
                 <td className="px-5 py-2.5 text-sm text-right font-semibold">
                   {purchase > 0 ? (
                     <span className={clsx(margin >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                      {margin.toLocaleString('fr-DZ')} DZD
+                      {formatMoneyDzd(margin)}
                       <span className="text-xs font-normal text-slate-400 ml-1">({marginPct}%)</span>
                     </span>
                   ) : <span className="text-slate-300">—</span>}
@@ -203,10 +221,9 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
           <tr className="bg-emerald-50/50 border-t-2 border-slate-200">
             <td colSpan={4} className="px-5 py-3 text-sm font-600 text-slate-700">Marge brute totale</td>
             <td className="px-5 py-3 text-right">
-              <span className={clsx('text-base font-display font-700', totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500')}>
-                {totalMargin.toLocaleString('fr-DZ')} DZD
+              <span className={clsx('text-base font-display font-700', grossMargin >= 0 ? 'text-emerald-600' : 'text-red-500')}>
+                {formatMoneyDzd(grossMargin)}
               </span>
-              <span className="text-xs text-slate-400 ml-1">({marginRate}%)</span>
             </td>
           </tr>
         </tfoot>
@@ -224,6 +241,9 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const { user } = useAuthStore();
 
   const load = async () => {
@@ -275,14 +295,27 @@ export default function InvoiceDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm(t('confirm_delete_invoice'))) return;
-    try {
-      await api.delete(`/invoices/${id}`);
-      toast.success(t('deleted'));
-      router.push('/invoices');
-    } catch {
-      toast.error(t('error_deleting'));
+    if (user?.role === 'commercial' && !deleteReason.trim()) {
+      toast.error('Le motif de suppression est obligatoire');
+      return;
     }
+    setDeleting(true);
+    try {
+      if (user?.role === 'commercial') {
+        await api.post(`/invoices/${id}/deletion-requests`, { reason: deleteReason.trim() });
+        setInvoice((prev: any) => ({ ...prev, deletionRequestPending: true }));
+        toast.success('Demande de suppression envoyée à l’administrateur');
+      } else {
+        await api.delete(`/invoices/${id}`);
+        toast.success(t('deleted'));
+        router.push('/invoices');
+      }
+      setShowDeleteDialog(false);
+      setDeleteReason('');
+    } catch {
+      toast.error(user?.role === 'commercial' ? 'Impossible d’envoyer la demande de suppression' : t('error_deleting'));
+    }
+    setDeleting(false);
   };
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>;
@@ -357,8 +390,9 @@ export default function InvoiceDetailPage() {
             <Edit size={15} /> {t('edit')}
           </Link>
           {canManage && (
-            <button onClick={handleDelete} className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200">
-              <Trash2 size={15} /> {t('delete')}
+            <button onClick={() => setShowDeleteDialog(true)} disabled={invoice.deletionRequestPending}
+              className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200 disabled:opacity-50">
+              <Trash2 size={15} /> {invoice.deletionRequestPending ? 'Demande en attente' : user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}
             </button>
           )}
         </div>
@@ -439,8 +473,8 @@ export default function InvoiceDetailPage() {
               <tr key={i} className="hover:bg-slate-50/50">
                 <td className="px-5 py-3 text-sm text-slate-700">{item.description}</td>
                 <td className="px-4 py-3 text-sm text-center text-slate-500">{item.quantity}</td>
-                <td className="px-4 py-3 text-sm text-right text-slate-600">{Number(item.unitPrice).toLocaleString('fr-DZ')} DZD</td>
-                <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">{Number(item.total).toLocaleString('fr-DZ')} DZD</td>
+                <td className="px-4 py-3 text-sm text-right text-slate-600">{formatMoneyDzd(item.unitPrice)}</td>
+                <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">{formatMoneyDzd(item.total)}</td>
               </tr>
             ))}
           </tbody>
@@ -448,17 +482,17 @@ export default function InvoiceDetailPage() {
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
             <span>{t('subtotal_excl_tax')}</span>
-            <span>{Number(invoice.subtotal).toLocaleString('fr-DZ')} DZD</span>
+            <span>{formatMoneyDzd(invoice.subtotal)}</span>
           </div>
           {invoice.hasTva && (
             <div className="flex justify-between text-sm text-slate-500">
               <span>TVA ({invoice.tvaRate}%)</span>
-              <span>{Number(invoice.tvaAmount).toLocaleString('fr-DZ')} DZD</span>
+              <span>{formatMoneyDzd(invoice.tvaAmount)}</span>
             </div>
           )}
           <div className="flex justify-between font-display font-700 text-xl text-slate-900 pt-2 border-t border-slate-200">
             <span>{t('total_incl_tax')}</span>
-            <span className="text-brand-600">{Number(invoice.total).toLocaleString('fr-DZ')} DZD</span>
+            <span className="text-brand-600">{formatMoneyDzd(invoice.total)}</span>
           </div>
         </div>
       </div>
@@ -483,6 +517,24 @@ export default function InvoiceDetailPage() {
           onTemplateChange={handleTemplateChange}
         />
       )}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        title={user?.role === 'commercial' ? 'Demande de suppression' : 'Supprimer la facture'}
+        confirmLabel={user?.role === 'commercial' ? 'Envoyer la demande' : 'Supprimer'}
+        danger={user?.role !== 'commercial'}
+        loading={deleting}
+        onCancel={() => { setShowDeleteDialog(false); setDeleteReason(''); }}
+        onConfirm={handleDelete}
+      >
+        {user?.role === 'commercial' ? (
+          <>
+            <p>La facture ne sera supprimée qu’après validation par un administrateur.</p>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="deleteReason">Motif de la suppression *</label>
+            <textarea id="deleteReason" className="input min-h-24 resize-y" required value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)} placeholder="Expliquez pourquoi cette facture doit être supprimée." />
+          </>
+        ) : <p>{t('confirm_delete_invoice')}</p>}
+      </ConfirmDialog>
     </div>
   );
 }

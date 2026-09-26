@@ -23,5 +23,29 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "deliveryPhotoUrl" TEXT;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "totalMargin" DECIMAL(15,2) DEFAULT 0;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "marginRate" DECIMAL(5,2) DEFAULT 0;
 
--- 5. Vérification : lister les colonnes de la table invoices
+-- 5. Colonnes bénéfice / livraison / taille du nom (factures)
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "otherCharge" DECIMAL(15,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "deliveryPrice" DECIMAL(15,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "deliveryPersonId" UUID;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "deliveryPersonName" VARCHAR;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "netProfit" DECIMAL(15,2) DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "issuerNameSize" INTEGER DEFAULT 16;
+
+UPDATE invoices
+SET "netProfit" = COALESCE("totalMargin", 0) - COALESCE("otherCharge", 0) - COALESCE("deliveryPrice", 0);
+
+CREATE TABLE IF NOT EXISTS invoice_deletion_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "invoiceId" VARCHAR NOT NULL,
+  "invoiceNumber" VARCHAR NOT NULL,
+  "clientName" VARCHAR,
+  "requestedById" UUID,
+  reason TEXT NOT NULL,
+  status VARCHAR NOT NULL DEFAULT 'pending',
+  "reviewedById" UUID,
+  "reviewedAt" TIMESTAMP,
+  "createdAt" TIMESTAMP DEFAULT NOW()
+);
+
+-- 6. Vérification : lister les colonnes de la table invoices
 -- \d invoices

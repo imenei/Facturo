@@ -10,6 +10,7 @@ import {
   CalendarDays, ShoppingBag, ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
 
@@ -53,7 +54,7 @@ function UnpaidBadge({ amount, count, t }: { amount: number; count: number; t: (
       amount > 100000 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700',
     )}>
       <AlertCircle size={10} />
-      {Number(amount).toLocaleString('fr-DZ')} DZD {t('unpaid')}{count > 1 ? ` (${count})` : ''}
+      {formatMoneyDzd(amount)} {t('unpaid')}{count > 1 ? ` (${count})` : ''}
     </div>
   );
 }
@@ -137,11 +138,11 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
       {tab === 'summary' && d && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
-            { label: t('total_revenue'), value: `${Number(d.summary.totalRevenue).toLocaleString('fr-DZ')} DZD`, color: 'text-brand-600' },
-            { label: t('paid'), value: `${Number(d.summary.totalPaid).toLocaleString('fr-DZ')} DZD`, color: 'text-emerald-600' },
-            { label: t('unpaid'), value: `${Number(d.summary.totalUnpaid).toLocaleString('fr-DZ')} DZD`, color: 'text-red-600' },
+            { label: t('total_revenue'), value: formatMoneyDzd(d.summary.totalRevenue), color: 'text-brand-600' },
+            { label: t('paid'), value: formatMoneyDzd(d.summary.totalPaid), color: 'text-emerald-600' },
+            { label: t('unpaid'), value: formatMoneyDzd(d.summary.totalUnpaid), color: 'text-red-600' },
             { label: t('invoices'), value: d.summary.facturesCount, color: 'text-slate-900' },
-            { label: t('average_basket'), value: `${Number(d.summary.averageInvoice).toLocaleString('fr-DZ')} DZD`, color: 'text-slate-900' },
+            { label: t('average_basket'), value: formatMoneyDzd(d.summary.averageInvoice), color: 'text-slate-900' },
             { label: t('total_documents'), value: d.summary.totalDocuments, color: 'text-slate-900' },
           ].map((item) => (
             <div key={item.label} className="card p-4">
@@ -160,7 +161,7 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
             <div className="card p-4 md:col-span-3 border-l-4 border-red-400 bg-red-50">
               <div className="flex items-center gap-2 text-red-700 font-medium">
                 <AlertCircle size={16} />
-                {d.summary.totalUnpaid.toLocaleString('fr-DZ')} DZD {t('unpaid_on_invoices', { count: String(d.factures.filter((f: any) => f.paymentStatus === 'unpaid').length) })}
+                {formatMoneyDzd(d.summary.totalUnpaid)} {t('unpaid_on_invoices', { count: String(d.factures.filter((f: any) => f.paymentStatus === 'unpaid').length) })}
               </div>
               <Link href={`/invoices?client=${encodeURIComponent(d.clientName)}&paymentStatus=unpaid`}
                 className="text-sm text-red-600 hover:underline mt-1 inline-block">
@@ -192,7 +193,7 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
                 <span className={clsx('badge text-xs', payBadge(inv.paymentStatus))}>
                   {inv.paymentStatus === 'paid' ? t('paid') : t('unpaid')}
                 </span>
-                <span className="font-display font-700 text-slate-900">{Number(inv.total).toLocaleString('fr-DZ')} DZD</span>
+                <span className="font-display font-700 text-slate-900">{formatMoneyDzd(inv.total)}</span>
               </div>
             </Link>
           ))}
@@ -218,7 +219,7 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
                 <tr key={p.name} className="hover:bg-slate-50">
                   <td className="px-4 py-3 font-medium text-slate-900">{p.name}</td>
                   <td className="px-4 py-3 text-slate-600">{p.qty}</td>
-                  <td className="px-4 py-3 font-semibold text-brand-600">{Number(p.revenue).toLocaleString('fr-DZ')} DZD</td>
+                  <td className="px-4 py-3 font-semibold text-brand-600">{formatMoneyDzd(p.revenue)}</td>
                   <td className="px-4 py-3 text-xs text-slate-400">{new Date(p.lastDate).toLocaleDateString('fr-FR')}</td>
                 </tr>
               ))}
@@ -248,7 +249,7 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
                         <div className="bg-brand-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
                       </div>
                       <span className="text-xs font-medium text-slate-900 w-32 text-right shrink-0">
-                        {Number(m.revenue).toLocaleString('fr-DZ')} DZD
+                        {formatMoneyDzd(m.revenue)}
                       </span>
                     </div>
                   );
@@ -332,7 +333,7 @@ export default function ClientsPage() {
               </div>
               <div className="text-right shrink-0">
                 <div className="text-sm font-700 text-brand-600">
-                  {Number(client.totalAmount || 0).toLocaleString('fr-DZ')} DZD
+                  {formatMoneyDzd(client.totalAmount || 0)}
                 </div>
                 <div className="text-xs text-slate-400">{client.documentCount} documents</div>
               </div>

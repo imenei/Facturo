@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 import clsx from 'clsx';
 import {
   Bell, Mail, Send, Loader2, Search,
@@ -177,6 +179,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sending, setSending] = useState<string | null>(null);
+  const [reminderTarget, setReminderTarget] = useState<any>(null);
   const [results, setResults] = useState<Record<string, any>>({});
   const [showTemplateEditor, setShowTemplateEditor] = useState(false); // MOD 8b
 
@@ -188,6 +191,7 @@ export default function NotificationsPage() {
 
   const sendReminder = async (invoice: any) => {
     if (!invoice.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
+    setReminderTarget(null);
     setSending(invoice.id);
     try {
       const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`);
@@ -256,7 +260,7 @@ export default function NotificationsPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-display font-700 text-red-600">{Number(inv.total).toLocaleString('fr-DZ')} DZD</div>
+                    <div className="text-xl font-display font-700 text-red-600">{formatMoneyDzd(inv.total)}</div>
                     {inv.dueDate && <div className="text-xs text-slate-400 mt-1">Échéance : {new Date(inv.dueDate).toLocaleDateString('fr-FR')}</div>}
                   </div>
                 </div>
@@ -266,7 +270,7 @@ export default function NotificationsPage() {
                     <span className="text-xs text-slate-400">{t('no_contact_for_reminder')}</span>
                   )}
                   <button
-                    onClick={() => sendReminder(inv)}
+                    onClick={() => setReminderTarget(inv)}
                     disabled={!inv.clientEmail || sending === inv.id}
                     className="ml-auto btn-primary text-sm py-1.5"
                   >
@@ -290,6 +294,18 @@ export default function NotificationsPage() {
           })}
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(reminderTarget)}
+        title="Confirmer l'envoi du rappel"
+        confirmLabel="Envoyer"
+        loading={Boolean(sending)}
+        onCancel={() => setReminderTarget(null)}
+        onConfirm={() => reminderTarget && void sendReminder(reminderTarget)}
+      >
+        <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
+        <p><strong>{reminderTarget?.clientEmail}</strong></p>
+        <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>
+      </ConfirmDialog>
     </div>
   );
 }

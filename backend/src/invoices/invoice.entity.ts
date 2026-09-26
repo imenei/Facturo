@@ -109,9 +109,31 @@ export class Invoice {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   total: number;
 
-  // MOD 7: total gross margin (internal only)
+  // MOD 7: total gross margin (internal only) = vente - achat
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
   totalMargin: number;
+
+  // Autre charge déduite du bénéfice (interne)
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
+  otherCharge: number;
+
+  // Prix de livraison déduit du bénéfice (interne, distinct de otherCharge)
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
+  deliveryPrice: number;
+
+  @Column({ nullable: true })
+  deliveryPersonId: string;
+
+  @Column({ nullable: true })
+  deliveryPersonName: string;
+
+  // Bénéfice net = totalMargin - otherCharge - deliveryPrice
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
+  netProfit: number;
+
+  // Taille du nom d'entreprise sur le PDF (pt)
+  @Column({ type: 'int', default: 16, nullable: true })
+  issuerNameSize: number;
 
   @Column({ nullable: true, type: 'text' })
   notes: string;

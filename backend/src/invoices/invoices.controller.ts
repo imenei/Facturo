@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Patch, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request, Patch, Query } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
@@ -59,6 +59,31 @@ export class InvoicesController {
     return this.invoicesService.getStats();
   }
 
+  @Get('deletion-requests')
+  @Roles(UserRole.ADMIN)
+  listDeletionRequests() {
+    return this.invoicesService.listDeletionRequests();
+  }
+
+  @Patch('deletion-requests/:requestId')
+  @Roles(UserRole.ADMIN)
+  reviewDeletionRequest(
+    @Param('requestId') requestId: string,
+    @Body('action') action: 'approve' | 'reject',
+    @Request() req,
+  ) {
+    if (action !== 'approve' && action !== 'reject') {
+      throw new BadRequestException('Action invalide');
+    }
+    return this.invoicesService.reviewDeletionRequest(requestId, action === 'approve', req.user);
+  }
+
+  @Post(':id/deletion-requests')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
+  requestDeletion(@Param('id') id: string, @Body('reason') reason: string, @Request() req) {
+    return this.invoicesService.requestDeletion(id, reason, req.user);
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   findOne(@Param('id') id: string, @Request() req) {
@@ -90,8 +115,8 @@ export class InvoicesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
-  remove(@Param('id') id: string) {
-    return this.invoicesService.remove(id);
+  @Roles(UserRole.ADMIN)
+  remove(@Param('id') id: string, @Request() req) {
+    return this.invoicesService.remove(id, req.user);
   }
 }

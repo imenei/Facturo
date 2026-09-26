@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Invoice } from '../invoices/invoice.entity';
+import { formatMoney } from '../common/money';
 import * as nodemailer from 'nodemailer';
 
 // MOD 8b: in-memory template store (use DB entity in production with TypeORM)
@@ -29,7 +30,7 @@ export class NotificationsService {
   }
 
   private formatAmount(amount: number): string {
-    return `${Number(amount).toLocaleString('fr-DZ')} DZD`;
+    return `${formatMoney(amount)} DZD`;
   }
 
   // MOD 8b: get current email template (custom or default)

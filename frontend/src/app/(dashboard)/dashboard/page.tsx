@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
+import { formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
 
 function StatCard({ icon: Icon, label, value, color, sub }: any) {
   return (
@@ -61,7 +62,7 @@ function MiniBarChart({ data, labelKey, valueKey, color = 'bg-brand-500' }: {
               <div className={clsx('h-2 rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
             </div>
             <span className="text-xs font-medium text-slate-900 w-28 text-right shrink-0">
-              {val.toLocaleString('fr-DZ')} DZD
+              {formatMoneyDzd(val)}
             </span>
           </div>
         );
@@ -93,7 +94,7 @@ function UnpaidByClientWidget({ data }: { data: any[] }) {
                 )}
               </div>
               <div className="text-right shrink-0">
-                <span className="text-sm font-700 text-red-600">{amount.toLocaleString('fr-DZ')} DZD</span>
+                <span className="text-sm font-700 text-red-600">{formatMoneyDzd(amount)}</span>
                 <div className="text-xs text-slate-400">{item.unpaidCount} facture(s)</div>
               </div>
             </div>
@@ -239,12 +240,12 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <StatCard
               icon={TrendingUp} label={t('revenue')} color="bg-brand-500"
-              value={`${Number(overview.revenue?.totalRevenue || 0).toLocaleString('fr-DZ')} DZD`}
+              value={formatMoneyDzd(overview.revenue?.totalRevenue || 0)}
               sub={`${overview.revenue?.paidInvoicesCount || 0} factures payées`}
             />
             <StatCard
               icon={AlertCircle} label={t('unpaid_amount')} color="bg-red-500"
-              value={`${Number(overview.revenue?.unpaidRevenue || 0).toLocaleString('fr-DZ')} DZD`}
+              value={formatMoneyDzd(overview.revenue?.unpaidRevenue || 0)}
               sub={`${overview.invoicesCount?.unpaid || 0} en attente`}
             />
             {/* MOD 4: recovery rate KPI */}
@@ -263,8 +264,8 @@ export default function DashboardPage() {
           {/* MOD 4: row 2 — margin + delivery perf */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <StatCard
-              icon={DollarSign} label={t('gross_margin')} color="bg-purple-500"
-              value={marginStats ? `${Number(marginStats.totalMargin).toLocaleString('fr-DZ')} DZD` : '—'}
+              icon={DollarSign} label="Bénéfice net" color="bg-purple-500"
+              value={marginStats ? formatMoneyDzd(marginStats.totalMargin) : '—'}
               sub={marginStats ? `Taux : ${marginStats.marginRate}%` : ''}
             />
             <StatCard
@@ -333,7 +334,7 @@ export default function DashboardPage() {
                       </span>
                       <span className="flex-1 text-sm text-slate-700 truncate">{p.name}</span>
                       <span className="text-xs text-slate-400">×{p.qty}</span>
-                      <span className="text-sm font-600 text-amber-700">{Number(p.revenue).toLocaleString('fr-DZ')}</span>
+                      <span className="text-sm font-600 text-amber-700">{formatMoney(p.revenue)}</span>
                     </div>
                   ))}
                 </div>
@@ -353,7 +354,7 @@ export default function DashboardPage() {
                 {topClients.map((c: any) => (
                   <div key={c.clientId || c.clientName} className="bg-slate-50 rounded-lg p-3">
                     <div className="font-medium text-slate-900 text-sm truncate">{c.clientName}</div>
-                    <div className="text-brand-600 font-700 mt-1">{Number(c.totalRevenue || 0).toLocaleString('fr-DZ')}</div>
+                    <div className="text-brand-600 font-700 mt-1">{formatMoney(c.totalRevenue || 0)}</div>
                     <div className="text-xs text-slate-400">DZD · {c.invoiceCount} docs</div>
                   </div>
                 ))}
@@ -377,7 +378,7 @@ export default function DashboardPage() {
           <StatCard icon={CheckSquare} label={t('total_tasks')} color="bg-brand-500" value={taskStats.total || 0} />
           <StatCard icon={CheckSquare} label={t('completed_tasks')} color="bg-emerald-500" value={taskStats.completed || 0} />
           <StatCard icon={DollarSign} label={t('total_earned')} color="bg-purple-500"
-            value={`${Number(taskStats.totalEarned || 0).toLocaleString('fr-DZ')} DZD`} />
+            value={formatMoneyDzd(taskStats.totalEarned || 0)} />
         </div>
       )}
 
@@ -390,7 +391,7 @@ export default function DashboardPage() {
           <StatCard icon={Clock} label={t('pending')} color="bg-amber-500" value={techStats.pending} />
           <StatCard icon={Timer} label={t('worked_hours')} color="bg-purple-500" value={`${techStats.totalWorkedHours}h`} />
           <StatCard icon={DollarSign} label={t('total_earned')} color="bg-slate-600"
-            value={`${Number(techStats.totalEarned || 0).toLocaleString('fr-DZ')} DZD`} />
+            value={formatMoneyDzd(techStats.totalEarned || 0)} />
         </div>
       )}
 
@@ -412,7 +413,7 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <div className="text-xs text-slate-400">Démarré le</div>
                   <div className="text-sm">{iv.startedAt ? new Date(iv.startedAt).toLocaleDateString('fr-FR') : '—'}</div>
-                  <div className="text-brand-600 font-700 text-sm mt-1">{Number(iv.totalPrice).toLocaleString('fr-DZ')} DZD</div>
+                  <div className="text-brand-600 font-700 text-sm mt-1">{formatMoneyDzd(iv.totalPrice)}</div>
                 </div>
               </Link>
             ))}
@@ -444,7 +445,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   {inv.workflowStep && <WorkflowBadge step={inv.workflowStep} />}
                   <div className="text-right">
-                    <div className="font-medium text-sm">{Number(inv.total).toLocaleString('fr-DZ')} DZD</div>
+                    <div className="font-medium text-sm">{formatMoneyDzd(inv.total)}</div>
                     <span className={clsx('text-xs font-medium', inv.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-500')}>
                       {inv.paymentStatus === 'paid' ? `✓ ${t('paid_status')}` : `○ ${t('unpaid_status_short')}`}
                     </span>

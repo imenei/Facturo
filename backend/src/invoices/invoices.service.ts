@@ -1,18 +1,25 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Invoice, InvoiceType, InvoiceStatus, DeliveryStatus, PaymentStatus, WorkflowStep } from './invoice.entity';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UserRole } from '../users/user.entity';
 import { DeliveryGateway } from '../gateway/delivery.gateway';
+import { InvoiceDeletionRequest, DeletionRequestStatus } from './invoice-deletion-request.entity';
+import { UsersService } from '../users/users.service';
+import { roundMoney, computeNetProfit, parseDateOnly } from '../common/money';
 
 @Injectable()
 export class InvoicesService {
   constructor(
     @InjectRepository(Invoice)
     private invoicesRepository: Repository<Invoice>,
+    @InjectRepository(InvoiceDeletionRequest)
+    private deletionRequestsRepository: Repository<InvoiceDeletionRequest>,
     private deliveryGateway: DeliveryGateway,
+    private usersService: UsersService,
+    private dataSource: DataSource,
   ) {}
 
   private async generateNumber(type: InvoiceType): Promise<string> {
@@ -44,25 +51,30 @@ export class InvoicesService {
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
     try {
       const number = await this.generateNumber(dto.type);
-      const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const tvaAmount = dto.hasTva ? (subtotal * (dto.tvaRate || 19)) / 100 : 0;
-      const total = subtotal + tvaAmount;
+      const subtotal = roundMoney(dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
+      const tvaAmount = dto.hasTva ? roundMoney((subtotal * (dto.tvaRate || 19)) / 100) : 0;
+      const total = roundMoney(subtotal + tvaAmount);
 
       const items = dto.items.map((item, i) => {
-        const purchasePrice = (item as any).purchasePrice ?? 0;
-        const margin = (item.unitPrice - purchasePrice) * item.quantity;
+        const purchasePrice = roundMoney((item as any).purchasePrice ?? 0);
+        const unitPrice = roundMoney(item.unitPrice);
+        const quantity = Number(item.quantity) || 0;
+        const margin = roundMoney((unitPrice - purchasePrice) * quantity);
         return {
           id: String(i + 1),
           description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          quantity,
+          unitPrice,
           purchasePrice,
           margin,
-          total: item.quantity * item.unitPrice,
+          total: roundMoney(quantity * unitPrice),
         };
       });
 
-      const totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
+      const totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
+      const otherCharge = roundMoney(dto.otherCharge ?? 0);
+      const deliveryPrice = roundMoney(dto.deliveryPrice ?? 0);
+      const delivery = await this.resolveDeliveryPerson(dto.deliveryPersonId);
       const clientId = this.buildClientId(dto.clientName, dto.clientPhone);
 
       const invoice = this.invoicesRepository.create({
@@ -73,10 +85,16 @@ export class InvoicesService {
         tvaAmount,
         total,
         totalMargin,
+        otherCharge,
+        deliveryPrice,
+        deliveryPersonId: delivery.id,
+        deliveryPersonName: delivery.name,
+        netProfit: computeNetProfit(totalMargin, otherCharge, deliveryPrice),
+        issuerNameSize: dto.issuerNameSize ?? 16,
         clientId,
         clientLogoUrl: dto.clientLogoUrl || null,
-        dueDate: dto.dueDate || null,
-        deliveryDate: dto.deliveryDate || null,
+        dueDate: parseDateOnly(dto.dueDate),
+        deliveryDate: parseDateOnly(dto.deliveryDate),
         templateType: dto.templateType || null,
         notes: dto.notes || null,
         paymentStatus: PaymentStatus.UNPAID,
@@ -215,50 +233,66 @@ export class InvoicesService {
     if (dto.clientNif !== undefined) invoice.clientNif = dto.clientNif || null;
     if (dto.clientNis !== undefined) invoice.clientNis = dto.clientNis || null;
     if (dto.notes !== undefined) invoice.notes = dto.notes || null;
-    if (dto.dueDate !== undefined) invoice.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
-    if (dto.deliveryDate !== undefined) invoice.deliveryDate = dto.deliveryDate ? new Date(dto.deliveryDate) : null;
+    if (dto.dueDate !== undefined) invoice.dueDate = parseDateOnly(dto.dueDate);
+    if (dto.deliveryDate !== undefined) invoice.deliveryDate = parseDateOnly(dto.deliveryDate);
     if (dto.templateType !== undefined) invoice.templateType = dto.templateType || null;
     if (dto.issuerName !== undefined) invoice.issuerName = dto.issuerName || null;
+    if (dto.issuerNameSize !== undefined) invoice.issuerNameSize = dto.issuerNameSize;
     if (dto.hasTva !== undefined) invoice.hasTva = dto.hasTva;
     if (dto.tvaRate !== undefined) invoice.tvaRate = dto.tvaRate;
+    if (dto.otherCharge !== undefined) invoice.otherCharge = roundMoney(dto.otherCharge);
+    if (dto.deliveryPrice !== undefined) invoice.deliveryPrice = roundMoney(dto.deliveryPrice);
+    if (dto.deliveryPersonId !== undefined) {
+      const delivery = await this.resolveDeliveryPerson(dto.deliveryPersonId);
+      invoice.deliveryPersonId = delivery.id;
+      invoice.deliveryPersonName = delivery.name;
+    }
 
     if (dto.items && dto.items.length > 0) {
       const hasTva = dto.hasTva ?? invoice.hasTva;
       const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
-      const subtotal = dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-      const tvaAmount = hasTva ? (subtotal * tvaRate) / 100 : 0;
-      const total = subtotal + tvaAmount;
+      const oldItems = Array.isArray(invoice.items) ? invoice.items : [];
 
       const items = dto.items.map((item, i) => {
-        const purchasePrice = item.purchasePrice ?? 0;
-        const margin = (item.unitPrice - purchasePrice) * item.quantity;
+        const purchasePrice = roundMoney(item.purchasePrice ?? (oldItems[i] as any)?.purchasePrice ?? 0);
+        const unitPrice = roundMoney(item.unitPrice);
+        const quantity = Number(item.quantity) || 0;
+        const margin = roundMoney((unitPrice - purchasePrice) * quantity);
         return {
           id: String(i + 1),
           description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
+          quantity,
+          unitPrice,
           purchasePrice,
           margin,
-          total: item.quantity * item.unitPrice,
+          total: roundMoney(quantity * unitPrice),
         };
       });
 
+      const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
+      const tvaAmount = hasTva ? roundMoney((subtotal * tvaRate) / 100) : 0;
       invoice.items = items;
       invoice.subtotal = subtotal;
       invoice.tvaAmount = tvaAmount;
-      invoice.total = total;
-      invoice.totalMargin = items.reduce((sum, item) => sum + (item.margin || 0), 0);
+      invoice.total = roundMoney(subtotal + tvaAmount);
+      invoice.totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
     } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined) {
       const hasTva = dto.hasTva ?? invoice.hasTva;
       const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
-      const subtotal = Number(invoice.subtotal);
-      invoice.tvaAmount = hasTva ? (subtotal * tvaRate) / 100 : 0;
-      invoice.total = subtotal + Number(invoice.tvaAmount);
+      const subtotal = roundMoney(invoice.subtotal);
+      invoice.tvaAmount = hasTva ? roundMoney((subtotal * tvaRate) / 100) : 0;
+      invoice.total = roundMoney(subtotal + Number(invoice.tvaAmount));
     }
 
     if (dto.clientName) {
       invoice.clientId = this.buildClientId(dto.clientName, dto.clientPhone ?? invoice.clientPhone);
     }
+
+    invoice.netProfit = computeNetProfit(
+      Number(invoice.totalMargin || 0),
+      Number(invoice.otherCharge || 0),
+      Number(invoice.deliveryPrice || 0),
+    );
 
     return this.invoicesRepository.save(invoice);
   }
@@ -295,8 +329,79 @@ export class InvoicesService {
     return this.invoicesRepository.save(invoice);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, user: { id: string; role: UserRole }): Promise<void> {
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Seul un administrateur peut supprimer une facture');
+    }
     await this.invoicesRepository.delete(id);
+  }
+
+  async requestDeletion(invoiceId: string, reason: string, user: { id: string; role: UserRole }) {
+    const trimmed = (reason || '').trim();
+    if (!trimmed) throw new BadRequestException('Le motif de suppression est obligatoire');
+
+    const invoice = await this.findOne(invoiceId, user);
+    const existing = await this.deletionRequestsRepository.findOne({
+      where: { invoiceId, status: DeletionRequestStatus.PENDING },
+    });
+    if (existing) {
+      throw new BadRequestException('Une demande de suppression est déjà en attente pour cette facture');
+    }
+
+    const request = this.deletionRequestsRepository.create({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      clientName: invoice.clientName,
+      reason: trimmed,
+      status: DeletionRequestStatus.PENDING,
+      requestedBy: { id: user.id } as any,
+    });
+    return this.deletionRequestsRepository.save(request);
+  }
+
+  async listDeletionRequests() {
+    return this.deletionRequestsRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async reviewDeletionRequest(
+    requestId: string,
+    approve: boolean,
+    user: { id: string; role: UserRole },
+  ) {
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Seul un administrateur peut traiter cette demande');
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const requests = manager.getRepository(InvoiceDeletionRequest);
+      const invoices = manager.getRepository(Invoice);
+      const request = await requests.findOne({ where: { id: requestId } });
+      if (!request) throw new NotFoundException('Demande introuvable');
+      if (request.status !== DeletionRequestStatus.PENDING) {
+        throw new BadRequestException('Cette demande a déjà été traitée');
+      }
+      if (approve && !(await invoices.findOne({ where: { id: request.invoiceId } }))) {
+        throw new NotFoundException('La facture concernée est introuvable');
+      }
+
+      request.status = approve ? DeletionRequestStatus.APPROVED : DeletionRequestStatus.REJECTED;
+      request.reviewedBy = { id: user.id } as any;
+      request.reviewedAt = new Date();
+      await requests.save(request);
+      if (approve) await invoices.delete(request.invoiceId);
+      return request;
+    });
+  }
+
+  private async resolveDeliveryPerson(id?: string | null): Promise<{ id: string | null; name: string | null }> {
+    if (!id) return { id: null, name: null };
+    try {
+      const user = await this.usersService.findOne(id);
+      return { id: user.id, name: user.name };
+    } catch {
+      return { id: null, name: null };
+    }
   }
 
   async getStats(): Promise<any> {

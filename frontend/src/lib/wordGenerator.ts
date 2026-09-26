@@ -1,3 +1,5 @@
+import { formatMoney } from './formatMoney';
+
 function amountInWords(n: number): string {
   return numberToFrenchWords(n);
 }
@@ -58,8 +60,8 @@ export async function generateInvoiceWord(invoice: any, company: any) {
             new TableCell({ children: [new Paragraph({ text: String(idx + 1), alignment: AlignmentType.CENTER })] }),
             new TableCell({ children: [new Paragraph(item.description)] }),
             new TableCell({ children: [new Paragraph({ text: String(item.quantity), alignment: AlignmentType.CENTER })] }),
-            new TableCell({ children: [new Paragraph({ text: Number(item.unitPrice).toLocaleString('fr-DZ'), alignment: AlignmentType.RIGHT })] }),
-            new TableCell({ children: [new Paragraph({ text: Number(item.total).toLocaleString('fr-DZ'), alignment: AlignmentType.RIGHT })] }),
+            new TableCell({ children: [new Paragraph({ text: formatMoney(item.unitPrice), alignment: AlignmentType.RIGHT })] }),
+            new TableCell({ children: [new Paragraph({ text: formatMoney(item.total), alignment: AlignmentType.RIGHT })] }),
             new TableCell({ children: [new Paragraph({ text: '☐', alignment: AlignmentType.CENTER })] }),
           ],
         }),
@@ -69,8 +71,8 @@ export async function generateInvoiceWord(invoice: any, company: any) {
           children: [
             new TableCell({ children: [new Paragraph(item.description)], width: { size: 50, type: WidthType.PERCENTAGE } }),
             new TableCell({ children: [new Paragraph({ text: String(item.quantity), alignment: AlignmentType.CENTER })] }),
-            new TableCell({ children: [new Paragraph({ text: Number(item.unitPrice).toLocaleString('fr-DZ'), alignment: AlignmentType.RIGHT })] }),
-            new TableCell({ children: [new Paragraph({ text: Number(item.total).toLocaleString('fr-DZ'), alignment: AlignmentType.RIGHT })] }),
+            new TableCell({ children: [new Paragraph({ text: formatMoney(item.unitPrice), alignment: AlignmentType.RIGHT })] }),
+            new TableCell({ children: [new Paragraph({ text: formatMoney(item.total), alignment: AlignmentType.RIGHT })] }),
           ],
         }),
       );
@@ -113,16 +115,16 @@ export async function generateInvoiceWord(invoice: any, company: any) {
           ? [
               new Paragraph({ text: `Nombre d'articles : ${invoice.items?.length || 0}` }),
               new Paragraph({ text: `Quantité totale : ${totalQty}` }),
-              new Paragraph({ text: `Montant livraison : ${Number(invoice.total).toLocaleString('fr-DZ')}`, alignment: AlignmentType.RIGHT }),
+              new Paragraph({ text: `Montant livraison : ${formatMoney(invoice.total)}`, alignment: AlignmentType.RIGHT }),
               new Paragraph({ text: '' }),
               new Paragraph({ text: 'Signature expéditeur : ___________________________' }),
               new Paragraph({ text: 'Signature client (bon pour accord) : ___________________________' }),
               new Paragraph({ text: 'Date de réception : ___/___/______' }),
             ]
           : [
-              new Paragraph({ text: `Sous-total HT : ${Number(invoice.subtotal).toLocaleString('fr-DZ')}`, alignment: AlignmentType.RIGHT }),
-              ...(invoice.hasTva ? [new Paragraph({ text: `TVA (${invoice.tvaRate}%) : ${Number(invoice.tvaAmount).toLocaleString('fr-DZ')}`, alignment: AlignmentType.RIGHT })] : []),
-              new Paragraph({ children: [new TextRun({ text: `TOTAL TTC : ${Number(invoice.total).toLocaleString('fr-DZ')}`, bold: true, size: 28 })], alignment: AlignmentType.RIGHT }),
+              new Paragraph({ text: `Sous-total HT : ${formatMoney(invoice.subtotal)}`, alignment: AlignmentType.RIGHT }),
+              ...(invoice.hasTva ? [new Paragraph({ text: `TVA (${invoice.tvaRate}%) : ${formatMoney(invoice.tvaAmount)}`, alignment: AlignmentType.RIGHT })] : []),
+              new Paragraph({ children: [new TextRun({ text: `TOTAL TTC : ${formatMoney(invoice.total)}`, bold: true, size: 28 })], alignment: AlignmentType.RIGHT }),
               new Paragraph({ children: [new TextRun({ text: `Arrêtée la présente facture à la somme de : ${amountInWords(invoice.total)} dinars algériens`, italics: true, size: 18 })] }),
             ]),
         ...(invoice.notes ? [new Paragraph({ text: '' }), new Paragraph({ text: `Remarques : ${invoice.notes}` })] : []),

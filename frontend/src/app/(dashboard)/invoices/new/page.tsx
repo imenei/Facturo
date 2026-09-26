@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
+import { formatMoneyDzd, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 // MOD 7: item includes purchasePrice (internal)
 interface Item {
@@ -104,6 +105,7 @@ export default function NewInvoicePage() {
   const [products, setProducts] = useState<any[]>([]);
   const [showProductPicker, setShowProductPicker] = useState<number | null>(null);
   const [existingClients, setExistingClients] = useState<any[]>([]);
+  const [deliveryPeople, setDeliveryPeople] = useState<any[]>([]);
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [showInternalCosts, setShowInternalCosts] = useState(false); // MOD 7: toggle
 
@@ -113,7 +115,8 @@ export default function NewInvoicePage() {
     clientAddress: '', clientNif: '', clientNis: '',
     clientLogoUrl: '', hasTva: false, tvaRate: 19,
     notes: '', dueDate: '', deliveryDate: '', templateType: '',
-    issuerName: COMPANY_IDENTITIES[0],
+    issuerName: COMPANY_IDENTITIES[0], issuerNameSize: 16,
+    otherCharge: 0, deliveryPrice: 0, deliveryPersonId: '',
   });
 
   // MOD 7: items include purchasePrice
@@ -126,10 +129,12 @@ export default function NewInvoicePage() {
       api.get('/templates').catch(() => ({ data: [] })),
       api.get('/products').catch(() => ({ data: [] })),
       api.get('/clients').catch(() => ({ data: [] })),
-    ]).then(([tmpl, prod, clients]) => {
+      api.get('/users/livreurs').catch(() => ({ data: [] })),
+    ]).then(([tmpl, prod, clients, deliveryUsers]) => {
       setTemplates(tmpl.data);
       setProducts(prod.data);
       setExistingClients(clients.data);
+      setDeliveryPeople(deliveryUsers.data);
       const def = tmpl.data.find((t: any) => t.isDefault);
       if (def) setForm((p) => ({ ...p, templateType: def.type }));
     });
@@ -173,14 +178,15 @@ export default function NewInvoicePage() {
     setShowProductPicker(null);
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const tvaAmount = form.hasTva ? (subtotal * form.tvaRate) / 100 : 0;
-  const total = subtotal + tvaAmount;
+  const subtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(item.quantity * item.unitPrice), 0));
+  const tvaAmount = form.hasTva ? roundMoney((subtotal * form.tvaRate) / 100) : 0;
+  const total = roundMoney(subtotal + tvaAmount);
 
   // MOD 7: internal margin calculation
-  const totalMargin = items.reduce((sum, item) =>
-    sum + (item.unitPrice - item.purchasePrice) * item.quantity, 0);
+  const totalMargin = roundMoney(items.reduce((sum, item) =>
+    sum + lineGrossMargin(item.unitPrice, item.purchasePrice, item.quantity), 0));
   const marginRate = total > 0 ? ((totalMargin / total) * 100).toFixed(1) : '0';
+  const netProfit = totalMargin - Number(form.otherCharge || 0) - Number(form.deliveryPrice || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,6 +209,10 @@ export default function NewInvoicePage() {
           purchasePrice: Number(item.purchasePrice) || 0,
         })),
         hasTva: form.hasTva,
+        issuerNameSize: Number(form.issuerNameSize),
+        otherCharge: Number(form.otherCharge) || 0,
+        deliveryPrice: Number(form.deliveryPrice) || 0,
+        deliveryPersonId: form.deliveryPersonId || undefined,
       };
 
       // Only add optional fields if they have a value
@@ -271,6 +281,18 @@ export default function NewInvoicePage() {
                     {TEMPLATE_LABELS[tmpl.type] || tmpl.name || tmpl.type}
                   </button>
                 ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="label" htmlFor="issuerName">Nom affiché sur la facture</label>
+                  <input id="issuerName" className="input" value={form.issuerName}
+                    onChange={(e) => setForm({ ...form, issuerName: e.target.value })} maxLength={120} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="issuerNameSize">Taille du nom ({form.issuerNameSize} pt)</label>
+                  <input id="issuerNameSize" className="input" type="range" min={12} max={24} step={1}
+                    value={form.issuerNameSize} onChange={(e) => setForm({ ...form, issuerNameSize: Number(e.target.value) })} />
+                </div>
               </div>
             </div>
           )}
@@ -424,10 +446,10 @@ export default function NewInvoicePage() {
                                 {p.reference && <div className="text-xs text-slate-400">{p.reference}</div>}
                               </div>
                               <div className="text-right ml-3 shrink-0">
-                                <div className="text-brand-600 font-medium text-xs">{Number(p.salePrice).toLocaleString('fr-FR')} DZD</div>
+                                <div className="text-brand-600 font-medium text-xs">{formatMoneyDzd(p.salePrice)}</div>
                                 {/* MOD 7: show purchase price in picker */}
                                 {p.purchasePrice > 0 && (
-                                  <div className="text-slate-400 text-xs">Achat: {Number(p.purchasePrice).toLocaleString('fr-FR')} DZD</div>
+                                  <div className="text-slate-400 text-xs">Achat: {formatMoneyDzd(p.purchasePrice)}</div>
                                 )}
                               </div>
                             </button>
@@ -478,7 +500,7 @@ export default function NewInvoicePage() {
                   <div className="flex items-center justify-between mt-1 px-1">
                     {item.quantity > 0 && item.unitPrice > 0 && (
                       <span className="text-xs text-slate-400">
-                        = {(item.quantity * item.unitPrice).toLocaleString('fr-FR')} DZD
+                        = {formatMoneyDzd(roundMoney(item.quantity * item.unitPrice))}
                       </span>
                     )}
                     {/* MOD 7: show margin hint when internal costs visible */}
@@ -488,7 +510,7 @@ export default function NewInvoicePage() {
                         margin >= 0 ? 'text-emerald-600' : 'text-red-500',
                       )}>
                         <TrendingUp size={10} />
-                        Marge: {margin.toLocaleString('fr-FR')} DZD ({marginPct}%)
+                        Marge: {formatMoneyDzd(margin)} ({marginPct}%)
                       </span>
                     )}
                   </div>
@@ -501,7 +523,7 @@ export default function NewInvoicePage() {
           <div className="mt-6 border-t pt-4 space-y-2">
             <div className="flex justify-between text-sm text-slate-600">
               <span>{t('subtotal_excl_tax')}</span>
-              <span className="font-medium">{subtotal.toLocaleString('fr-FR')} DZD</span>
+              <span className="font-medium">{formatMoneyDzd(subtotal)}</span>
             </div>
 
             {/* TVA toggle */}
@@ -523,13 +545,13 @@ export default function NewInvoicePage() {
             {form.hasTva && (
               <div className="flex justify-between text-sm text-slate-600">
                 <span>TVA ({form.tvaRate}%)</span>
-                <span className="font-medium">{tvaAmount.toLocaleString('fr-FR')} DZD</span>
+                <span className="font-medium">{formatMoneyDzd(tvaAmount)}</span>
               </div>
             )}
 
             <div className="flex justify-between text-xl font-display font-700 text-slate-900 pt-2 border-t">
               <span>{t('total_incl_tax')}</span>
-              <span className="text-brand-600">{total.toLocaleString('fr-FR')} DZD</span>
+              <span className="text-brand-600">{formatMoneyDzd(total)}</span>
             </div>
 
             {/* MOD 7: internal margin summary when costs shown */}
@@ -539,9 +561,39 @@ export default function NewInvoicePage() {
                 totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500',
               )}>
                 <span className="flex items-center gap-1"><Lock size={11} /> Marge brute (interne)</span>
-                <span>{totalMargin.toLocaleString('fr-FR')} DZD ({marginRate}%)</span>
+                <span>{formatMoneyDzd(totalMargin)} ({marginRate}%)</span>
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="card p-6">
+          <h2 className="font-display font-600 text-slate-900 mb-4">Livraison et autres charges</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="label" htmlFor="deliveryPersonId">Livreur</label>
+              <select id="deliveryPersonId" className="input" value={form.deliveryPersonId}
+                onChange={(e) => setForm({ ...form, deliveryPersonId: e.target.value })}>
+                <option value="">Non assigné</option>
+                {deliveryPeople.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="deliveryPrice">Prix de livraison (DZD)</label>
+              <input id="deliveryPrice" className="input" type="number" min={0} step="0.01" value={form.deliveryPrice}
+                onChange={(e) => setForm({ ...form, deliveryPrice: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="otherCharge">Autre charge (DZD)</label>
+              <input id="otherCharge" className="input" type="number" min={0} step="0.01" value={form.otherCharge}
+                onChange={(e) => setForm({ ...form, otherCharge: Number(e.target.value) })} />
+            </div>
+          </div>
+          <div className="mt-4 border-t pt-3 flex justify-between text-sm">
+            <span className="text-slate-600">Bénéfice estimé après charges</span>
+            <span className={clsx('font-semibold', netProfit >= 0 ? 'text-emerald-600' : 'text-red-600')}>
+              {formatMoneyDzd(netProfit)}
+            </span>
           </div>
         </div>
 

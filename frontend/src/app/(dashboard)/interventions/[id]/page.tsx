@@ -15,6 +15,7 @@ import {
   ChevronDown, ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -259,7 +260,7 @@ function MaterialsEditor({ materials, onChange, t }: { materials: any[]; onChang
           <div className="col-span-5"><input className="input bg-white text-sm" placeholder={t('part')} value={m.name} onChange={e => update(i, 'name', e.target.value)} /></div>
           <div className="col-span-2"><input className="input bg-white text-sm text-center" type="number" min={1} value={m.quantity} onChange={e => update(i, 'quantity', Number(e.target.value))} /></div>
           <div className="col-span-3"><input className="input bg-white text-sm text-right" type="number" min={0} step="0.01" value={m.unitPrice} onChange={e => update(i, 'unitPrice', Number(e.target.value))} /></div>
-          <div className="col-span-1 text-xs text-slate-400 text-right">{(Number(m.quantity) * Number(m.unitPrice)).toLocaleString('fr-FR')}</div>
+          <div className="col-span-1 text-xs text-slate-400 text-right">{formatMoneyDzd(Number(m.quantity) * Number(m.unitPrice))}</div>
           <div className="col-span-1 flex justify-center">
             <button type="button" onClick={() => remove(i)} className="p-1 text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
           </div>
@@ -586,7 +587,7 @@ export default function InterventionWorkspacePage() {
                           {materials.map((m, i) => (
                             <div key={i} className="flex justify-between text-sm text-slate-600 py-1 border-b border-slate-100">
                               <span>{m.name} × {m.quantity}</span>
-                              <span className="font-medium">{Number(m.total).toLocaleString('fr-FR')} DZD</span>
+                              <span className="font-medium">{formatMoneyDzd(m.total)}</span>
                             </div>
                           ))}
                         </div>
@@ -605,16 +606,16 @@ export default function InterventionWorkspacePage() {
                             onChange={e => setLaborCost(Number(e.target.value))} />
                           <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">DZD</span>
                         </div>
-                      : <div className="input bg-slate-50 cursor-default">{Number(item.laborCost).toLocaleString('fr-FR')} DZD</div>
+                      : <div className="input bg-slate-50 cursor-default">{formatMoneyDzd(item.laborCost)}</div>
                     }
                   </div>
                   <div>
                     <label className="label text-slate-400">{t('parts')}</label>
-                    <div className="input bg-slate-50 text-slate-500 cursor-default">{partsCost.toLocaleString('fr-FR')} DZD</div>
+                    <div className="input bg-slate-50 text-slate-500 cursor-default">{formatMoneyDzd(partsCost)}</div>
                   </div>
                   <div className="card p-3 bg-brand-50 border-brand-200 flex flex-col justify-center">
                     <div className="text-xs text-brand-500 font-medium">TOTAL</div>
-                    <div className="text-lg font-display font-700 text-brand-700">{totalPrice.toLocaleString('fr-FR')} DZD</div>
+                    <div className="text-lg font-display font-700 text-brand-700">{formatMoneyDzd(totalPrice)}</div>
                   </div>
                 </div>
 
@@ -709,7 +710,7 @@ export default function InterventionWorkspacePage() {
               </p>
             )}
             <p className="text-lg font-700 text-slate-900 mt-2">
-              {t('total')}: {Number(item.totalPrice).toLocaleString('fr-FR')} DZD
+              {t('total')}: {formatMoneyDzd(item.totalPrice)}
             </p>
           </div>
         )}

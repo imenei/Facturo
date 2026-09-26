@@ -8,6 +8,7 @@ import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
+import { formatMoneyDzd } from '@/lib/formatMoney';
 import {
   Plus, Search, Wrench, Cpu, Wifi, Zap, Settings, HelpCircle,
   Clock, PlayCircle, CheckCircle, XCircle, Pause, Loader2,
@@ -135,7 +136,7 @@ export default function InterventionsListPage() {
             { label: t('in_progress'),   value: stats.inProgress, color: 'text-blue-600',   bg: 'bg-blue-50' },
             { label: t('completed_feminine_plural'),  value: stats.done,       color: 'text-emerald-600', bg: 'bg-emerald-50' },
             { label: isTech ? t('earned') : t('revenue'),
-              value: `${Number(stats.totalEarned || stats.totalRevenue || 0).toLocaleString('fr-FR')} DZD`,
+              value: formatMoneyDzd(stats.totalEarned || stats.totalRevenue || 0),
               color: 'text-brand-600', bg: 'bg-brand-50' },
           ].map(({ label, value, color, bg }) => (
             <div key={label} className={clsx('card p-4', bg)}>
@@ -248,7 +249,7 @@ export default function InterventionsListPage() {
                   <div className="text-xs text-slate-400">{new Date(iv.entryDate).toLocaleDateString('fr-FR')}</div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="font-700 text-sm text-brand-600">{Number(iv.totalPrice).toLocaleString('fr-FR')} DZD</div>
+                  <div className="font-700 text-sm text-brand-600">{formatMoneyDzd(iv.totalPrice)}</div>
                 </div>
               </Link>
             ))}
@@ -292,7 +293,7 @@ export default function InterventionsListPage() {
                       <td className="px-4 py-3"><StatusBadge status={iv.status} t={t} /></td>
                       <td className="px-4 py-3 text-sm text-slate-500">{iv.assignedTo?.name || '—'}</td>
                       <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{new Date(iv.entryDate).toLocaleDateString('fr-FR')}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-900 whitespace-nowrap">{Number(iv.totalPrice).toLocaleString('fr-FR')} DZD</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-900 whitespace-nowrap">{formatMoneyDzd(iv.totalPrice)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Link href={`/interventions/${iv.id}`}

@@ -6,6 +6,7 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, Trash2, Loader2, Save } from 'lucide-react';
 import Link from 'next/link';
+import { formatMoneyDzd, roundMoney } from '@/lib/formatMoney';
 
 interface Item { description: string; quantity: number; unitPrice: number; }
 
@@ -17,6 +18,7 @@ export default function EditInvoicePage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<any>({});
   const [items, setItems] = useState<Item[]>([]);
+  const [deliveryPeople, setDeliveryPeople] = useState<any[]>([]);
 
   useEffect(() => {
     api.get(`/invoices/${id}`).then(({ data }) => {
@@ -25,7 +27,10 @@ export default function EditInvoicePage() {
         clientPhone: data.clientPhone || '', clientAddress: data.clientAddress || '',
         clientNif: data.clientNif || '', clientNis: data.clientNis || '',
         hasTva: data.hasTva, tvaRate: data.tvaRate, notes: data.notes || '',
-        status: data.status,
+        status: data.status, dueDate: data.dueDate ? String(data.dueDate).slice(0, 10) : '',
+        issuerName: data.issuerName || '', issuerNameSize: Number(data.issuerNameSize) || 16,
+        otherCharge: Number(data.otherCharge) || 0, deliveryPrice: Number(data.deliveryPrice) || 0,
+        deliveryPersonId: data.deliveryPersonId || '',
       });
       setItems(data.items.map((i: any) => ({
         description: i.description,
@@ -36,14 +41,18 @@ export default function EditInvoicePage() {
     }).catch(() => { toast.error(t('error_loading_invoice')); router.push('/invoices'); });
   }, [id, router, t]);
 
+  useEffect(() => {
+    api.get('/users/livreurs').then(({ data }) => setDeliveryPeople(data)).catch(() => setDeliveryPeople([]));
+  }, []);
+
   const updateItem = (i: number, field: keyof Item, val: any) =>
     setItems((prev) => prev.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
   const addItem = () => setItems((p) => [...p, { description: '', quantity: 1, unitPrice: 0 }]);
   const removeItem = (i: number) => setItems((p) => p.filter((_, idx) => idx !== i));
 
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-  const tvaAmount = form.hasTva ? (subtotal * form.tvaRate) / 100 : 0;
-  const total = subtotal + tvaAmount;
+  const subtotal = roundMoney(items.reduce((s, i) => s + roundMoney(i.quantity * i.unitPrice), 0));
+  const tvaAmount = form.hasTva ? roundMoney((subtotal * form.tvaRate) / 100) : 0;
+  const total = roundMoney(subtotal + tvaAmount);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +68,12 @@ export default function EditInvoicePage() {
         clientNif: form.clientNif?.trim() || undefined,
         clientNis: form.clientNis?.trim() || undefined,
         notes: form.notes?.trim() || undefined,
+        dueDate: form.dueDate || null,
+        issuerName: form.issuerName?.trim() || null,
+        issuerNameSize: Number(form.issuerNameSize) || 16,
+        otherCharge: Number(form.otherCharge) || 0,
+        deliveryPrice: Number(form.deliveryPrice) || 0,
+        deliveryPersonId: form.deliveryPersonId || null,
         hasTva: Boolean(form.hasTva),
         tvaRate: form.hasTva ? Number(form.tvaRate) || 19 : 0,
         issuerName: form.type !== 'bon_livraison' ? form.issuerName || undefined : undefined,
@@ -105,8 +120,50 @@ export default function EditInvoicePage() {
                   </label>
                 ))}
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="label" htmlFor="issuerName">Nom affiché sur la facture</label>
+                  <input id="issuerName" className="input" value={form.issuerName || ''}
+                    onChange={(e) => setForm({ ...form, issuerName: e.target.value })} maxLength={120} />
+                </div>
+                <div>
+                  <label className="label" htmlFor="issuerNameSize">Taille du nom ({form.issuerNameSize} pt)</label>
+                  <input id="issuerNameSize" className="input" type="range" min={12} max={24} step={1}
+                    value={form.issuerNameSize} onChange={(e) => setForm({ ...form, issuerNameSize: Number(e.target.value) })} />
+                </div>
+              </div>
             </div>
           )}
+        </div>
+
+        <div className="card p-6">
+          <label className="label" htmlFor="dueDate">{t('due_date')}</label>
+          <input id="dueDate" className="input max-w-xs" type="date" value={form.dueDate || ''}
+            onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+        </div>
+
+        <div className="card p-6">
+          <h2 className="font-display font-600 text-slate-900 mb-4">Livraison et autres charges</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="label" htmlFor="deliveryPersonId">Livreur</label>
+              <select id="deliveryPersonId" className="input" value={form.deliveryPersonId || ''}
+                onChange={(e) => setForm({ ...form, deliveryPersonId: e.target.value })}>
+                <option value="">Non assigné</option>
+                {deliveryPeople.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="deliveryPrice">Prix de livraison (DZD)</label>
+              <input id="deliveryPrice" className="input" type="number" min={0} step="0.01" value={form.deliveryPrice ?? 0}
+                onChange={(e) => setForm({ ...form, deliveryPrice: Number(e.target.value) })} />
+            </div>
+            <div>
+              <label className="label" htmlFor="otherCharge">Autre charge (DZD)</label>
+              <input id="otherCharge" className="input" type="number" min={0} step="0.01" value={form.otherCharge ?? 0}
+                onChange={(e) => setForm({ ...form, otherCharge: Number(e.target.value) })} />
+            </div>
+          </div>
         </div>
 
         <div className="card p-6">
@@ -173,9 +230,9 @@ export default function EditInvoicePage() {
             ))}
           </div>
           <div className="mt-4 border-t pt-4 space-y-1.5 text-right">
-            <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{subtotal.toLocaleString('fr-DZ')} DZD</span></div>
-            {form.hasTva && <div className="text-sm text-slate-600">TVA: <span className="font-medium">{tvaAmount.toLocaleString('fr-DZ')} DZD</span></div>}
-            <div className="text-lg font-display font-700 text-brand-600">{t('total')}: {total.toLocaleString('fr-DZ')} DZD</div>
+            <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{formatMoneyDzd(subtotal)}</span></div>
+            {form.hasTva && <div className="text-sm text-slate-600">TVA: <span className="font-medium">{formatMoneyDzd(tvaAmount)}</span></div>}
+            <div className="text-lg font-display font-700 text-brand-600">{t('total')}: {formatMoneyDzd(total)}</div>
           </div>
         </div>
 

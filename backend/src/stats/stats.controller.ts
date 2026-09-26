@@ -194,7 +194,7 @@ export class StatsController {
   async getMarginStats() {
     const result = await this.invoicesRepo
       .createQueryBuilder('inv')
-      .select('SUM(inv.totalMargin)', 'totalMargin')
+      .select('SUM(COALESCE(NULLIF(inv.netProfit, 0), COALESCE(inv.totalMargin, 0) - COALESCE(inv.otherCharge, 0) - COALESCE(inv.deliveryPrice, 0)))', 'totalMargin')
       .addSelect('SUM(inv.total)', 'totalRevenue')
       .where('inv.type = :type', { type: 'facture' })
       .andWhere('inv.status != :cancelled', { cancelled: InvoiceStatus.ANNULEE })

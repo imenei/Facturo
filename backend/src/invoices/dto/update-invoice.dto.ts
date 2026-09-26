@@ -82,7 +82,7 @@ export class UpdateInvoiceDto {
   notes?: string;
 
   @IsOptional()
-  @Transform(emptyToUndefined)
+  @Transform(({ value }) => value === '' ? null : value)
   @IsDateString()
   dueDate?: string;
 
@@ -100,4 +100,24 @@ export class UpdateInvoiceDto {
   @Transform(emptyToUndefined)
   @IsString()
   issuerName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  issuerNameSize?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  otherCharge?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  deliveryPrice?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === '' ? null : value)
+  @IsString()
+  deliveryPersonId?: string | null;
 }
