@@ -9,6 +9,7 @@ import {
   Plus, CheckCircle, XCircle, Clock, Loader2, Edit2, Save, X, Trash2,
   MapPin, Calendar, Play, Square, Printer, DollarSign, AlertTriangle,
   Timer, Phone, Mail, User,
+  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 import { isManager } from '@/lib/roles';
@@ -357,6 +358,12 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
             </div>
             {task.description && <p className="text-sm text-slate-500 mt-1">{task.description}</p>}
             {!isLivreur && task.clientName && <p className="text-xs text-slate-400 mt-1">🏢 {task.clientName}</p>}
+            {task.invoice && (
+              <p className="text-xs text-brand-600 mt-1 flex items-center gap-1">
+                <FileText size={11} />
+                {canManage ? <Link href={`/invoices/${task.invoice.id}`} className="hover:underline">Facture {task.invoice.number}</Link> : `Facture ${task.invoice.number}`}
+              </p>
+            )}
             {!isLivreur && task.assignedTo && <p className="text-xs text-slate-400 mt-0.5">👤 {task.assignedTo.name}</p>}
             {/* MOD 3: created by */}
             {task.createdBy && (
@@ -544,8 +551,10 @@ export default function TasksPage() {
   const [showPrintRecap, setShowPrintRecap] = useState(false); // MOD 8a
   const [users, setUsers] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
+  const [finalInvoices, setFinalInvoices] = useState<any[]>([]);
   const [newTask, setNewTask] = useState({
     name: '', description: '', price: 0,
+    invoiceId: '',
     assignedToId: '', dueDate: '', deliveryDate: '',
     clientName: '', clientLogoUrl: '', clientAddress: '', clientPhone: '', clientEmail: '',
   });
@@ -621,7 +630,11 @@ export default function TasksPage() {
   useEffect(() => { load(); }, [user?.id, user?.role]);
 
   useEffect(() => {
-    if (showNew && canManage) loadLivreurs();
+    if (!showNew || !canManage) return;
+    loadLivreurs();
+    api.get('/invoices', { params: { type: 'facture' } })
+      .then(({ data }) => setFinalInvoices(Array.isArray(data) ? data : []))
+      .catch(() => setFinalInvoices([]));
   }, [showNew, canManage]);
 
   const pickClient = (c: any) => setNewTask((p) => ({
@@ -648,7 +661,7 @@ export default function TasksPage() {
       });
       toast.success(t('task_created'));
       setShowNew(false);
-      setNewTask({ name: '', description: '', price: 0, assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '', clientPhone: '', clientEmail: '' });
+      setNewTask({ name: '', description: '', price: 0, invoiceId: '', assignedToId: '', dueDate: '', deliveryDate: '', clientName: '', clientLogoUrl: '', clientAddress: '', clientPhone: '', clientEmail: '' });
       load();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || t('error_creating_task'));
@@ -703,6 +716,28 @@ export default function TasksPage() {
         <div className="card p-6 mb-6 animate-slide-up border-2 border-brand-100">
           <h3 className="font-display font-600 text-slate-900 mb-4">{t('new_task')}</h3>
           <form onSubmit={createTask} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="label" htmlFor="taskInvoice">Facture définitive liée <span className="text-slate-400 font-normal">({t('optional')})</span></label>
+              <select id="taskInvoice" className="input" value={newTask.invoiceId}
+                onChange={(event) => {
+                  const invoiceId = event.target.value;
+                  const invoice = finalInvoices.find((entry) => entry.id === invoiceId);
+                  setNewTask((current) => ({
+                    ...current,
+                    invoiceId,
+                    ...(invoice ? {
+                      clientName: invoice.clientName || '',
+                      clientAddress: invoice.clientAddress || '',
+                      clientPhone: invoice.clientPhone || '',
+                      clientEmail: invoice.clientEmail || '',
+                      price: Number(invoice.total) || current.price,
+                    } : {}),
+                  }));
+                }}>
+                <option value="">Aucune facture liée</option>
+                {finalInvoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number} · {invoice.clientName}</option>)}
+              </select>
+            </div>
             <div className="md:col-span-2">
               <label className="label">{t('client')} <span className="text-slate-400 font-normal">({t('optional')})</span></label>
               {newTask.clientName ? (

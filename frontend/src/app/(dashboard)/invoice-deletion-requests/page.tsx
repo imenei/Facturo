@@ -85,8 +85,9 @@ export default function InvoiceDeletionRequestsPage() {
                 {request.reviewedAt && <p className="text-xs text-slate-400 mt-2">Traitée le {new Date(request.reviewedAt).toLocaleString('fr-FR')}</p>}
               </div>
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{request.reason}</p>
-              {request.status === 'pending' && (
-                <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-2 flex-wrap">
+                {request.status === 'pending' && (
+                  <>
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'approve')}
                     className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700">
                     {reviewing === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approuver
@@ -94,11 +95,12 @@ export default function InvoiceDeletionRequestsPage() {
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'reject')} className="btn-secondary text-sm text-red-600">
                     <X size={14} /> Rejeter
                   </button>
-                  <button type="button" disabled={reviewing === request.id} onClick={() => void removeRequest(request.id)} className="btn-secondary text-sm text-slate-600">
-                    Supprimer la demande
-                  </button>
-                </div>
-              )}
+                  </>
+                )}
+                <button type="button" disabled={reviewing === request.id} onClick={() => void removeRequest(request.id)} className="btn-secondary text-sm text-slate-600">
+                  Supprimer la demande
+                </button>
+              </div>
             </article>
           ))}
         </div>

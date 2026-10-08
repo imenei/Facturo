@@ -14,6 +14,11 @@ export enum InvoiceStatus {
   ANNULEE = 'annulee',
 }
 
+export enum InvoiceAdjustmentType {
+  DISCOUNT = 'discount',
+  ADDITION = 'addition',
+}
+
 export enum PaymentStatus {
   UNPAID = 'unpaid',
   PAID = 'paid',
@@ -106,6 +111,15 @@ export class Invoice {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   discountAmount: number;
 
+  @Column({ type: 'varchar', default: InvoiceAdjustmentType.DISCOUNT })
+  adjustmentType: InvoiceAdjustmentType;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  adjustmentPercent: number;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  adjustmentAmount: number;
+
   @Column({ default: false })
   hasTva: boolean;
 
@@ -125,6 +139,9 @@ export class Invoice {
   // Autre charge déduite du bénéfice (interne)
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
   otherCharge: number;
+
+  @Column({ type: 'jsonb', default: '[]' })
+  otherCharges: InvoiceCharge[];
 
   // Prix de livraison déduit du bénéfice (interne, distinct de otherCharge)
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0, nullable: true })
@@ -178,4 +195,9 @@ export interface InvoiceItem {
   purchasePrice?: number;  // MOD 7: internal, not printed on PDF
   margin?: number;         // MOD 7: (unitPrice - purchasePrice) * qty, internal
   total: number;
+}
+
+export interface InvoiceCharge {
+  description: string;
+  amount: number;
 }

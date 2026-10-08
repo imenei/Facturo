@@ -1,22 +1,31 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { Invoice } from '../invoices/invoice.entity';
+import { ReminderHistory } from './reminder-history.entity';
+import { NotificationSetting } from './notification-setting.entity';
 import { formatMoney } from '../common/money';
 import * as nodemailer from 'nodemailer';
 
-// MOD 8b: in-memory template store (use DB entity in production with TypeORM)
-// This avoids needing a migration right away while keeping the feature functional
-let customEmailTemplate: { subject?: string; body?: string } | null = null;
+const EMAIL_TEMPLATE_ID = 'payment-reminder';
+const DEFAULT_EMAIL_TEMPLATE = {
+  subject: 'Rappel de paiement — Facture {{invoiceNumber}}',
+  body: `Bonjour {{clientName}},\n\nNous vous rappelons que la facture {{invoiceNumber}} d'un montant de {{amount}} est en attente de règlement.\n\nDate d'échéance : {{dueDate}}\n\nMerci de bien vouloir procéder au règlement dans les meilleurs délais.\n\nCordialement,\n{{companyName}}`,
+};
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(NotificationsService.name);
   private transporter: nodemailer.Transporter;
+  private cleanupTimer: NodeJS.Timeout;
 
   constructor(
     @InjectRepository(Invoice)
     private invoicesRepo: Repository<Invoice>,
+    @InjectRepository(ReminderHistory)
+    private reminderHistoryRepo: Repository<ReminderHistory>,
+    @InjectRepository(NotificationSetting)
+    private notificationSettingsRepo: Repository<NotificationSetting>,
   ) {
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -29,44 +38,54 @@ export class NotificationsService {
     });
   }
 
+  onModuleInit() {
+    void this.cleanupReminderHistory();
+    this.cleanupTimer = setInterval(() => void this.cleanupReminderHistory(), 24 * 60 * 60 * 1000);
+    this.cleanupTimer.unref?.();
+  }
+
+  onModuleDestroy() {
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
+  }
+
+  private async cleanupReminderHistory() {
+    const cutoff = new Date();
+    cutoff.setFullYear(cutoff.getFullYear() - 1);
+    try {
+      await this.reminderHistoryRepo.delete({ createdAt: LessThan(cutoff) });
+    } catch (error) {
+      this.logger.error('Reminder history cleanup failed', error);
+    }
+  }
+
   private formatAmount(amount: number): string {
     return `${formatMoney(amount)} DZD`;
   }
 
-  // MOD 8b: get current email template (custom or default)
-  getEmailTemplate(): { subject: string; body: string } {
-    if (customEmailTemplate?.subject && customEmailTemplate?.body) {
-      return { subject: customEmailTemplate.subject, body: customEmailTemplate.body };
-    }
-    return {
-      subject: 'Rappel de paiement — Facture {{invoiceNumber}}',
-      body: `Bonjour {{clientName}},\n\nNous vous rappelons que la facture {{invoiceNumber}} d'un montant de {{amount}} est en attente de règlement.\n\nDate d'échéance : {{dueDate}}\n\nMerci de bien vouloir procéder au règlement dans les meilleurs délais.\n\nCordialement,\n{{companyName}}`,
-    };
+  async getEmailTemplate(): Promise<{ subject: string; body: string }> {
+    const saved = await this.notificationSettingsRepo.findOne({ where: { id: EMAIL_TEMPLATE_ID } });
+    return saved ? { subject: saved.subject, body: saved.body } : DEFAULT_EMAIL_TEMPLATE;
   }
 
-  // MOD 8b: save custom template
-  saveEmailTemplate(subject: string, body: string): void {
-    customEmailTemplate = { subject, body };
+  async saveEmailTemplate(subject: string, body: string): Promise<void> {
+    await this.notificationSettingsRepo.save({ id: EMAIL_TEMPLATE_ID, subject, body });
     this.logger.log('Email template updated');
   }
 
-  // MOD 8b: reset template to default
-  resetEmailTemplate(): void {
-    customEmailTemplate = null;
+  async resetEmailTemplate(): Promise<void> {
+    await this.notificationSettingsRepo.delete(EMAIL_TEMPLATE_ID);
     this.logger.log('Email template reset to default');
   }
 
-  // MOD 8b: build HTML from template variables
-  private buildEmailHtml(invoice: any, companyName: string): string {
+  private buildEmailHtml(invoice: any, companyName: string, template: { subject: string; body: string }): string {
     const due = invoice.dueDate
       ? new Date(invoice.dueDate).toLocaleDateString('fr-DZ')
       : 'non définie';
 
-    const tmpl = this.getEmailTemplate();
     const brandName = process.env.SMTP_FROM_NAME || 'HelpDZ';
 
     // Replace variables in body
-    const bodyContent = tmpl.body
+    const bodyContent = template.body
       .replace(/{{clientName}}/g, invoice.clientName || '')
       .replace(/{{invoiceNumber}}/g, invoice.number || '')
       .replace(/{{amount}}/g, this.formatAmount(invoice.total))
@@ -95,48 +114,67 @@ export class NotificationsService {
   }
 
   // MOD 8b: build email subject from template
-  private buildEmailSubject(invoice: any, companyName: string): string {
-    const tmpl = this.getEmailTemplate();
-    return tmpl.subject
+  private buildEmailSubject(invoice: any, companyName: string, template: { subject: string; body: string }): string {
+    return template.subject
       .replace(/{{clientName}}/g, invoice.clientName || '')
       .replace(/{{invoiceNumber}}/g, invoice.number || '')
       .replace(/{{amount}}/g, this.formatAmount(invoice.total))
       .replace(/{{companyName}}/g, companyName);
   }
 
-  async sendEmailReminder(invoiceId: string): Promise<{ success: boolean; message: string }> {
+  async sendEmailReminder(invoiceId: string, requestedRecipient?: string): Promise<{ success: boolean; message: string; recipientEmail: string; sentCount: number }> {
     const invoice = await this.invoicesRepo.findOne({ where: { id: invoiceId } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
-    if (!invoice.clientEmail) {
-      return { success: false, message: 'Aucun email client renseigné' };
+    const recipientEmail = (requestedRecipient || invoice.clientEmail || '').trim();
+    if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+      throw new BadRequestException('Adresse e-mail du destinataire invalide');
     }
 
     const companyName = process.env.COMPANY_NAME || 'Mon Entreprise';
     const senderName = process.env.SMTP_FROM_NAME || 'HelpDZ';
     const senderAddress = process.env.SMTP_FROM || process.env.SMTP_USER || '';
     const noReplyAddress = process.env.SMTP_NOREPLY || 'noreply@helpdz.app';
+    const template = await this.getEmailTemplate();
+    let success = false;
+    let message: string;
 
     try {
       await this.transporter.sendMail({
         from: { name: senderName, address: senderAddress },
-        to: invoice.clientEmail,
+        to: recipientEmail,
         replyTo: { name: senderName, address: noReplyAddress },
         headers: {
           'X-Auto-Response-Suppress': 'OOF, AutoReply',
           Precedence: 'bulk',
         },
-        subject: this.buildEmailSubject(invoice, companyName),
-        html: this.buildEmailHtml(invoice, companyName),
+        subject: this.buildEmailSubject(invoice, companyName, template),
+        html: this.buildEmailHtml(invoice, companyName, template),
       });
-      this.logger.log(`Email reminder sent for invoice ${invoice.number} to ${invoice.clientEmail}`);
-      return { success: true, message: `Email envoyé à ${invoice.clientEmail}` };
+      success = true;
+      message = `Email envoyé à ${recipientEmail}`;
+      this.logger.log(`Email reminder sent for invoice ${invoice.number} to ${recipientEmail}`);
     } catch (err) {
       this.logger.error('Email send failed', err);
-      return { success: false, message: `Échec envoi email: ${err.message}` };
+      message = `Échec envoi email: ${err instanceof Error ? err.message : 'erreur inconnue'}`;
     }
+
+    await this.reminderHistoryRepo.save({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.number,
+      recipientEmail,
+      success,
+      message,
+    });
+    const sentCount = await this.reminderHistoryRepo.count({ where: { invoiceId: invoice.id, success: true } });
+    return { success, message, recipientEmail, sentCount };
   }
 
-  async sendAllReminders(invoiceId: string) {
-    return { email: await this.sendEmailReminder(invoiceId) };
+  async getReminderHistory(): Promise<ReminderHistory[]> {
+    await this.cleanupReminderHistory();
+    return this.reminderHistoryRepo.find({ order: { createdAt: 'DESC' } });
+  }
+
+  async sendAllReminders(invoiceId: string, recipientEmail?: string) {
+    return { email: await this.sendEmailReminder(invoiceId, recipientEmail) };
   }
 }

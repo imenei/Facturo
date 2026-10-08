@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Task, TaskStatus } from './task.entity';
 import { User, UserRole } from '../users/user.entity';
+import { Invoice, InvoiceType } from '../invoices/invoice.entity';
 
 @Injectable()
 export class TasksService {
@@ -11,7 +12,20 @@ export class TasksService {
     private tasksRepository: Repository<Task>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Invoice)
+    private invoicesRepository: Repository<Invoice>,
   ) {}
+
+  private async resolveLinkedInvoice(invoiceId?: string | null): Promise<Invoice | null> {
+    if (!invoiceId) return null;
+    const invoice = await this.invoicesRepository.findOne({
+      where: { id: invoiceId, type: InvoiceType.FACTURE, isDeleted: false },
+    });
+    if (!invoice) {
+      throw new BadRequestException('Une tâche ne peut être liée qu’à une facture définitive active.');
+    }
+    return invoice;
+  }
 
   private getAssigneeId(task: Task): string | null {
     const raw = task as Task & { assignedToId?: string };
@@ -37,6 +51,7 @@ export class TasksService {
     if (livreur.isActive === false) {
       throw new BadRequestException('Ce livreur est désactivé');
     }
+    const invoice = await this.resolveLinkedInvoice(dto.invoiceId);
 
     const task = this.tasksRepository.create({
       name: dto.name,
@@ -52,6 +67,7 @@ export class TasksService {
       finalPrice: dto.price,
       createdBy: { id: adminId } as any,
       assignedTo: livreur,
+      invoice,
     }) as Task;
     return this.tasksRepository.save(task);
   }
@@ -61,6 +77,8 @@ export class TasksService {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.assignedTo', 'assignedTo')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
+      .leftJoin('task.invoice', 'invoice')
+      .addSelect(['invoice.id', 'invoice.number', 'invoice.type'])
       .orderBy('task.createdAt', 'DESC');
 
     if (user.role === UserRole.LIVREUR) {
@@ -75,6 +93,8 @@ export class TasksService {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.assignedTo', 'assignedTo')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
+      .leftJoin('task.invoice', 'invoice')
+      .addSelect(['invoice.id', 'invoice.number', 'invoice.type'])
       .where('task.id = :id', { id })
       .getOne();
 
@@ -92,6 +112,7 @@ export class TasksService {
       if (dto.status === TaskStatus.TERMINEE) task.completedAt = new Date();
       if (dto.status === TaskStatus.NON_TERMINEE) task.completedAt = new Date();
     } else {
+      if (dto.invoiceId !== undefined) task.invoice = await this.resolveLinkedInvoice(dto.invoiceId);
       if (dto.cancelDelivery) {
         task.startedDeliveryAt = null;
         task.finishedDeliveryAt = null;
@@ -182,6 +203,8 @@ export class TasksService {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.assignedTo', 'assignedTo')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
+      .leftJoin('task.invoice', 'invoice')
+      .addSelect(['invoice.id', 'invoice.number', 'invoice.type'])
       .where('assignedTo.id = :livreurId', { livreurId })
       .orderBy('task.createdAt', 'DESC');
 

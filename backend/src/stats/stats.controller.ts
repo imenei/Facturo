@@ -35,10 +35,19 @@ export class StatsController {
       .andWhere('inv.status != :cancelled', { cancelled: InvoiceStatus.ANNULEE })
       .getRawOne();
 
+    const vat = await this.invoicesRepo
+      .createQueryBuilder('inv')
+      .select('COALESCE(SUM(inv.tvaAmount), 0)', 'totalVat')
+      .where('inv.type = :type', { type: InvoiceType.FACTURE })
+      .andWhere('inv.status IN (:...statuses)', { statuses: [InvoiceStatus.EMISE, InvoiceStatus.PAYEE] })
+      .andWhere('inv.isDeleted = :isDeleted', { isDeleted: false })
+      .getRawOne();
+
     return {
       totalRevenue: Number(result?.total || 0),
       paidInvoicesCount: Number(result?.count || 0),
       unpaidRevenue: Number(unpaid?.total || 0),
+      totalVat: Number(vat?.totalVat || 0),
     };
   }
 

@@ -82,8 +82,9 @@ export async function generateInvoiceWord(invoice: any, company: any) {
     : ['Désignation', 'Qté', 'Prix Unitaire', 'Total HT'];
 
   const totalQty = (invoice.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
-  const discountAmount = Number(invoice.discountAmount || 0);
-  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) + discountAmount;
+  const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const chargesTotal = invoiceCharges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0);
+  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) - chargesTotal;
 
   const doc = new Document({
     sections: [{
@@ -125,7 +126,10 @@ export async function generateInvoiceWord(invoice: any, company: any) {
             ]
           : [
               new Paragraph({ text: `Sous-total HT : ${formatMoney(subtotalBeforeDiscount)}`, alignment: AlignmentType.RIGHT }),
-              ...(Number(invoice.discountPercent || 0) > 0 ? [new Paragraph({ text: `Remise (${invoice.discountPercent}%) : -${formatMoney(discountAmount)}`, alignment: AlignmentType.RIGHT })] : []),
+              ...invoiceCharges.map((charge: any) => new Paragraph({
+                text: `Frais : ${charge.description || 'Autre frais'} : ${formatMoney(charge.amount)}`,
+                alignment: AlignmentType.RIGHT,
+              })),
               ...(invoice.hasTva ? [new Paragraph({ text: `TVA (${invoice.tvaRate}%) : ${formatMoney(invoice.tvaAmount)}`, alignment: AlignmentType.RIGHT })] : []),
               new Paragraph({ children: [new TextRun({ text: `TOTAL TTC : ${formatMoney(invoice.total)}`, bold: true, size: 28 })], alignment: AlignmentType.RIGHT }),
               new Paragraph({ children: [new TextRun({ text: `Arrêtée la présente facture à la somme de : ${amountInWords(invoice.total)} dinars algériens`, italics: true, size: 18 })] }),

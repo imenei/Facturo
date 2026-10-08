@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../users/user.entity';
+import { Invoice } from '../invoices/invoice.entity';
 
 export enum TaskStatus {
   EN_ATTENTE = 'en_attente',
@@ -34,6 +35,10 @@ export class Task {
   @ManyToOne(() => User, { eager: true, nullable: true })
   @JoinColumn({ name: 'createdById' })
   createdBy: User;
+
+  @ManyToOne(() => Invoice, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'invoiceId' })
+  invoice: Invoice | null;
 
   @Column({ nullable: true })
   dueDate: Date;

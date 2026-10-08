@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { roundMoney } from './formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
 
@@ -140,7 +141,7 @@ function addLogo(doc: jsPDF, company: any, x: number, y: number, w: number, h: n
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(Math.min(11, w / 3));
   doc.setTextColor(10, 10, 10);
-  doc.text(companyName(company), x, y + h * 0.45, { maxWidth: w + 20 });
+  doc.text(companyName(company), x, y + h * 0.45, { maxWidth: w });
 }
 
 // Company info block helper
@@ -148,9 +149,9 @@ function companyBlock(doc: jsPDF, company: any, invoice: any, x: number, y: numb
   const ax = align === 'right' ? x : x;
   const maxWidth = align === 'right' ? 128 : 82;
   const size = companyNameSize(invoice);
-  const nameLines = doc.splitTextToSize(companyName(company), maxWidth);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(size);
+  const nameLines = doc.splitTextToSize(companyName(company), maxWidth);
   doc.setTextColor(10, 10, 10);
   doc.text(nameLines, ax, y, { align });
   doc.setFont('helvetica', 'normal');
@@ -203,7 +204,7 @@ function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[]
     theme: 'grid',
     styles: { fontSize: 8, textColor: [20, 20, 20], lineColor: [200, 200, 200], lineWidth: 0.2, cellPadding: 3 },
     headStyles: { fillColor: headFill as any, textColor: headText as any, fontStyle: 'bold', fontSize: 8, cellPadding: 3.5 },
-    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 18 }, 2: { cellWidth: 38 }, 3: { cellWidth: 38 } },
+    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 18 }, 2: { cellWidth: 38, fontSize: 7 }, 3: { cellWidth: 38, fontSize: 7 } },
     margin: { left: 14, right: 14 },
   });
   return (doc as any).lastAutoTable.finalY as number;
@@ -215,8 +216,9 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   let ty = y + 8;
   const labelX = W - 70;
   const valX = W - 14;
-  const discountAmount = Number(invoice.discountAmount || 0);
-  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) + discountAmount;
+  const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const chargesTotal = invoiceCharges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0);
+  const subtotalBeforeDiscount = roundMoney(Number(invoice.subtotal || 0) - chargesTotal);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -224,10 +226,10 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   doc.text('Sous-total HT :', labelX, ty);
   doc.text(fmt(subtotalBeforeDiscount), valX, ty, { align: 'right' });
 
-  if (Number(invoice.discountPercent || 0) > 0) {
+  for (const charge of invoiceCharges) {
     ty += 6;
-    doc.text(`Remise (${invoice.discountPercent}%) :`, labelX, ty);
-    doc.text(`-${fmt(discountAmount)}`, valX, ty, { align: 'right' });
+    doc.text(`Frais : ${charge.description || 'Autre frais'}`, labelX, ty, { maxWidth: 50 });
+    doc.text(fmt(charge.amount), valX, ty, { align: 'right' });
   }
 
   if (invoice.hasTva) {
@@ -590,8 +592,8 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
     columnStyles: {
       0: { cellWidth: 'auto' },
       1: { cellWidth: 16, halign: 'center' },
-      2: { cellWidth: 38, halign: 'right' },
-      3: { cellWidth: 38, halign: 'right' },
+      2: { cellWidth: 38, halign: 'right', fontSize: 7 },
+      3: { cellWidth: 38, halign: 'right', fontSize: 7 },
     },
     alternateRowStyles: { fillColor: [250, 250, 250] },
     margin: { left: 14, right: 14 },
@@ -620,8 +622,8 @@ function deliveryItemsTable(doc: jsPDF, invoice: any, startY: number) {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 'auto' },
       2: { cellWidth: 16, halign: 'center' },
-      3: { cellWidth: 30, halign: 'right' },
-      4: { cellWidth: 30, halign: 'right' },
+      3: { cellWidth: 30, halign: 'right', fontSize: 7.5 },
+      4: { cellWidth: 30, halign: 'right', fontSize: 7.5 },
       5: { cellWidth: 16, halign: 'center' },
     },
     margin: { left: 14, right: 14 },

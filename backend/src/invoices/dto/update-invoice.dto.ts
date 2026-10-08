@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsOptional, IsBoolean, IsNumber, IsArray, ValidateNested, IsDateString } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { InvoiceStatus, InvoiceType } from '../invoice.entity';
+import { InvoiceAdjustmentType, InvoiceStatus, InvoiceType } from '../invoice.entity';
 
 const emptyToUndefined = ({ value }: { value: unknown }) =>
   value === '' || value === null || value === undefined ? undefined : value;
@@ -21,6 +21,15 @@ class InvoiceItemDto {
   @IsNumber()
   @Type(() => Number)
   purchasePrice?: number;
+}
+
+class InvoiceChargeDto {
+  @IsString()
+  description: string;
+
+  @IsNumber()
+  @Type(() => Number)
+  amount: number;
 }
 
 export class UpdateInvoiceDto {
@@ -112,9 +121,24 @@ export class UpdateInvoiceDto {
   discountPercent?: number;
 
   @IsOptional()
+  @IsEnum(InvoiceAdjustmentType)
+  adjustmentType?: InvoiceAdjustmentType;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  adjustmentPercent?: number;
+
+  @IsOptional()
   @IsNumber()
   @Type(() => Number)
   otherCharge?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceChargeDto)
+  otherCharges?: InvoiceChargeDto[];
 
   @IsOptional()
   @IsNumber()

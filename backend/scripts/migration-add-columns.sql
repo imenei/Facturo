@@ -22,6 +22,7 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "deliveryDurationMinutes" INTEGER;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "deliveryPhotoUrl" TEXT;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "totalMargin" DECIMAL(15,2) DEFAULT 0;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "marginRate" DECIMAL(5,2) DEFAULT 0;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS "invoiceId" UUID;
 
 -- 5. Colonnes bénéfice / livraison / taille du nom (factures)
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "otherCharge" DECIMAL(15,2) DEFAULT 0;
@@ -47,5 +48,45 @@ CREATE TABLE IF NOT EXISTS invoice_deletion_requests (
   "createdAt" TIMESTAMP DEFAULT NOW()
 );
 
--- 6. Vérification : lister les colonnes de la table invoices
+-- 6. Corbeille et traçabilité facture / bon de livraison
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "isDeleted" BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "sourceInvoiceId" VARCHAR;
+
+-- 7. Remise sur facture
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "discountPercent" DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "discountAmount" DECIMAL(15,2) NOT NULL DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "adjustmentType" VARCHAR NOT NULL DEFAULT 'discount';
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "adjustmentPercent" DECIMAL(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "adjustmentAmount" DECIMAL(15,2) NOT NULL DEFAULT 0;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS "otherCharges" JSONB NOT NULL DEFAULT '[]'::jsonb;
+UPDATE invoices
+SET "adjustmentPercent" = COALESCE("discountPercent", 0),
+    "adjustmentAmount" = COALESCE("discountAmount", 0),
+    "adjustmentType" = 'discount'
+WHERE COALESCE("discountPercent", 0) > 0
+  AND COALESCE("adjustmentPercent", 0) = 0;
+
+-- 8. Historique des rappels e-mail
+CREATE TABLE IF NOT EXISTS reminder_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  "invoiceId" UUID NOT NULL,
+  "invoiceNumber" VARCHAR NOT NULL,
+  "recipientEmail" VARCHAR NOT NULL,
+  success BOOLEAN NOT NULL DEFAULT FALSE,
+  message TEXT,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_reminder_history_invoice_created
+  ON reminder_history ("invoiceId", "createdAt" DESC);
+
+-- 9. Modèle e-mail persistant
+CREATE TABLE IF NOT EXISTS notification_settings (
+  id VARCHAR PRIMARY KEY,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- 10. Vérification : lister les colonnes de la table invoices
 -- \d invoices

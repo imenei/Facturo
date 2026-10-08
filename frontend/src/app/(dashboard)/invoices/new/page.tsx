@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import {
   Plus, Trash2, Loader2, Save, ArrowLeft,
   LayoutTemplate, ShoppingBag, Upload, X, Building2,
-  Lock, TrendingUp, ChevronDown,
+  Lock, TrendingUp, ChevronDown, Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -104,6 +104,8 @@ export default function NewInvoicePage() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [showProductPicker, setShowProductPicker] = useState<number | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const [otherCharges, setOtherCharges] = useState<{ description: string; amount: number }[]>([]);
   const [existingClients, setExistingClients] = useState<any[]>([]);
   const [deliveryPeople, setDeliveryPeople] = useState<any[]>([]);
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
@@ -115,9 +117,9 @@ export default function NewInvoicePage() {
     clientName: '', clientEmail: '', clientPhone: '',
     clientAddress: '', clientNif: '', clientNis: '',
     clientLogoUrl: '', hasTva: false, tvaRate: 19,
-    notes: '', dueDate: '', deliveryDate: '', templateType: '',
+    notes: '', dueDate: '', deliveryDate: '', invoiceDate: new Date().toISOString().slice(0, 10), templateType: '',
     issuerName: COMPANY_IDENTITIES[0], issuerNameSize: 16,
-    discountPercent: 0, otherCharge: 0, deliveryPrice: 0, deliveryPersonId: '',
+    adjustmentType: 'discount', adjustmentPercent: 0, deliveryPrice: 0, deliveryPersonId: '',
   });
 
   // MOD 7: items include purchasePrice
@@ -160,8 +162,9 @@ export default function NewInvoicePage() {
           dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().slice(0, 10) : '',
           deliveryDate: invoice.deliveryDate ? new Date(invoice.deliveryDate).toISOString().slice(0, 10) : '',
           templateType: invoice.templateType || p.templateType || 'classic',
-          discountPercent: Number(invoice.discountPercent || 0),
-          otherCharge: Number(invoice.otherCharge || 0),
+          invoiceDate: invoice.createdAt ? new Date(invoice.createdAt).toISOString().slice(0, 10) : p.invoiceDate,
+          adjustmentType: invoice.adjustmentType || 'discount',
+          adjustmentPercent: 0,
           deliveryPrice: Number(invoice.deliveryPrice || 0),
           deliveryPersonId: invoice.deliveryPersonId || '',
         }));
@@ -171,6 +174,7 @@ export default function NewInvoicePage() {
           unitPrice: Number(item.unitPrice || 0),
           purchasePrice: Number(item.purchasePrice || 0),
         })));
+        setOtherCharges([]);
       }
     });
   }, [params]);
@@ -214,16 +218,18 @@ export default function NewInvoicePage() {
   };
 
   const subtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(item.quantity * item.unitPrice), 0));
-  const discountAmount = roundMoney((subtotal * (Number(form.discountPercent) || 0)) / 100);
-  const discountedSubtotal = roundMoney(subtotal - discountAmount);
-  const tvaAmount = form.hasTva ? roundMoney((discountedSubtotal * form.tvaRate) / 100) : 0;
-  const total = roundMoney(discountedSubtotal + tvaAmount);
+  const adjustmentAmount = roundMoney((subtotal * (Number(form.adjustmentPercent) || 0)) / 100);
+  const adjustedSubtotal = roundMoney(subtotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount));
+  const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
+  const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
+  const tvaAmount = form.hasTva ? roundMoney((subtotalWithCharges * form.tvaRate) / 100) : 0;
+  const total = roundMoney(subtotalWithCharges + tvaAmount);
 
   // MOD 7: internal margin calculation
   const totalMargin = roundMoney(items.reduce((sum, item) =>
     sum + lineGrossMargin(item.unitPrice, item.purchasePrice, item.quantity), 0));
   const marginRate = total > 0 ? ((totalMargin / total) * 100).toFixed(1) : '0';
-  const netProfit = totalMargin - Number(form.otherCharge || 0) - Number(form.deliveryPrice || 0);
+  const netProfit = totalMargin + otherChargeTotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount) - Number(form.deliveryPrice || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -236,7 +242,7 @@ export default function NewInvoicePage() {
         // Already a server path, use as-is
       }
 
-      const referenceDate = form.dueDate || new Date().toISOString().slice(0, 10);
+      const referenceDate = form.invoiceDate || new Date().toISOString().slice(0, 10);
       if (form.deliveryDate && form.deliveryDate < referenceDate) {
         toast.error('La date de livraison ne peut pas être antérieure à la date de facturation.');
         setSaving(false);
@@ -247,7 +253,8 @@ export default function NewInvoicePage() {
         type: form.type,
         sourceInvoiceId: form.sourceInvoiceId || undefined,
         clientName: form.clientName.trim(),
-        discountPercent: Number(form.discountPercent) || 0,
+        adjustmentType: form.adjustmentType,
+        adjustmentPercent: Number(form.adjustmentPercent) || 0,
         items: items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
@@ -256,7 +263,7 @@ export default function NewInvoicePage() {
         })),
         hasTva: form.hasTva,
         issuerNameSize: Number(form.issuerNameSize),
-        otherCharge: Number(form.otherCharge) || 0,
+        otherCharges: otherCharges.filter((charge) => charge.description.trim() || Number(charge.amount) > 0),
         deliveryPrice: Number(form.deliveryPrice) || 0,
         deliveryPersonId: form.deliveryPersonId || undefined,
       };
@@ -484,7 +491,14 @@ export default function NewInvoicePage() {
                       )}
                       {showProductPicker === i && (
                         <div className="absolute top-full left-0 right-0 z-20 bg-white border border-slate-200 rounded-lg shadow-xl mt-1 max-h-48 overflow-y-auto">
-                          {products.map((p) => (
+                          <div className="sticky top-0 bg-white p-2 border-b border-slate-100">
+                            <div className="relative">
+                              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input className="input py-1.5 pl-8 text-xs" autoFocus value={productSearch}
+                                onChange={(e) => setProductSearch(e.target.value)} placeholder="Rechercher nom ou référence" />
+                            </div>
+                          </div>
+                          {products.filter((product) => `${product.name} ${product.reference || ''}`.toLowerCase().includes(productSearch.trim().toLowerCase())).map((p) => (
                             <button key={p.id} type="button" onClick={() => pickProduct(i, p)}
                               className="w-full text-left px-3 py-2 hover:bg-brand-50 text-sm flex items-center justify-between">
                               <div>
@@ -588,10 +602,17 @@ export default function NewInvoicePage() {
               )}
             </div>
 
-            {Number(form.discountPercent) > 0 && (
-              <div className="flex justify-between text-sm text-emerald-600">
-                <span>Remise ({form.discountPercent}%)</span>
-                <span className="font-medium">-{formatMoneyDzd(discountAmount)}</span>
+            {Number(form.adjustmentPercent) > 0 && (
+              <div className={clsx('flex justify-between text-sm', form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
+                <span>{form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({form.adjustmentPercent}%)</span>
+                <span className="font-medium">{form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</span>
+              </div>
+            )}
+
+            {otherChargeTotal > 0 && (
+              <div className="flex justify-between text-sm text-slate-600">
+                <span>Frais supplémentaires</span>
+                <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span>
               </div>
             )}
 
@@ -603,10 +624,15 @@ export default function NewInvoicePage() {
             )}
 
             <div className="flex justify-between text-sm text-slate-600 mt-2">
-              <span>Remise %</span>
+              <span>Ajustement</span>
               <div className="flex items-center gap-2">
-                <input type="number" min={0} max={100} step={1} className="input w-20 text-right py-1" value={form.discountPercent}
-                  onChange={(e) => setForm({ ...form, discountPercent: Number(e.target.value) || 0 })} />
+                <select className="input w-32 py-1" value={form.adjustmentType}
+                  onChange={(e) => setForm({ ...form, adjustmentType: e.target.value })}>
+                  <option value="discount">Remise (-)</option>
+                  <option value="addition">Ajout (+)</option>
+                </select>
+                <input aria-label="Pourcentage d'ajustement" type="number" min={0} max={100} step={0.01} className="input w-20 text-right py-1" value={form.adjustmentPercent}
+                  onChange={(e) => setForm({ ...form, adjustmentPercent: Number(e.target.value) || 0 })} />
                 <span>%</span>
               </div>
             </div>
@@ -645,10 +671,24 @@ export default function NewInvoicePage() {
               <input id="deliveryPrice" className="input" type="number" min={0} step="0.01" value={form.deliveryPrice}
                 onChange={(e) => setForm({ ...form, deliveryPrice: Number(e.target.value) })} />
             </div>
-            <div>
-              <label className="label" htmlFor="otherCharge">Autre charge (DZD)</label>
-              <input id="otherCharge" className="input" type="number" min={0} step="0.01" value={form.otherCharge}
-                onChange={(e) => setForm({ ...form, otherCharge: Number(e.target.value) })} />
+            <div className="md:col-span-3">
+              <div className="flex items-center justify-between mb-2">
+                <label className="label mb-0">Autres frais internes</label>
+                <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
+                  <Plus size={13} /> Ajouter un frais
+                </button>
+              </div>
+              {otherCharges.map((charge, index) => (
+                <div key={index} className="grid grid-cols-[1fr_150px_auto] gap-2 mb-2">
+                  <input className="input" aria-label="Description du frais" placeholder="Description"
+                    value={charge.description} onChange={(e) => setOtherCharges((current) => current.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} />
+                  <input className="input text-right" aria-label="Montant du frais" type="number" min={0} step="0.01" value={charge.amount}
+                    onChange={(e) => setOtherCharges((current) => current.map((item, i) => i === index ? { ...item, amount: Number(e.target.value) } : item))} />
+                  <button type="button" aria-label="Supprimer ce frais" disabled={otherCharges.length === 0}
+                    onClick={() => setOtherCharges((current) => current.filter((_, i) => i !== index))} className="btn-secondary text-red-600 px-2"><Trash2 size={15} /></button>
+                </div>
+              ))}
+              <p className="text-right text-xs text-slate-500">Total des frais : {formatMoneyDzd(otherChargeTotal)}</p>
             </div>
           </div>
           <div className="mt-4 border-t pt-3 flex justify-between text-sm">
@@ -670,7 +710,7 @@ export default function NewInvoicePage() {
             </div>
             <div>
               <label className="label">Date de livraison <span className="text-slate-400 font-normal">(optionnelle)</span></label>
-              <input type="date" className="input" min={form.dueDate || new Date().toISOString().slice(0, 10)} value={form.deliveryDate}
+              <input type="date" className="input" min={form.invoiceDate} value={form.deliveryDate}
                 onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} />
             </div>
             <div>

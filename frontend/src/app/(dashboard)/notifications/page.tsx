@@ -8,7 +8,7 @@ import { formatMoneyDzd } from '@/lib/formatMoney';
 import clsx from 'clsx';
 import {
   Bell, Mail, Send, Loader2, Search,
-  CheckCircle, XCircle, Settings, RotateCcw, Save,
+  CheckCircle, XCircle, Settings, RotateCcw, Save, ChevronDown, History,
 } from 'lucide-react';
 
 // MOD 8b: default email template
@@ -37,6 +37,8 @@ const VARIABLES = [
   { key: '{{dueDate}}', desc: "Date d'échéance" },
   { key: '{{companyName}}', desc: "Nom de l'entreprise" },
 ];
+
+const historyRowsForInvoice = (history: Record<string, any[]>, invoiceId: string) => history[invoiceId] || [];
 
 // MOD 8b: Email Template Editor
 function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
@@ -67,10 +69,16 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
     setSaving(false);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!confirm(t('reset_default_template_confirm'))) return;
-    setSubject(DEFAULT_TEMPLATE.subject);
-    setBody(DEFAULT_TEMPLATE.body);
+    setSaving(true);
+    try {
+      await api.delete('/notifications/email-template');
+      setSubject(DEFAULT_TEMPLATE.subject);
+      setBody(DEFAULT_TEMPLATE.body);
+      toast.success(t('template_saved'));
+    } catch { toast.error(t('error_saving')); }
+    setSaving(false);
   };
 
   // Build preview HTML with sample data
@@ -181,29 +189,48 @@ export default function NotificationsPage() {
   const [sending, setSending] = useState<string | null>(null);
   const [reminderTarget, setReminderTarget] = useState<any>(null);
   const [results, setResults] = useState<Record<string, any>>({});
+  const [reminderHistory, setReminderHistory] = useState<Record<string, any[]>>({});
+  const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
+  const [showFullHistory, setShowFullHistory] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
   const [showTemplateEditor, setShowTemplateEditor] = useState(false); // MOD 8b
 
   useEffect(() => {
     api.get('/invoices', { params: { paymentStatus: 'unpaid', type: 'facture' } })
       .then(({ data }) => { setInvoices(data.filter((i: any) => i.status !== 'annulee')); setLoading(false); })
       .catch(() => setLoading(false));
+    api.get('/notifications/reminder-history').then(({ data }) => {
+      const grouped = (data as any[]).reduce((result, row) => {
+        (result[row.invoiceId] ||= []).push(row);
+        return result;
+      }, {} as Record<string, any[]>);
+      setReminderHistory(grouped);
+    }).catch(() => {});
   }, []);
 
   const sendReminder = async (invoice: any) => {
-    if (!invoice.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
+    if (!recipientEmail.trim()) { toast.error('Saisissez l’adresse e-mail du destinataire.'); return; }
     setReminderTarget(null);
     setSending(invoice.id);
     try {
-      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`);
+      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`, { recipientEmail });
       setResults((prev) => ({ ...prev, [invoice.id]: data }));
       if (data.email?.success) toast.success(t('reminder_sent_success'));
       else toast.error(data.email?.message || t('all_sends_failed'));
-    } catch { toast.error(t('error_sending_reminder')); }
+      const { data: history } = await api.get('/notifications/reminder-history');
+      setReminderHistory((history as any[]).reduce((result, row) => {
+        (result[row.invoiceId] ||= []).push(row);
+        return result;
+      }, {} as Record<string, any[]>));
+    } catch (error: any) { toast.error(error?.response?.data?.message || t('error_sending_reminder')); }
     setSending(null);
   };
 
   const filtered = invoices.filter((inv) =>
     !search || inv.clientName?.toLowerCase().includes(search.toLowerCase()) || inv.number?.toLowerCase().includes(search.toLowerCase()),
+  );
+  const fullHistory = Object.values(reminderHistory).flat().filter((row: any) =>
+    !search || row.invoiceNumber?.toLowerCase().includes(search.toLowerCase()) || row.recipientEmail?.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -216,10 +243,14 @@ export default function NotificationsPage() {
           <h1 className="text-3xl font-display font-700 text-slate-900">{t('notifications')}</h1>
           <p className="text-slate-500 text-sm mt-1">{filtered.length} {t('unpaid_invoices_count')}</p>
         </div>
-        {/* MOD 8b: button to open template editor */}
-        <button onClick={() => setShowTemplateEditor(true)} className="btn-secondary flex items-center gap-2">
-          <Settings size={16} /> {t('edit_email_template')}
-        </button>
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setShowFullHistory((open) => !open)} className="btn-secondary flex items-center gap-2">
+            <History size={16} /> Historique des rappels
+          </button>
+          <button onClick={() => setShowTemplateEditor(true)} className="btn-secondary flex items-center gap-2">
+            <Settings size={16} /> {t('edit_email_template')}
+          </button>
+        </div>
       </div>
 
       <div className="relative mb-5">
@@ -227,6 +258,24 @@ export default function NotificationsPage() {
         <input className="input pl-9 max-w-sm" placeholder={t('search_by_client_or_invoice_number')} value={search}
           onChange={(e) => setSearch(e.target.value)} />
       </div>
+
+      {showFullHistory && (
+        <section className="mb-6 border-y border-slate-200">
+          <h2 className="py-3 text-sm font-semibold text-slate-700">Historique conservé pendant un an</h2>
+          {fullHistory.length === 0 ? (
+            <p className="py-4 text-sm text-slate-500">Aucun rappel enregistré.</p>
+          ) : fullHistory.map((row: any) => (
+            <div key={row.id} className="flex flex-wrap justify-between gap-2 border-t border-slate-100 py-3 text-sm">
+              <div>
+                <strong className="font-mono text-slate-800">{row.invoiceNumber}</strong>
+                <span className="ml-3 text-slate-500">{row.recipientEmail}</span>
+                <span className={clsx('ml-3', row.success ? 'text-emerald-700' : 'text-red-600')}>{row.success ? 'Envoyé' : 'Échec'}</span>
+              </div>
+              <time className="text-xs text-slate-500">{new Date(row.createdAt).toLocaleString('fr-FR')}</time>
+            </div>
+          ))}
+        </section>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
@@ -252,6 +301,14 @@ export default function NotificationsPage() {
                     </div>
                     <div className="text-slate-700 font-medium mt-0.5">{inv.clientName}</div>
                     {inv.clientEmail && <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5"><Mail size={11} /> {inv.clientEmail}</div>}
+                    <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                      <span>{(historyRowsForInvoice(reminderHistory, inv.id).filter((row: any) => row.success)).length} rappel(s) envoyé(s)</span>
+                      {historyRowsForInvoice(reminderHistory, inv.id).length > 0 && (
+                        <button type="button" onClick={() => setHistoryOpenId(historyOpenId === inv.id ? null : inv.id)} className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700">
+                          Historique <ChevronDown size={13} className={clsx(historyOpenId === inv.id && 'rotate-180')} />
+                        </button>
+                      )}
+                    </div>
                     {/* MOD 3: creator */}
                     {inv.createdBy && (
                       <div className={clsx('text-xs mt-1', inv.createdBy.role === 'admin' ? 'text-blue-500' : 'text-violet-500')}>
@@ -270,8 +327,8 @@ export default function NotificationsPage() {
                     <span className="text-xs text-slate-400">{t('no_contact_for_reminder')}</span>
                   )}
                   <button
-                    onClick={() => setReminderTarget(inv)}
-                    disabled={!inv.clientEmail || sending === inv.id}
+                    onClick={() => { setRecipientEmail(inv.clientEmail || ''); setReminderTarget(inv); }}
+                    disabled={sending === inv.id}
                     className="ml-auto btn-primary text-sm py-1.5"
                   >
                     {sending === inv.id
@@ -289,6 +346,16 @@ export default function NotificationsPage() {
                     </span>
                   </div>
                 )}
+                {historyOpenId === inv.id && (
+                  <div className="mt-3 border-t border-slate-100 pt-3 space-y-2">
+                    {historyRowsForInvoice(reminderHistory, inv.id).map((row: any) => (
+                      <div key={row.id} className="flex flex-wrap justify-between gap-2 text-xs text-slate-500">
+                        <span className={row.success ? 'text-emerald-700' : 'text-red-600'}>{row.success ? 'Envoyé' : 'Échec'} · {row.recipientEmail}</span>
+                        <span>{new Date(row.createdAt).toLocaleString('fr-FR')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -302,8 +369,9 @@ export default function NotificationsPage() {
         onCancel={() => setReminderTarget(null)}
         onConfirm={() => reminderTarget && void sendReminder(reminderTarget)}
       >
-        <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
-        <p><strong>{reminderTarget?.clientEmail}</strong></p>
+        <label className="label" htmlFor="reminderRecipient">Adresse e-mail du destinataire</label>
+        <input id="reminderRecipient" className="input" type="email" required value={recipientEmail}
+          onChange={(e) => setRecipientEmail(e.target.value)} />
         <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>
       </ConfirmDialog>
     </div>

@@ -90,17 +90,18 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState(invoice.clientEmail || '');
 
   const send = async () => {
-    if (!invoice.clientEmail) { toast.error(t('no_contact_for_reminder')); return; }
+    if (!recipientEmail.trim()) { toast.error(t('no_contact_for_reminder')); return; }
     setConfirmOpen(false);
     setSending(true);
     try {
-      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`);
+      const { data } = await api.post(`/notifications/send-reminder/${invoice.id}`, { recipientEmail });
       setResult(data.email);
       if (data.email?.success) toast.success(data.email.message);
       else toast.error(data.email?.message || t('reminder_failed'));
-    } catch { toast.error(t('error_sending_reminder')); }
+    } catch (error: any) { toast.error(error?.response?.data?.message || t('error_sending_reminder')); }
     setSending(false);
   };
 
@@ -110,14 +111,12 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         <Bell size={16} className="text-amber-500" />
         <h3 className="font-display font-600 text-slate-900">{t('payment_reminder')}</h3>
       </div>
-      {invoice.clientEmail && (
-        <p className="text-xs text-slate-500 mb-3 flex items-center gap-1">
-          <Mail size={12} /> {invoice.clientEmail}
-        </p>
-      )}
+      <label className="label" htmlFor="invoiceReminderRecipient">Adresse e-mail du destinataire</label>
+      <input id="invoiceReminderRecipient" className="input mb-3" type="email" value={recipientEmail}
+        onChange={(event) => setRecipientEmail(event.target.value)} />
       <button
         onClick={() => setConfirmOpen(true)}
-        disabled={!invoice.clientEmail || sending}
+        disabled={!recipientEmail.trim() || sending}
         className={clsx(
           'w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 text-sm font-medium transition-all',
           !invoice.clientEmail ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
@@ -129,7 +128,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         {sending ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
         {t('send_email_reminder')}
       </button>
-      {!invoice.clientEmail && (
+      {!recipientEmail.trim() && (
         <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
           <AlertTriangle size={12} /> {t('add_contact_for_reminders')}
         </p>
@@ -143,7 +142,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         onConfirm={send}
       >
         <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
-        <p><strong>{invoice.clientEmail || 'Aucune adresse email'}</strong></p>
+        <p><strong>{recipientEmail || 'Aucune adresse email'}</strong></p>
         <p>Un email de rappel de paiement sera envoyé à ce destinataire.</p>
       </ConfirmDialog>
     </div>
@@ -152,15 +151,19 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
 
 function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) => string }) {
   const items = Array.isArray(invoice.items) ? invoice.items : [];
+  const charges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const adjustmentType = invoice.adjustmentType || 'discount';
+  const adjustmentAmount = Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0);
   const hasData = items.some((item: any) => item.purchasePrice !== undefined && item.purchasePrice !== null);
-  if (!hasData && Number(invoice.totalMargin) === 0 && !Number(invoice.otherCharge) && !Number(invoice.deliveryPrice) && !invoice.deliveryPersonName) return null;
+  if (!hasData && Number(invoice.totalMargin) === 0 && !Number(invoice.otherCharge) && !charges.length && !Number(invoice.deliveryPrice) && !invoice.deliveryPersonName && !adjustmentAmount) return null;
 
   const totalRevenue = Number(invoice.total) || 0;
   const grossMargin = roundMoney(items.reduce((sum: number, item: any) => {
     if (item.purchasePrice == null) return sum;
     return sum + lineGrossMargin(Number(item.unitPrice), Number(item.purchasePrice), Number(item.quantity));
   }, 0) || Number(invoice.totalMargin) || 0);
-  const netProfit = computeNetProfit(grossMargin, Number(invoice.otherCharge) || 0, Number(invoice.deliveryPrice) || 0);
+  const adjustmentImpact = adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount;
+  const netProfit = computeNetProfit(grossMargin + adjustmentImpact, Number(invoice.otherCharge) || 0, Number(invoice.deliveryPrice) || 0);
   const marginRate = totalRevenue > 0 ? ((grossMargin / totalRevenue) * 100).toFixed(1) : '0';
 
   return (
@@ -175,6 +178,7 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
       </div>
       <div className="flex flex-wrap gap-x-6 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm text-slate-600">
         <span>Marge brute : <strong>{formatMoneyDzd(grossMargin)}</strong></span>
+        {adjustmentAmount > 0 && <span>{adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) : <strong>{adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</strong></span>}
         <span>Autre charge : <strong>{formatMoneyDzd(invoice.otherCharge || 0)}</strong></span>
         <span>Prix de livraison : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
         {invoice.deliveryPersonName && <span>Livreur : <strong>{invoice.deliveryPersonName}</strong></span>}
@@ -228,6 +232,16 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
           </tr>
         </tfoot>
       </table>
+      {charges.length > 0 && (
+        <div className="border-t border-slate-100 px-5 py-3 space-y-1">
+          <p className="text-xs font-semibold uppercase text-slate-500">Frais facturés</p>
+          {charges.map((charge: any, index: number) => (
+            <div key={`${charge.description}-${index}`} className="flex justify-between gap-3 text-sm text-slate-600">
+              <span>{charge.description || 'Frais'}</span><strong>{formatMoneyDzd(charge.amount)}</strong>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -323,8 +337,10 @@ export default function InvoiceDetailPage() {
 
   const canManage = isManager(user?.role);
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
-  const discountAmount = Number(invoice.discountAmount || 0);
-  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) + discountAmount;
+  const adjustmentAmount = Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0);
+  const adjustmentType = invoice.adjustmentType || 'discount';
+  const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const subtotalBeforeAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0));
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -489,14 +505,20 @@ export default function InvoiceDetailPage() {
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
             <span>{t('subtotal_excl_tax')}</span>
-            <span>{formatMoneyDzd(subtotalBeforeDiscount)}</span>
+            <span>{formatMoneyDzd(subtotalBeforeAdjustment)}</span>
           </div>
-          {Number(invoice.discountPercent || 0) > 0 && (
-            <div className="flex justify-between text-sm text-emerald-600">
-              <span>Remise ({invoice.discountPercent}%)</span>
-              <span>-{formatMoneyDzd(discountAmount)}</span>
+          {canManage && adjustmentAmount > 0 && (
+            <div className={clsx('flex justify-between text-sm', adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
+              <span>{adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%)</span>
+              <span>{adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</span>
             </div>
           )}
+          {canManage && invoiceCharges.map((charge: any, index: number) => (
+            <div key={`${charge.description}-${index}`} className="flex justify-between text-sm text-slate-600">
+              <span>Frais : {charge.description || 'Autre frais'}</span>
+              <span>+{formatMoneyDzd(charge.amount)}</span>
+            </div>
+          ))}
           {invoice.hasTva && (
             <div className="flex justify-between text-sm text-slate-500">
               <span>TVA ({invoice.tvaRate}%)</span>

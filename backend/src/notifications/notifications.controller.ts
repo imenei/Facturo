@@ -11,14 +11,19 @@ import { UserRole } from '../users/user.entity';
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
+  @Get('reminder-history')
+  getReminderHistory() {
+    return this.notificationsService.getReminderHistory();
+  }
+
   @Post('send-reminder/:invoiceId')
-  sendReminder(@Param('invoiceId') invoiceId: string) {
-    return this.notificationsService.sendAllReminders(invoiceId);
+  sendReminder(@Param('invoiceId') invoiceId: string, @Body('recipientEmail') recipientEmail?: string) {
+    return this.notificationsService.sendAllReminders(invoiceId, recipientEmail);
   }
 
   @Post('send-reminder/:invoiceId/email')
-  sendEmail(@Param('invoiceId') invoiceId: string) {
-    return this.notificationsService.sendEmailReminder(invoiceId);
+  sendEmail(@Param('invoiceId') invoiceId: string, @Body('recipientEmail') recipientEmail?: string) {
+    return this.notificationsService.sendEmailReminder(invoiceId, recipientEmail);
   }
 
   // MOD 8b: Get current email template
@@ -29,16 +34,16 @@ export class NotificationsController {
 
   // MOD 8b: Save custom email template
   @Put('email-template')
-  saveEmailTemplate(@Body() body: { subject: string; body: string }) {
-    this.notificationsService.saveEmailTemplate(body.subject, body.body);
+  async saveEmailTemplate(@Body() body: { subject: string; body: string }) {
+    await this.notificationsService.saveEmailTemplate(body.subject, body.body);
     return { success: true, message: 'Modèle enregistré' };
   }
 
   // MOD 8b: Reset email template to default
   @Delete('email-template')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
-  resetEmailTemplate() {
-    this.notificationsService.resetEmailTemplate();
+  async resetEmailTemplate() {
+    await this.notificationsService.resetEmailTemplate();
     return { success: true, message: 'Modèle réinitialisé au défaut' };
   }
 }

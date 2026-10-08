@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, ILike } from 'typeorm';
 import { Product } from './product.entity';
 import { CreateProductDto, UpdateProductDto } from './product.dto';
 
@@ -20,9 +20,13 @@ export class ProductsService {
   }
 
   async findAll(search?: string): Promise<Product[]> {
-    if (search) {
+    if (search?.trim()) {
+      const query = `%${search.trim()}%`;
       return this.productsRepo.find({
-        where: [{ name: Like(`%${search}%`) }, { reference: Like(`%${search}%`) }],
+        where: [
+          { name: ILike(query), isActive: true },
+          { reference: ILike(query), isActive: true },
+        ],
         order: { name: 'ASC' },
       });
     }

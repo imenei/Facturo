@@ -8,6 +8,7 @@ import {
   FileText, CheckSquare, Truck, DollarSign, TrendingUp,
   Clock, Loader2, Users, BarChart3, AlertCircle, Wrench,
   PlayCircle, Timer, ShieldAlert, Package, ArrowUpRight,
+  Receipt,
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
@@ -237,7 +238,7 @@ export default function DashboardPage() {
           )}
 
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <StatCard
               icon={TrendingUp} label={t('revenue')} color="bg-brand-500"
               value={formatMoneyDzd(overview.revenue?.totalRevenue || 0)}
@@ -247,6 +248,11 @@ export default function DashboardPage() {
               icon={AlertCircle} label={t('unpaid_amount')} color="bg-red-500"
               value={formatMoneyDzd(overview.revenue?.unpaidRevenue || 0)}
               sub={`${overview.invoicesCount?.unpaid || 0} en attente`}
+            />
+            <StatCard
+              icon={Receipt} label="Total TVA" color="bg-amber-500"
+              value={formatMoneyDzd(overview.revenue?.totalVat || 0)}
+              sub="Factures émises et payées"
             />
             {/* MOD 4: recovery rate KPI */}
             <StatCard

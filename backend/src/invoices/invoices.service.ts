@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Invoice, InvoiceType, InvoiceStatus, DeliveryStatus, PaymentStatus, WorkflowStep } from './invoice.entity';
+import { Invoice, InvoiceAdjustmentType, InvoiceType, InvoiceStatus, DeliveryStatus, PaymentStatus, WorkflowStep } from './invoice.entity';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { UserRole } from '../users/user.entity';
@@ -48,17 +48,30 @@ export class InvoicesService {
     return `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
   }
 
-  private calculateInvoiceTotals(subtotal: number, hasTva: boolean, tvaRate: number, discountPercent: number) {
-    const normalizedDiscount = Math.min(Math.max(Number(discountPercent) || 0, 0), 100);
-    const discountAmount = roundMoney((subtotal * normalizedDiscount) / 100);
-    const discountedSubtotal = roundMoney(subtotal - discountAmount);
-    const tvaAmount = hasTva ? roundMoney((discountedSubtotal * (tvaRate || 19)) / 100) : 0;
-    const total = roundMoney(discountedSubtotal + tvaAmount);
+  private calculateInvoiceTotals(
+    subtotal: number,
+    hasTva: boolean,
+    tvaRate: number,
+    adjustmentType: InvoiceAdjustmentType,
+    adjustmentPercent: number,
+    additionalCharges = 0,
+  ) {
+    const normalizedPercent = Math.min(Math.max(Number(adjustmentPercent) || 0, 0), 100);
+    const adjustmentAmount = roundMoney((subtotal * normalizedPercent) / 100);
+    const adjustedSubtotal = roundMoney(
+      adjustmentType === InvoiceAdjustmentType.ADDITION ? subtotal + adjustmentAmount : subtotal - adjustmentAmount,
+    );
+    const subtotalWithCharges = roundMoney(adjustedSubtotal + additionalCharges);
+    const tvaAmount = hasTva ? roundMoney((subtotalWithCharges * (tvaRate || 19)) / 100) : 0;
+    const total = roundMoney(subtotalWithCharges + tvaAmount);
 
     return {
-      discountPercent: normalizedDiscount,
-      discountAmount,
-      subtotal: discountedSubtotal,
+      discountPercent: adjustmentType === InvoiceAdjustmentType.DISCOUNT ? normalizedPercent : 0,
+      discountAmount: adjustmentType === InvoiceAdjustmentType.DISCOUNT ? adjustmentAmount : 0,
+      adjustmentType,
+      adjustmentPercent: normalizedPercent,
+      adjustmentAmount,
+      subtotal: subtotalWithCharges,
       tvaAmount,
       total,
     };
@@ -69,7 +82,7 @@ export class InvoicesService {
     const baseDate = referenceDate ? new Date(referenceDate) : new Date();
     const delivery = new Date(deliveryDate);
     if (Number.isNaN(baseDate.getTime()) || Number.isNaN(delivery.getTime())) return;
-    if (delivery < new Date(baseDate.toISOString().slice(0, 10))) {
+    if (delivery.toISOString().slice(0, 10) < baseDate.toISOString().slice(0, 10)) {
       throw new BadRequestException('La date de livraison ne peut pas être antérieure à la date de facturation.');
     }
   }
@@ -77,8 +90,11 @@ export class InvoicesService {
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
     try {
       const sourceInvoice = dto.sourceInvoiceId
-        ? await this.invoicesRepository.findOne({ where: { id: dto.sourceInvoiceId } })
+        ? await this.invoicesRepository.findOne({ where: { id: dto.sourceInvoiceId, isDeleted: false } })
         : null;
+      if (dto.sourceInvoiceId && (!sourceInvoice || sourceInvoice.type !== InvoiceType.FACTURE)) {
+        throw new BadRequestException('Un bon de livraison ne peut provenir que d’une facture définitive active.');
+      }
 
       const resolvedClientName = dto.clientName || sourceInvoice?.clientName || 'Client';
       const resolvedClientPhone = dto.clientPhone || sourceInvoice?.clientPhone || undefined;
@@ -96,8 +112,15 @@ export class InvoicesService {
 
       const number = await this.generateNumber(dto.type);
       const subtotal = roundMoney(resolvedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
-      const totals = this.calculateInvoiceTotals(subtotal, Boolean(dto.hasTva), Number(dto.tvaRate || 19), Number(dto.discountPercent || 0));
-      this.validateDeliveryDate(dto.dueDate || new Date(), dto.deliveryDate);
+      const otherCharges = (dto.otherCharges || []).map((charge) => ({
+        description: charge.description.trim(),
+        amount: roundMoney(charge.amount),
+      })).filter((charge) => charge.description || charge.amount > 0);
+      const additionalCharges = roundMoney(otherCharges.reduce((sum, charge) => sum + charge.amount, 0));
+      const adjustmentType = dto.adjustmentType || InvoiceAdjustmentType.DISCOUNT;
+      const adjustmentPercent = dto.adjustmentPercent ?? dto.discountPercent ?? 0;
+      const totals = this.calculateInvoiceTotals(subtotal, Boolean(dto.hasTva), Number(dto.tvaRate || 19), adjustmentType, adjustmentPercent, additionalCharges);
+      this.validateDeliveryDate(sourceInvoice?.createdAt || new Date(), dto.deliveryDate);
       const tvaAmount = totals.tvaAmount;
       const total = totals.total;
 
@@ -137,14 +160,22 @@ export class InvoicesService {
         subtotal: totals.subtotal,
         discountPercent: totals.discountPercent,
         discountAmount: totals.discountAmount,
+        adjustmentType: totals.adjustmentType,
+        adjustmentPercent: totals.adjustmentPercent,
+        adjustmentAmount: totals.adjustmentAmount,
         tvaAmount,
         total,
         totalMargin,
         otherCharge,
+        otherCharges,
         deliveryPrice,
         deliveryPersonId: delivery.id,
         deliveryPersonName: delivery.name,
-        netProfit: computeNetProfit(totalMargin - totals.discountAmount, otherCharge, deliveryPrice),
+        netProfit: computeNetProfit(
+          totalMargin + additionalCharges + (adjustmentType === InvoiceAdjustmentType.ADDITION ? totals.adjustmentAmount : -totals.adjustmentAmount),
+          otherCharge,
+          deliveryPrice,
+        ),
         issuerNameSize: dto.issuerNameSize ?? 16,
         clientId,
         clientLogoUrl: resolvedClientLogoUrl || null,
@@ -280,7 +311,7 @@ export class InvoicesService {
     const invoice = await this.findOne(id, user);
     invoice.lastModifiedBy = { id: user.id } as any;
 
-    const effectiveReferenceDate = dto.dueDate ?? invoice.dueDate ?? new Date();
+    const effectiveReferenceDate = invoice.createdAt ?? new Date();
     this.validateDeliveryDate(effectiveReferenceDate, dto.deliveryDate ?? invoice.deliveryDate ?? null);
 
     if (dto.type !== undefined) invoice.type = dto.type;
@@ -294,11 +325,21 @@ export class InvoicesService {
     if (dto.notes !== undefined) invoice.notes = dto.notes || null;
     if (dto.dueDate !== undefined) invoice.dueDate = parseDateOnly(dto.dueDate);
     if (dto.deliveryDate !== undefined) invoice.deliveryDate = parseDateOnly(dto.deliveryDate);
-    if (dto.discountPercent !== undefined) invoice.discountPercent = roundMoney(dto.discountPercent);
-    if (dto.discountPercent !== undefined) {
+    if (dto.adjustmentType !== undefined) invoice.adjustmentType = dto.adjustmentType;
+    if (dto.adjustmentPercent !== undefined) invoice.adjustmentPercent = roundMoney(dto.adjustmentPercent);
+    else if (dto.discountPercent !== undefined) {
+      invoice.adjustmentType = InvoiceAdjustmentType.DISCOUNT;
+      invoice.adjustmentPercent = roundMoney(dto.discountPercent);
+    }
+    if (dto.adjustmentType !== undefined || dto.adjustmentPercent !== undefined || dto.discountPercent !== undefined) {
       const baseSubtotal = roundMoney(invoice.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0));
-      const totals = this.calculateInvoiceTotals(baseSubtotal, Boolean(invoice.hasTva), Number(invoice.tvaRate || 19), Number(invoice.discountPercent || 0));
+      const additionalCharges = roundMoney((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0));
+      const totals = this.calculateInvoiceTotals(baseSubtotal, Boolean(invoice.hasTva), Number(invoice.tvaRate || 19), invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0), additionalCharges);
+      invoice.discountPercent = totals.discountPercent;
       invoice.discountAmount = totals.discountAmount;
+      invoice.adjustmentType = totals.adjustmentType;
+      invoice.adjustmentPercent = totals.adjustmentPercent;
+      invoice.adjustmentAmount = totals.adjustmentAmount;
       invoice.subtotal = totals.subtotal;
       invoice.tvaAmount = totals.tvaAmount;
       invoice.total = totals.total;
@@ -308,7 +349,15 @@ export class InvoicesService {
     if (dto.issuerNameSize !== undefined) invoice.issuerNameSize = dto.issuerNameSize;
     if (dto.hasTva !== undefined) invoice.hasTva = dto.hasTva;
     if (dto.tvaRate !== undefined) invoice.tvaRate = dto.tvaRate;
-    if (dto.otherCharge !== undefined) invoice.otherCharge = roundMoney(dto.otherCharge);
+    if (dto.otherCharges !== undefined) {
+      invoice.otherCharges = dto.otherCharges
+        .map((charge) => ({ description: charge.description.trim(), amount: roundMoney(charge.amount) }))
+        .filter((charge) => charge.description || charge.amount > 0);
+      invoice.otherCharge = roundMoney(invoice.otherCharges.reduce((sum, charge) => sum + charge.amount, 0));
+    } else if (dto.otherCharge !== undefined) {
+      invoice.otherCharge = roundMoney(dto.otherCharge);
+      invoice.otherCharges = invoice.otherCharge > 0 ? [{ description: 'Autre charge', amount: invoice.otherCharge }] : [];
+    }
     if (dto.deliveryPrice !== undefined) invoice.deliveryPrice = roundMoney(dto.deliveryPrice);
     if (dto.deliveryPersonId !== undefined) {
       const delivery = await this.resolveDeliveryPerson(dto.deliveryPersonId);
@@ -338,20 +387,30 @@ export class InvoicesService {
       });
 
       const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
-      const totals = this.calculateInvoiceTotals(subtotal, hasTva, tvaRate, Number(invoice.discountPercent || 0));
+      const additionalCharges = roundMoney((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0));
+      const totals = this.calculateInvoiceTotals(subtotal, hasTva, tvaRate, invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0), additionalCharges);
       invoice.items = items;
       invoice.subtotal = totals.subtotal;
+      invoice.discountPercent = totals.discountPercent;
       invoice.discountAmount = totals.discountAmount;
+      invoice.adjustmentType = totals.adjustmentType;
+      invoice.adjustmentPercent = totals.adjustmentPercent;
+      invoice.adjustmentAmount = totals.adjustmentAmount;
       invoice.tvaAmount = totals.tvaAmount;
       invoice.total = totals.total;
       invoice.totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
-    } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined || dto.discountPercent !== undefined) {
+    } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined || dto.discountPercent !== undefined || dto.adjustmentType !== undefined || dto.adjustmentPercent !== undefined || dto.otherCharges !== undefined) {
       const hasTva = dto.hasTva ?? invoice.hasTva;
       const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
       const baselineSubtotal = roundMoney(invoice.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0));
-      const totals = this.calculateInvoiceTotals(baselineSubtotal, hasTva, tvaRate, Number(invoice.discountPercent || 0));
+      const additionalCharges = roundMoney((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0));
+      const totals = this.calculateInvoiceTotals(baselineSubtotal, hasTva, tvaRate, invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0), additionalCharges);
       invoice.subtotal = totals.subtotal;
+      invoice.discountPercent = totals.discountPercent;
       invoice.discountAmount = totals.discountAmount;
+      invoice.adjustmentType = totals.adjustmentType;
+      invoice.adjustmentPercent = totals.adjustmentPercent;
+      invoice.adjustmentAmount = totals.adjustmentAmount;
       invoice.tvaAmount = totals.tvaAmount;
       invoice.total = totals.total;
     }
@@ -361,7 +420,7 @@ export class InvoicesService {
     }
 
     invoice.netProfit = computeNetProfit(
-      Number(invoice.totalMargin || 0) - Number(invoice.discountAmount || 0),
+      Number(invoice.totalMargin || 0) + Number((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0)) + (invoice.adjustmentType === InvoiceAdjustmentType.ADDITION ? Number(invoice.adjustmentAmount || 0) : -Number(invoice.adjustmentAmount || 0)),
       Number(invoice.otherCharge || 0),
       Number(invoice.deliveryPrice || 0),
     );
