@@ -111,12 +111,13 @@ export default function NewInvoicePage() {
 
   const [form, setForm] = useState({
     type: params.get('type') || 'facture',
+    sourceInvoiceId: params.get('sourceInvoiceId') || '',
     clientName: '', clientEmail: '', clientPhone: '',
     clientAddress: '', clientNif: '', clientNis: '',
     clientLogoUrl: '', hasTva: false, tvaRate: 19,
     notes: '', dueDate: '', deliveryDate: '', templateType: '',
     issuerName: COMPANY_IDENTITIES[0], issuerNameSize: 16,
-    otherCharge: 0, deliveryPrice: 0, deliveryPersonId: '',
+    discountPercent: 0, otherCharge: 0, deliveryPrice: 0, deliveryPersonId: '',
   });
 
   // MOD 7: items include purchasePrice
@@ -125,20 +126,54 @@ export default function NewInvoicePage() {
   ]);
 
   useEffect(() => {
+    const sourceInvoiceId = params.get('sourceInvoiceId');
     Promise.all([
       api.get('/templates').catch(() => ({ data: [] })),
       api.get('/products').catch(() => ({ data: [] })),
       api.get('/clients').catch(() => ({ data: [] })),
       api.get('/users/livreurs').catch(() => ({ data: [] })),
-    ]).then(([tmpl, prod, clients, deliveryUsers]) => {
+      sourceInvoiceId ? api.get(`/invoices/${sourceInvoiceId}`).catch(() => null) : Promise.resolve(null),
+    ]).then(([tmpl, prod, clients, deliveryUsers, sourceInvoice]) => {
       setTemplates(tmpl.data);
       setProducts(prod.data);
       setExistingClients(clients.data);
       setDeliveryPeople(deliveryUsers.data);
       const def = tmpl.data.find((t: any) => t.isDefault);
       if (def) setForm((p) => ({ ...p, templateType: def.type }));
+
+      if (sourceInvoice?.data) {
+        const invoice = sourceInvoice.data;
+        setForm((p) => ({
+          ...p,
+          type: 'bon_livraison',
+          sourceInvoiceId: sourceInvoiceId || p.sourceInvoiceId,
+          clientName: invoice.clientName || '',
+          clientEmail: invoice.clientEmail || '',
+          clientPhone: invoice.clientPhone || '',
+          clientAddress: invoice.clientAddress || '',
+          clientNif: invoice.clientNif || '',
+          clientNis: invoice.clientNis || '',
+          clientLogoUrl: invoice.clientLogoUrl || '',
+          hasTva: Boolean(invoice.hasTva),
+          tvaRate: Number(invoice.tvaRate || 19),
+          notes: invoice.notes || '',
+          dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().slice(0, 10) : '',
+          deliveryDate: invoice.deliveryDate ? new Date(invoice.deliveryDate).toISOString().slice(0, 10) : '',
+          templateType: invoice.templateType || p.templateType || 'classic',
+          discountPercent: Number(invoice.discountPercent || 0),
+          otherCharge: Number(invoice.otherCharge || 0),
+          deliveryPrice: Number(invoice.deliveryPrice || 0),
+          deliveryPersonId: invoice.deliveryPersonId || '',
+        }));
+        setItems((invoice.items || []).map((item: any) => ({
+          description: item.description || '',
+          quantity: Number(item.quantity || 1),
+          unitPrice: Number(item.unitPrice || 0),
+          purchasePrice: Number(item.purchasePrice || 0),
+        })));
+      }
     });
-  }, []);
+  }, [params]);
 
   const clientSuggestions = form.clientName.length >= 1
     ? existingClients.filter((c) =>
@@ -179,8 +214,10 @@ export default function NewInvoicePage() {
   };
 
   const subtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(item.quantity * item.unitPrice), 0));
-  const tvaAmount = form.hasTva ? roundMoney((subtotal * form.tvaRate) / 100) : 0;
-  const total = roundMoney(subtotal + tvaAmount);
+  const discountAmount = roundMoney((subtotal * (Number(form.discountPercent) || 0)) / 100);
+  const discountedSubtotal = roundMoney(subtotal - discountAmount);
+  const tvaAmount = form.hasTva ? roundMoney((discountedSubtotal * form.tvaRate) / 100) : 0;
+  const total = roundMoney(discountedSubtotal + tvaAmount);
 
   // MOD 7: internal margin calculation
   const totalMargin = roundMoney(items.reduce((sum, item) =>
@@ -199,9 +236,18 @@ export default function NewInvoicePage() {
         // Already a server path, use as-is
       }
 
+      const referenceDate = form.dueDate || new Date().toISOString().slice(0, 10);
+      if (form.deliveryDate && form.deliveryDate < referenceDate) {
+        toast.error('La date de livraison ne peut pas être antérieure à la date de facturation.');
+        setSaving(false);
+        return;
+      }
+
       const payload: Record<string, any> = {
         type: form.type,
+        sourceInvoiceId: form.sourceInvoiceId || undefined,
         clientName: form.clientName.trim(),
+        discountPercent: Number(form.discountPercent) || 0,
         items: items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
@@ -542,12 +588,28 @@ export default function NewInvoicePage() {
               )}
             </div>
 
+            {Number(form.discountPercent) > 0 && (
+              <div className="flex justify-between text-sm text-emerald-600">
+                <span>Remise ({form.discountPercent}%)</span>
+                <span className="font-medium">-{formatMoneyDzd(discountAmount)}</span>
+              </div>
+            )}
+
             {form.hasTva && (
               <div className="flex justify-between text-sm text-slate-600">
                 <span>TVA ({form.tvaRate}%)</span>
                 <span className="font-medium">{formatMoneyDzd(tvaAmount)}</span>
               </div>
             )}
+
+            <div className="flex justify-between text-sm text-slate-600 mt-2">
+              <span>Remise %</span>
+              <div className="flex items-center gap-2">
+                <input type="number" min={0} max={100} step={1} className="input w-20 text-right py-1" value={form.discountPercent}
+                  onChange={(e) => setForm({ ...form, discountPercent: Number(e.target.value) || 0 })} />
+                <span>%</span>
+              </div>
+            </div>
 
             <div className="flex justify-between text-xl font-display font-700 text-slate-900 pt-2 border-t">
               <span>{t('total_incl_tax')}</span>
@@ -608,7 +670,7 @@ export default function NewInvoicePage() {
             </div>
             <div>
               <label className="label">Date de livraison <span className="text-slate-400 font-normal">(optionnelle)</span></label>
-              <input type="date" className="input" value={form.deliveryDate}
+              <input type="date" className="input" min={form.dueDate || new Date().toISOString().slice(0, 10)} value={form.deliveryDate}
                 onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} />
             </div>
             <div>

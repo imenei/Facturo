@@ -56,6 +56,9 @@ export class Invoice {
   workflowStep: WorkflowStep;
 
   @Column({ nullable: true })
+  sourceInvoiceId: string;
+
+  @Column({ nullable: true })
   clientId: string;
 
   @Column({ nullable: true, type: 'text' })
@@ -96,6 +99,12 @@ export class Invoice {
 
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   subtotal: number;
+
+  @Column({ type: 'decimal', precision: 5, scale: 2, default: 0 })
+  discountPercent: number;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  discountAmount: number;
 
   @Column({ default: false })
   hasTva: boolean;
@@ -147,6 +156,12 @@ export class Invoice {
   // MOD 3: track who last modified
   @ManyToOne(() => User, { eager: true, nullable: true })
   lastModifiedBy: User;
+
+  @Column({ default: false })
+  isDeleted: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

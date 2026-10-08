@@ -36,6 +36,19 @@ export default function InvoiceDeletionRequestsPage() {
     setReviewing(null);
   };
 
+  const removeRequest = async (requestId: string) => {
+    if (!window.confirm('Supprimer cette demande de suppression ? Cette action ne supprime pas la facture concernée.')) return;
+    setReviewing(requestId);
+    try {
+      await api.delete(`/invoices/deletion-requests/${requestId}`);
+      toast.success('Demande de suppression supprimée');
+      await load();
+    } catch {
+      toast.error('Impossible de supprimer cette demande');
+    }
+    setReviewing(null);
+  };
+
   if (user?.role !== 'admin') return <div className="p-8 text-slate-500">Accès réservé aux administrateurs.</div>;
 
   return (
@@ -73,13 +86,16 @@ export default function InvoiceDeletionRequestsPage() {
               </div>
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{request.reason}</p>
               {request.status === 'pending' && (
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'approve')}
                     className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700">
                     {reviewing === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approuver
                   </button>
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'reject')} className="btn-secondary text-sm text-red-600">
                     <X size={14} /> Rejeter
+                  </button>
+                  <button type="button" disabled={reviewing === request.id} onClick={() => void removeRequest(request.id)} className="btn-secondary text-sm text-slate-600">
+                    Supprimer la demande
                   </button>
                 </div>
               )}

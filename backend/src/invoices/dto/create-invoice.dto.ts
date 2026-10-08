@@ -54,6 +54,11 @@ export class CreateInvoiceDto {
   @IsString()
   clientLogoUrl?: string; // ✅ fix ts2339
 
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  sourceInvoiceId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemDto)
@@ -94,6 +99,11 @@ export class CreateInvoiceDto {
   @IsNumber()
   @Type(() => Number)
   issuerNameSize?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  discountPercent?: number;
 
   @IsOptional()
   @IsNumber()

@@ -48,14 +48,60 @@ export class InvoicesService {
     return `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
   }
 
+  private calculateInvoiceTotals(subtotal: number, hasTva: boolean, tvaRate: number, discountPercent: number) {
+    const normalizedDiscount = Math.min(Math.max(Number(discountPercent) || 0, 0), 100);
+    const discountAmount = roundMoney((subtotal * normalizedDiscount) / 100);
+    const discountedSubtotal = roundMoney(subtotal - discountAmount);
+    const tvaAmount = hasTva ? roundMoney((discountedSubtotal * (tvaRate || 19)) / 100) : 0;
+    const total = roundMoney(discountedSubtotal + tvaAmount);
+
+    return {
+      discountPercent: normalizedDiscount,
+      discountAmount,
+      subtotal: discountedSubtotal,
+      tvaAmount,
+      total,
+    };
+  }
+
+  private validateDeliveryDate(referenceDate?: string | Date | null, deliveryDate?: string | Date | null) {
+    if (!deliveryDate) return;
+    const baseDate = referenceDate ? new Date(referenceDate) : new Date();
+    const delivery = new Date(deliveryDate);
+    if (Number.isNaN(baseDate.getTime()) || Number.isNaN(delivery.getTime())) return;
+    if (delivery < new Date(baseDate.toISOString().slice(0, 10))) {
+      throw new BadRequestException('La date de livraison ne peut pas être antérieure à la date de facturation.');
+    }
+  }
+
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
     try {
-      const number = await this.generateNumber(dto.type);
-      const subtotal = roundMoney(dto.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
-      const tvaAmount = dto.hasTva ? roundMoney((subtotal * (dto.tvaRate || 19)) / 100) : 0;
-      const total = roundMoney(subtotal + tvaAmount);
+      const sourceInvoice = dto.sourceInvoiceId
+        ? await this.invoicesRepository.findOne({ where: { id: dto.sourceInvoiceId } })
+        : null;
 
-      const items = dto.items.map((item, i) => {
+      const resolvedClientName = dto.clientName || sourceInvoice?.clientName || 'Client';
+      const resolvedClientPhone = dto.clientPhone || sourceInvoice?.clientPhone || undefined;
+      const resolvedClientAddress = dto.clientAddress || sourceInvoice?.clientAddress || undefined;
+      const resolvedClientEmail = dto.clientEmail || sourceInvoice?.clientEmail || undefined;
+      const resolvedClientNif = dto.clientNif || sourceInvoice?.clientNif || undefined;
+      const resolvedClientNis = dto.clientNis || sourceInvoice?.clientNis || undefined;
+      const resolvedClientLogoUrl = dto.clientLogoUrl || sourceInvoice?.clientLogoUrl || null;
+      const resolvedItems = dto.items?.length ? dto.items : (sourceInvoice?.items || []).map((item) => ({
+        description: item.description,
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice || 0),
+        purchasePrice: Number((item as any).purchasePrice || 0),
+      }));
+
+      const number = await this.generateNumber(dto.type);
+      const subtotal = roundMoney(resolvedItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0));
+      const totals = this.calculateInvoiceTotals(subtotal, Boolean(dto.hasTva), Number(dto.tvaRate || 19), Number(dto.discountPercent || 0));
+      this.validateDeliveryDate(dto.dueDate || new Date(), dto.deliveryDate);
+      const tvaAmount = totals.tvaAmount;
+      const total = totals.total;
+
+      const items = resolvedItems.map((item, i) => {
         const purchasePrice = roundMoney((item as any).purchasePrice ?? 0);
         const unitPrice = roundMoney(item.unitPrice);
         const quantity = Number(item.quantity) || 0;
@@ -75,13 +121,22 @@ export class InvoicesService {
       const otherCharge = roundMoney(dto.otherCharge ?? 0);
       const deliveryPrice = roundMoney(dto.deliveryPrice ?? 0);
       const delivery = await this.resolveDeliveryPerson(dto.deliveryPersonId);
-      const clientId = this.buildClientId(dto.clientName, dto.clientPhone);
+      const clientId = this.buildClientId(resolvedClientName, resolvedClientPhone || undefined);
 
       const invoice = this.invoicesRepository.create({
         ...dto,
+        sourceInvoiceId: dto.sourceInvoiceId || sourceInvoice?.id || null,
         number,
+        clientName: resolvedClientName,
+        clientEmail: resolvedClientEmail || null,
+        clientPhone: resolvedClientPhone || null,
+        clientAddress: resolvedClientAddress || null,
+        clientNif: resolvedClientNif || null,
+        clientNis: resolvedClientNis || null,
         items,
-        subtotal,
+        subtotal: totals.subtotal,
+        discountPercent: totals.discountPercent,
+        discountAmount: totals.discountAmount,
         tvaAmount,
         total,
         totalMargin,
@@ -89,10 +144,10 @@ export class InvoicesService {
         deliveryPrice,
         deliveryPersonId: delivery.id,
         deliveryPersonName: delivery.name,
-        netProfit: computeNetProfit(totalMargin, otherCharge, deliveryPrice),
+        netProfit: computeNetProfit(totalMargin - totals.discountAmount, otherCharge, deliveryPrice),
         issuerNameSize: dto.issuerNameSize ?? 16,
         clientId,
-        clientLogoUrl: dto.clientLogoUrl || null,
+        clientLogoUrl: resolvedClientLogoUrl || null,
         dueDate: parseDateOnly(dto.dueDate),
         deliveryDate: parseDateOnly(dto.deliveryDate),
         templateType: dto.templateType || null,
@@ -132,11 +187,12 @@ export class InvoicesService {
         .createQueryBuilder('inv')
         .leftJoinAndSelect('inv.createdBy', 'createdBy')
         .leftJoinAndSelect('inv.lastModifiedBy', 'lastModifiedBy')
+        .where('inv.isDeleted = :isDeleted', { isDeleted: false })
         .orderBy('inv.createdAt', 'DESC');
 
       const canSeeAll = user.role === UserRole.ADMIN || user.role === UserRole.COMMERCIAL;
       if (!canSeeAll) {
-        qb.where('createdBy.id = :userId', { userId: user.id });
+        qb.andWhere('createdBy.id = :userId', { userId: user.id });
       }
 
       if (filters?.client) {
@@ -192,7 +248,7 @@ export class InvoicesService {
   async findOne(id: string, user: { id: string; role: UserRole }): Promise<Invoice> {
     try {
       const invoice = await this.invoicesRepository.findOne({
-        where: { id },
+        where: { id, isDeleted: false },
         relations: ['createdBy', 'lastModifiedBy'],
       });
       if (!invoice) throw new NotFoundException('Facture non trouvée');
@@ -224,6 +280,9 @@ export class InvoicesService {
     const invoice = await this.findOne(id, user);
     invoice.lastModifiedBy = { id: user.id } as any;
 
+    const effectiveReferenceDate = dto.dueDate ?? invoice.dueDate ?? new Date();
+    this.validateDeliveryDate(effectiveReferenceDate, dto.deliveryDate ?? invoice.deliveryDate ?? null);
+
     if (dto.type !== undefined) invoice.type = dto.type;
     if (dto.status !== undefined) invoice.status = dto.status;
     if (dto.clientName !== undefined) invoice.clientName = dto.clientName;
@@ -235,6 +294,15 @@ export class InvoicesService {
     if (dto.notes !== undefined) invoice.notes = dto.notes || null;
     if (dto.dueDate !== undefined) invoice.dueDate = parseDateOnly(dto.dueDate);
     if (dto.deliveryDate !== undefined) invoice.deliveryDate = parseDateOnly(dto.deliveryDate);
+    if (dto.discountPercent !== undefined) invoice.discountPercent = roundMoney(dto.discountPercent);
+    if (dto.discountPercent !== undefined) {
+      const baseSubtotal = roundMoney(invoice.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0));
+      const totals = this.calculateInvoiceTotals(baseSubtotal, Boolean(invoice.hasTva), Number(invoice.tvaRate || 19), Number(invoice.discountPercent || 0));
+      invoice.discountAmount = totals.discountAmount;
+      invoice.subtotal = totals.subtotal;
+      invoice.tvaAmount = totals.tvaAmount;
+      invoice.total = totals.total;
+    }
     if (dto.templateType !== undefined) invoice.templateType = dto.templateType || null;
     if (dto.issuerName !== undefined) invoice.issuerName = dto.issuerName || null;
     if (dto.issuerNameSize !== undefined) invoice.issuerNameSize = dto.issuerNameSize;
@@ -270,18 +338,22 @@ export class InvoicesService {
       });
 
       const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
-      const tvaAmount = hasTva ? roundMoney((subtotal * tvaRate) / 100) : 0;
+      const totals = this.calculateInvoiceTotals(subtotal, hasTva, tvaRate, Number(invoice.discountPercent || 0));
       invoice.items = items;
-      invoice.subtotal = subtotal;
-      invoice.tvaAmount = tvaAmount;
-      invoice.total = roundMoney(subtotal + tvaAmount);
+      invoice.subtotal = totals.subtotal;
+      invoice.discountAmount = totals.discountAmount;
+      invoice.tvaAmount = totals.tvaAmount;
+      invoice.total = totals.total;
       invoice.totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
-    } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined) {
+    } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined || dto.discountPercent !== undefined) {
       const hasTva = dto.hasTva ?? invoice.hasTva;
       const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
-      const subtotal = roundMoney(invoice.subtotal);
-      invoice.tvaAmount = hasTva ? roundMoney((subtotal * tvaRate) / 100) : 0;
-      invoice.total = roundMoney(subtotal + Number(invoice.tvaAmount));
+      const baselineSubtotal = roundMoney(invoice.items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0), 0));
+      const totals = this.calculateInvoiceTotals(baselineSubtotal, hasTva, tvaRate, Number(invoice.discountPercent || 0));
+      invoice.subtotal = totals.subtotal;
+      invoice.discountAmount = totals.discountAmount;
+      invoice.tvaAmount = totals.tvaAmount;
+      invoice.total = totals.total;
     }
 
     if (dto.clientName) {
@@ -289,12 +361,24 @@ export class InvoicesService {
     }
 
     invoice.netProfit = computeNetProfit(
-      Number(invoice.totalMargin || 0),
+      Number(invoice.totalMargin || 0) - Number(invoice.discountAmount || 0),
       Number(invoice.otherCharge || 0),
       Number(invoice.deliveryPrice || 0),
     );
 
     return this.invoicesRepository.save(invoice);
+  }
+
+  async deleteDeletionRequest(requestId: string, user: { id: string; role: UserRole }) {
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Seul un administrateur peut supprimer une demande de suppression');
+    }
+
+    const request = await this.deletionRequestsRepository.findOne({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Demande introuvable');
+
+    await this.deletionRequestsRepository.delete(requestId);
+    return { success: true, deletedId: requestId };
   }
 
   async updateDeliveryStatus(id: string, status: DeliveryStatus): Promise<Invoice> {
@@ -329,11 +413,37 @@ export class InvoicesService {
     return this.invoicesRepository.save(invoice);
   }
 
+  async getTrash(user: { id: string; role: UserRole }): Promise<Invoice[]> {
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Seul un administrateur peut accéder à la corbeille');
+    }
+    return this.invoicesRepository.find({
+      where: { isDeleted: true },
+      relations: ['createdBy', 'lastModifiedBy'],
+      order: { deletedAt: 'DESC' },
+    });
+  }
+
+  async restore(id: string, user: { id: string; role: UserRole }): Promise<Invoice> {
+    if (user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Seul un administrateur peut restaurer une facture');
+    }
+    const invoice = await this.invoicesRepository.findOne({ where: { id } });
+    if (!invoice) throw new NotFoundException('Facture introuvable');
+    invoice.isDeleted = false;
+    invoice.deletedAt = null;
+    return this.invoicesRepository.save(invoice);
+  }
+
   async remove(id: string, user: { id: string; role: UserRole }): Promise<void> {
     if (user.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Seul un administrateur peut supprimer une facture');
     }
-    await this.invoicesRepository.delete(id);
+    const invoice = await this.invoicesRepository.findOne({ where: { id } });
+    if (!invoice) throw new NotFoundException('Facture introuvable');
+    invoice.isDeleted = true;
+    invoice.deletedAt = new Date();
+    await this.invoicesRepository.save(invoice);
   }
 
   async requestDeletion(invoiceId: string, reason: string, user: { id: string; role: UserRole }) {
@@ -389,7 +499,12 @@ export class InvoicesService {
       request.reviewedBy = { id: user.id } as any;
       request.reviewedAt = new Date();
       await requests.save(request);
-      if (approve) await invoices.delete(request.invoiceId);
+      if (approve) {
+        await invoices.update(request.invoiceId, {
+          isDeleted: true,
+          deletedAt: new Date(),
+        });
+      }
       return request;
     });
   }
@@ -405,13 +520,14 @@ export class InvoicesService {
   }
 
   async getStats(): Promise<any> {
-    const total = await this.invoicesRepository.count();
-    const paid = await this.invoicesRepository.count({ where: { status: InvoiceStatus.PAYEE } });
-    const pending = await this.invoicesRepository.count({ where: { status: InvoiceStatus.EMISE } });
+    const total = await this.invoicesRepository.count({ where: { isDeleted: false } });
+    const paid = await this.invoicesRepository.count({ where: { status: InvoiceStatus.PAYEE, isDeleted: false } });
+    const pending = await this.invoicesRepository.count({ where: { status: InvoiceStatus.EMISE, isDeleted: false } });
     const result = await this.invoicesRepository
       .createQueryBuilder('inv')
       .select('SUM(inv.total)', 'totalRevenue')
       .where('inv.status = :status', { status: InvoiceStatus.PAYEE })
+      .andWhere('inv.isDeleted = :isDeleted', { isDeleted: false })
       .getRawOne();
 
     return { total, paid, pending, totalRevenue: result?.totalRevenue || 0 };

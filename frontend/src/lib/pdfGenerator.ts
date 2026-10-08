@@ -215,12 +215,20 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   let ty = y + 8;
   const labelX = W - 70;
   const valX = W - 14;
+  const discountAmount = Number(invoice.discountAmount || 0);
+  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) + discountAmount;
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(70, 70, 70);
   doc.text('Sous-total HT :', labelX, ty);
-  doc.text(fmt(invoice.subtotal), valX, ty, { align: 'right' });
+  doc.text(fmt(subtotalBeforeDiscount), valX, ty, { align: 'right' });
+
+  if (Number(invoice.discountPercent || 0) > 0) {
+    ty += 6;
+    doc.text(`Remise (${invoice.discountPercent}%) :`, labelX, ty);
+    doc.text(`-${fmt(discountAmount)}`, valX, ty, { align: 'right' });
+  }
 
   if (invoice.hasTva) {
     ty += 6;
@@ -273,7 +281,7 @@ function footerBlock(doc: jsPDF, invoice: any, company: any) {
   doc.setFontSize(7);
   doc.setTextColor(130, 130, 130);
   if (company?.signature || company?.stamp) {
-    doc.text('Signature & Cachet', W - 55, sigY);
+    doc.text('Signature et cachet', W - 55, sigY);
     doc.setDrawColor(180, 180, 180);
     doc.setLineWidth(0.3);
     doc.rect(W - 56, sigY + 2, 42, 16);
@@ -658,7 +666,7 @@ function deliveryNoteFooter(doc: jsPDF, invoice: any, company: any, startY: numb
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
   doc.setTextColor(80, 80, 80);
-  doc.text('Signature & cachet expéditeur', 14 + sigW / 2, y - 2, { align: 'center' });
+  doc.text('Signature et cachet expéditeur', 14 + sigW / 2, y - 2, { align: 'center' });
   doc.text('Signature client (bon pour accord)', 14 + sigW + 12 + sigW / 2, y - 2, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');

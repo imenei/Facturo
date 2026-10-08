@@ -109,6 +109,11 @@ export class UpdateInvoiceDto {
   @IsOptional()
   @IsNumber()
   @Type(() => Number)
+  discountPercent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
   otherCharge?: number;
 
   @IsOptional()

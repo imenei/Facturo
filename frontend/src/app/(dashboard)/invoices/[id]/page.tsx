@@ -323,6 +323,8 @@ export default function InvoiceDetailPage() {
 
   const canManage = isManager(user?.role);
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
+  const discountAmount = Number(invoice.discountAmount || 0);
+  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) + discountAmount;
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -383,6 +385,11 @@ export default function InvoiceDetailPage() {
           <button onClick={() => setShowPreview(true)} className="btn-primary text-sm">
             <Eye size={15} /> {t('preview_pdf')}
           </button>
+          {invoice.type === 'facture' && (
+            <Link href={`/invoices/new?type=bon_livraison&sourceInvoiceId=${invoice.id}`} className="btn-secondary text-sm">
+              <FileText size={15} /> Créer un bon de livraison
+            </Link>
+          )}
           <button onClick={() => generateInvoiceWord(invoice, company)} className="btn-secondary text-sm">
             <FileText size={15} /> Word
           </button>
@@ -482,8 +489,14 @@ export default function InvoiceDetailPage() {
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
             <span>{t('subtotal_excl_tax')}</span>
-            <span>{formatMoneyDzd(invoice.subtotal)}</span>
+            <span>{formatMoneyDzd(subtotalBeforeDiscount)}</span>
           </div>
+          {Number(invoice.discountPercent || 0) > 0 && (
+            <div className="flex justify-between text-sm text-emerald-600">
+              <span>Remise ({invoice.discountPercent}%)</span>
+              <span>-{formatMoneyDzd(discountAmount)}</span>
+            </div>
+          )}
           {invoice.hasTva && (
             <div className="flex justify-between text-sm text-slate-500">
               <span>TVA ({invoice.tvaRate}%)</span>

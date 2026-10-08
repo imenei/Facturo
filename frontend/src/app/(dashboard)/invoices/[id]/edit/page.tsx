@@ -28,7 +28,9 @@ export default function EditInvoicePage() {
         clientNif: data.clientNif || '', clientNis: data.clientNis || '',
         hasTva: data.hasTva, tvaRate: data.tvaRate, notes: data.notes || '',
         status: data.status, dueDate: data.dueDate ? String(data.dueDate).slice(0, 10) : '',
+        deliveryDate: data.deliveryDate ? String(data.deliveryDate).slice(0, 10) : '',
         issuerName: data.issuerName || '', issuerNameSize: Number(data.issuerNameSize) || 16,
+        discountPercent: Number(data.discountPercent) || 0,
         otherCharge: Number(data.otherCharge) || 0, deliveryPrice: Number(data.deliveryPrice) || 0,
         deliveryPersonId: data.deliveryPersonId || '',
       });
@@ -51,13 +53,22 @@ export default function EditInvoicePage() {
   const removeItem = (i: number) => setItems((p) => p.filter((_, idx) => idx !== i));
 
   const subtotal = roundMoney(items.reduce((s, i) => s + roundMoney(i.quantity * i.unitPrice), 0));
-  const tvaAmount = form.hasTva ? roundMoney((subtotal * form.tvaRate) / 100) : 0;
-  const total = roundMoney(subtotal + tvaAmount);
+  const discountAmount = roundMoney((subtotal * (Number(form.discountPercent) || 0)) / 100);
+  const discountedSubtotal = roundMoney(subtotal - discountAmount);
+  const tvaAmount = form.hasTva ? roundMoney((discountedSubtotal * form.tvaRate) / 100) : 0;
+  const total = roundMoney(discountedSubtotal + tvaAmount);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      const referenceDate = form.dueDate || new Date().toISOString().slice(0, 10);
+      if (form.deliveryDate && form.deliveryDate < referenceDate) {
+        toast.error('La date de livraison ne peut pas être antérieure à la date de facturation.');
+        setSaving(false);
+        return;
+      }
+
       const payload = {
         type: form.type,
         status: form.status,
@@ -71,6 +82,7 @@ export default function EditInvoicePage() {
         dueDate: form.dueDate || null,
         issuerName: form.issuerName?.trim() || null,
         issuerNameSize: Number(form.issuerNameSize) || 16,
+        discountPercent: Number(form.discountPercent) || 0,
         otherCharge: Number(form.otherCharge) || 0,
         deliveryPrice: Number(form.deliveryPrice) || 0,
         deliveryPersonId: form.deliveryPersonId || null,
@@ -143,6 +155,12 @@ export default function EditInvoicePage() {
         </div>
 
         <div className="card p-6">
+          <label className="label" htmlFor="deliveryDate">Date de livraison</label>
+          <input id="deliveryDate" className="input max-w-xs" type="date" min={form.dueDate || new Date().toISOString().slice(0, 10)} value={form.deliveryDate || ''}
+            onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} />
+        </div>
+
+        <div className="card p-6">
           <h2 className="font-display font-600 text-slate-900 mb-4">Livraison et autres charges</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -197,12 +215,18 @@ export default function EditInvoicePage() {
         </div>
 
         <div className="card p-5">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.hasTva} onChange={(e) => setForm({ ...form, hasTva: e.target.checked })} className="w-4 h-4 accent-brand-600" />
               <span className="text-sm font-medium">TVA</span>
             </label>
             {form.hasTva && <input type="number" className="input w-20" value={form.tvaRate} onChange={(e) => setForm({ ...form, tvaRate: Number(e.target.value) })} />}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <label className="text-sm font-medium">Remise %</label>
+            <input type="number" min={0} max={100} step={1} className="input w-20 text-right" value={form.discountPercent ?? 0}
+              onChange={(e) => setForm({ ...form, discountPercent: Number(e.target.value) || 0 })} />
+            <span className="text-sm text-slate-500">%</span>
           </div>
         </div>
 
@@ -231,6 +255,9 @@ export default function EditInvoicePage() {
           </div>
           <div className="mt-4 border-t pt-4 space-y-1.5 text-right">
             <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{formatMoneyDzd(subtotal)}</span></div>
+            {Number(form.discountPercent) > 0 && (
+              <div className="text-sm text-emerald-600">Remise ({form.discountPercent}%): <span className="font-medium">-{formatMoneyDzd(discountAmount)}</span></div>
+            )}
             {form.hasTva && <div className="text-sm text-slate-600">TVA: <span className="font-medium">{formatMoneyDzd(tvaAmount)}</span></div>}
             <div className="text-lg font-display font-700 text-brand-600">{t('total')}: {formatMoneyDzd(total)}</div>
           </div>

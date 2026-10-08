@@ -53,6 +53,18 @@ export class InvoicesController {
     return this.invoicesService.findAll(req.user, { client, date, status, paymentStatus, type, number });
   }
 
+  @Get('trash')
+  @Roles(UserRole.ADMIN)
+  getTrash(@Request() req) {
+    return this.invoicesService.getTrash(req.user);
+  }
+
+  @Patch(':id/restore')
+  @Roles(UserRole.ADMIN)
+  restore(@Param('id') id: string, @Request() req) {
+    return this.invoicesService.restore(id, req.user);
+  }
+
   @Get('stats')
   @Roles(UserRole.ADMIN)
   getStats() {
@@ -76,6 +88,12 @@ export class InvoicesController {
       throw new BadRequestException('Action invalide');
     }
     return this.invoicesService.reviewDeletionRequest(requestId, action === 'approve', req.user);
+  }
+
+  @Delete('deletion-requests/:requestId')
+  @Roles(UserRole.ADMIN)
+  deleteDeletionRequest(@Param('requestId') requestId: string, @Request() req) {
+    return this.invoicesService.deleteDeletionRequest(requestId, req.user);
   }
 
   @Post(':id/deletion-requests')

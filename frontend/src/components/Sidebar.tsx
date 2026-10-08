@@ -10,13 +10,14 @@ import clsx from 'clsx';
 import {
   LayoutDashboard, FileText, Truck, CheckSquare, Users, Building2,
   LogOut, Wifi, WifiOff, Package, FileStack, ShoppingBag,
-  UserSquare2, LayoutTemplate, Bell, Wrench, Menu, X,
+  UserSquare2, LayoutTemplate, Bell, Wrench, Menu, X, Trash2,
 } from 'lucide-react';
 
 const adminNav = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'nav.dashboard' },
   { href: '/invoices',     icon: FileText,        label: 'nav.invoices' },
   { href: '/invoice-deletion-requests', icon: FileText, label: 'Demandes de suppression' },
+  { href: '/trash',        icon: Trash2,          label: 'Corbeille' },
   { href: '/clients',      icon: UserSquare2,     label: 'nav.clients' },
   { href: '/deliveries',   icon: Truck,           label: 'nav.deliveries' },
   { href: '/tasks',        icon: CheckSquare,     label: 'nav.tasks' },
