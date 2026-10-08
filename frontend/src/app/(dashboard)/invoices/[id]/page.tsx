@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { computeNetProfit, formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
+import { computeNetProfit, formatMoney, formatMoneyDzd, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');

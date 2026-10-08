@@ -80,7 +80,6 @@ export default function EditInvoicePage() {
         clientNis: form.clientNis?.trim() || undefined,
         notes: form.notes?.trim() || undefined,
         dueDate: form.dueDate || null,
-        issuerName: form.issuerName?.trim() || null,
         issuerNameSize: Number(form.issuerNameSize) || 16,
         discountPercent: Number(form.discountPercent) || 0,
         otherCharge: Number(form.otherCharge) || 0,
