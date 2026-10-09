@@ -14,7 +14,7 @@ import {
   ArrowLeft, FileDown, FileText, Edit, CheckCircle,
   XCircle, Loader2, Bell, ChevronRight, Mail,
   AlertTriangle, Eye, Trash2,
-  ShieldCheck, Briefcase, Lock, TrendingUp,
+  ShieldCheck, Briefcase, Lock, TrendingUp, Settings, History, Save,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -91,6 +91,54 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   const [result, setResult] = useState<any>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState(invoice.clientEmail || '');
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+
+  const loadHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await api.get('/notifications/reminder-history');
+      setHistory(data.filter((entry: any) => entry.invoiceId === invoice.id));
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Impossible de charger l’historique des rappels.');
+    }
+    setHistoryLoading(false);
+  };
+
+  const editTemplate = async () => {
+    setTemplateLoading(true);
+    try {
+      const { data } = await api.get('/notifications/email-template');
+      setSubject(data.subject || '');
+      setBody(data.body || '');
+      setTemplateOpen(true);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Impossible de charger le modèle de rappel.');
+    }
+    setTemplateLoading(false);
+  };
+
+  const saveTemplate = async () => {
+    if (!subject.trim() || !body.trim()) {
+      toast.error('L’objet et le contenu du rappel sont obligatoires.');
+      return;
+    }
+    setTemplateSaving(true);
+    try {
+      await api.put('/notifications/email-template', { subject, body });
+      setTemplateOpen(false);
+      toast.success('Modèle de rappel enregistré.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Impossible d’enregistrer le modèle de rappel.');
+    }
+    setTemplateSaving(false);
+  };
 
   const send = async () => {
     if (!recipientEmail.trim()) { toast.error(t('no_contact_for_reminder')); return; }
@@ -101,16 +149,59 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       setResult(data.email);
       if (data.email?.success) toast.success(data.email.message);
       else toast.error(data.email?.message || t('reminder_failed'));
+      await loadHistory();
     } catch (error: any) { toast.error(error?.response?.data?.message || t('error_sending_reminder')); }
     setSending(false);
   };
 
   return (
     <div className="card p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <Bell size={16} className="text-amber-500" />
-        <h3 className="font-display font-600 text-slate-900">{t('payment_reminder')}</h3>
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex items-center gap-2">
+          <Bell size={16} className="text-amber-500" />
+          <h3 className="font-display font-600 text-slate-900">{t('payment_reminder')}</h3>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => {
+            const opening = !historyOpen;
+            setHistoryOpen(opening);
+            if (opening) void loadHistory();
+          }} className="btn-secondary flex items-center gap-2 text-sm">
+            <History size={14} /> {historyOpen ? 'Masquer l’historique' : 'Historique'}
+          </button>
+          <button type="button" onClick={() => void editTemplate()} disabled={templateLoading}
+            className="btn-secondary flex items-center gap-2 text-sm">
+            {templateLoading ? <Loader2 size={14} className="animate-spin" /> : <Settings size={14} />}
+            Modifier le contenu
+          </button>
+        </div>
       </div>
+      {templateOpen && (
+        <div className="mb-4 space-y-3 border-y border-slate-200 py-4">
+          <div>
+            <label className="label" htmlFor="reminderTemplateSubject">Objet de l’email</label>
+            <input id="reminderTemplateSubject" className="input" value={subject}
+              onChange={(event) => setSubject(event.target.value)} />
+          </div>
+          <div>
+            <label className="label" htmlFor="reminderTemplateBody">Contenu de l’email</label>
+            <textarea id="reminderTemplateBody" className="input min-h-52 font-mono text-sm" rows={8}
+              value={body} onChange={(event) => setBody(event.target.value)} />
+            <p className="mt-1 text-xs text-slate-500">
+              Variables disponibles : {'{{clientName}}'}, {'{{invoiceNumber}}'}, {'{{amount}}'}, {'{{dueDate}}'}, {'{{companyName}}'}.
+              Le HTML est accepté.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setTemplateOpen(false)} className="btn-secondary">Annuler</button>
+            <button type="button" onClick={() => void saveTemplate()} disabled={templateSaving}
+              className="btn-primary flex items-center gap-2">
+              {templateSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      )}
       <label className="label" htmlFor="invoiceReminderRecipient">Adresse e-mail du destinataire</label>
       <input id="invoiceReminderRecipient" className="input mb-3" type="email" value={recipientEmail}
         onChange={(event) => setRecipientEmail(event.target.value)} />
@@ -119,7 +210,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         disabled={!recipientEmail.trim() || sending}
         className={clsx(
           'w-full flex items-center justify-center gap-2 py-3 rounded-lg border-2 text-sm font-medium transition-all',
-          !invoice.clientEmail ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
+          !recipientEmail.trim() || sending ? 'border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed' :
           result?.success ? 'border-emerald-300 bg-emerald-50 text-emerald-700' :
           result && !result.success ? 'border-red-300 bg-red-50 text-red-600' :
           'border-slate-200 hover:border-brand-300 hover:bg-brand-50 text-slate-600',
@@ -132,6 +223,29 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         <p className="text-xs text-amber-600 mt-3 flex items-center gap-1">
           <AlertTriangle size={12} /> {t('add_contact_for_reminders')}
         </p>
+      )}
+      {historyOpen && (
+        <div className="mt-4 border-t border-slate-200 pt-3">
+          <h4 className="mb-2 text-sm font-semibold text-slate-700">Historique des rappels</h4>
+          {historyLoading ? <Loader2 size={18} className="animate-spin text-slate-400" /> : history.length === 0 ? (
+            <p className="text-sm text-slate-500">Aucun rappel enregistré pour cette facture.</p>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {history.map((entry) => (
+                <div key={entry.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm">
+                  <div>
+                    <span className={entry.success ? 'text-emerald-700' : 'text-red-600'}>
+                      {entry.success ? 'Envoyé' : 'Échec'}
+                    </span>
+                    <span className="ml-2 text-slate-600">{entry.recipientEmail}</span>
+                    {entry.message && <p className="mt-0.5 text-xs text-slate-500">{entry.message}</p>}
+                  </div>
+                  <time className="text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString('fr-FR')}</time>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
       <ConfirmDialog
         open={confirmOpen}
