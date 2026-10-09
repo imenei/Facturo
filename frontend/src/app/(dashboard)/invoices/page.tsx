@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { generateInvoicePDF } from '@/lib/pdfGenerator';
+import { generateInvoicePDF, printInvoicePDF } from '@/lib/pdfGenerator';
 import { useAuthStore } from '@/store/authStore';
 import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
@@ -13,7 +13,7 @@ import clsx from 'clsx';
 import {
   Plus, Search, Eye, Edit, Trash2, FileDown, Loader2,
   FileText, CheckCircle, XCircle, Bell, ArrowUpDown, Hash,
-  ShieldCheck, Briefcase,
+  ShieldCheck, Briefcase, Printer,
 } from 'lucide-react';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -328,6 +328,10 @@ export default function InvoicesPage() {
                         </Link>
                         <button onClick={async () => { await generateInvoicePDF(inv, company); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
                           <FileDown size={15} />
+                        </button>
+                        {/* ✅ NOUVEAU : bouton Imprimer */}
+                        <button onClick={async () => { await printInvoicePDF(inv, company); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900" title="Imprimer">
+                          <Printer size={15} />
                         </button>
                         {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
                           <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
