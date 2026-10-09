@@ -357,36 +357,36 @@ function renderClassic(doc: jsPDF, invoice: any, company: any): number {
 function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-    doc.setFillColor(35, 35, 35);
-    doc.rect(0, 0, W, 30, 'F');
+  doc.setFillColor(35, 35, 35);
+  doc.rect(0, 0, W, 30, 'F');
   doc.setFont('helvetica', 'bold');
-    doc.setFontSize(companyNameSize(invoice));
+  doc.setFontSize(companyNameSize(invoice));
   doc.setTextColor(255, 255, 255);
-    doc.text(doc.splitTextToSize(companyName(company), 78), 14, 14);
+  doc.text(doc.splitTextToSize(companyName(company), 78), 14, 14);
   doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+  doc.setFontSize(7);
   doc.setTextColor(200, 200, 200);
-    let infoY = 7;
-    for (const line of [company?.address, company?.phone, company?.email].filter(Boolean)) {
-      const lines = doc.splitTextToSize(String(line), 68);
-      doc.text(lines, W - 42, infoY, { align: 'right' });
-      infoY += Math.max(3.5, lines.length * 3.2);
-    }
-    doc.text(fDate(invoice.createdAt), W - 42, 26, { align: 'right' });
+  let infoY = 7;
+  for (const line of [company?.address, company?.phone, company?.email].filter(Boolean)) {
+    const lines = doc.splitTextToSize(String(line), 68);
+    doc.text(lines, W - 42, infoY, { align: 'right' });
+    infoY += Math.max(3.5, lines.length * 3.2);
+  }
+  doc.text(fDate(invoice.createdAt), W - 42, 26, { align: 'right' });
 
-    addLogo(doc, company, W - 14 - 18, 0, 18, 24);
+  addLogo(doc, company, W - 14 - 18, 0, 18, 24);
 
-    doc.setFillColor(250, 250, 250);
-    doc.rect(0, 30, W, 14, 'F');
+  doc.setFillColor(250, 250, 250);
+  doc.rect(0, 30, W, 14, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(10, 10, 10);
-    doc.text(`${tLabel(invoice.type)} — ${invoice.number}`, 14, 39.5);
+  doc.text(`${tLabel(invoice.type)} — ${invoice.number}`, 14, 39.5);
   if (invoice.dueDate) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(90, 90, 90);
-      doc.text(`Échéance : ${fDate(invoice.dueDate)}`, W - 14, 39.5, { align: 'right' });
+    doc.text(`Échéance : ${fDate(invoice.dueDate)}`, W - 14, 39.5, { align: 'right' });
   }
 
   doc.setDrawColor(180, 180, 180);
@@ -601,123 +601,97 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   return (doc as any).lastAutoTable.finalY as number;
 }
 
-// ─── BON DE LIVRAISON / REÇU ─────────────────────────────────────────────────
-function deliveryItemsTable(doc: jsPDF, invoice: any, startY: number) {
-  const body = invoice.items.map((i: any, idx: number) => [
-    { content: String(idx + 1), styles: { halign: 'center', textColor: [100, 100, 100] } },
+// ─── BON DE LIVRAISON (modèle LMCompany) ─────────────────────────────────────
+function renderDeliveryNote(doc: jsPDF, invoice: any, company: any): number {
+  const W = doc.internal.pageSize.getWidth();
+  const CW = W - 28;
+  let y = 14;
+
+  // EN-TÊTE SOCIÉTÉ
+  const hasLogo = Boolean(company?._pdfLogo);
+  if (hasLogo) addLogo(doc, company, 14, 8, 26, 20);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(companyNameSize(invoice));
+  doc.setTextColor(10, 10, 10);
+  const nameLines = doc.splitTextToSize(companyName(company), hasLogo ? CW - 60 : CW);
+  doc.text(nameLines, W / 2, y, { align: 'center' });
+  y += nameLines.length * 6 + 1;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(70, 70, 70);
+  const headerLines = [
+    [company?.rc && `RC : ${company.rc}`, company?.nif && `NIF : ${company.nif}`].filter(Boolean).join('   '),
+    company?.activities,
+    [company?.phone && `Tel/Fax : ${company.phone}`, company?.mobile && `Mob : ${company.mobile}`].filter(Boolean).join('   '),
+    company?.email && `Email : ${company.email}`,
+    company?.address,
+  ].filter(Boolean) as string[];
+  for (const line of headerLines) {
+    for (const l of doc.splitTextToSize(line, CW - (hasLogo ? 60 : 0))) {
+      doc.text(l, W / 2, y, { align: 'center' });
+      y += 3.8;
+    }
+  }
+
+  y = Math.max(y, hasLogo ? 30 : 0) + 2;
+  doc.setDrawColor(10, 10, 10);
+  doc.setLineWidth(0.6);
+  doc.line(14, y, W - 14, y);
+  y += 10;
+
+  // TITRE
+  doc.setLineWidth(0.4);
+  doc.rect(14, y - 7, CW, 11);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`BON LIVRAISON N° : ${invoice.number}`, W / 2, y, { align: 'center' });
+  y += 14;
+
+  // INFOS CLIENT
+  const field = (label: string, value: string, x: number, yy: number, maxW: number): number => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(10, 10, 10);
+    doc.text(label, x, yy);
+    const lw = doc.getTextWidth(label) + 2;
+    doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(String(value || ''), maxW - lw);
+    doc.text(lines, x + lw, yy);
+    return Math.max(1, lines.length);
+  };
+
+  field('Doit à :', invoice.clientName, 14, y, CW);
+  y += 6;
+  const nAddr = field('Adresse :', invoice.clientAddress, 14, y, 125);
+  field('Date :', fDate(invoice.createdAt), 145, y, W - 14 - 145);
+  y += 5 * nAddr + 1;
+
+  if (invoice.object) {
+    const nObj = field('Objet :', invoice.object, 14, y, CW);
+    y += 5 * nObj + 1;
+  }
+  y += 5;
+
+  // TABLEAU : DESIGNATION / QTE / TOTAL ("reçu")
+  const body = (invoice.items || []).map((i: any) => [
     i.description,
-    { content: String(i.quantity), styles: { halign: 'center', fontStyle: 'bold' } },
-    { content: fmt(i.unitPrice), styles: { halign: 'right' } },
-    { content: fmt(i.total), styles: { halign: 'right', fontStyle: 'bold' } },
-    { content: '☐', styles: { halign: 'center', fontSize: 10 } },
+    { content: String(i.quantity), styles: { halign: 'center' } },
+    { content: 'reçu', styles: { halign: 'center' } },
   ]);
   autoTable(doc, {
-    startY,
-    head: [['#', 'Désignation / Référence', 'Qté', 'Prix', 'Total', 'Reçu']],
+    startY: y,
+    head: [['DESIGNATION', 'QTE', 'TOTAL']],
     body,
     theme: 'grid',
-    styles: { fontSize: 9, textColor: [20, 20, 20], lineColor: [180, 180, 180], lineWidth: 0.3, cellPadding: 4 },
-    headStyles: { fillColor: [26, 84, 255], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5, cellPadding: 4 },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 'auto' },
-      2: { cellWidth: 16, halign: 'center' },
-      3: { cellWidth: 30, halign: 'right', fontSize: 7.5 },
-      4: { cellWidth: 30, halign: 'right', fontSize: 7.5 },
-      5: { cellWidth: 16, halign: 'center' },
-    },
+    styles: { fontSize: 9.5, textColor: [20, 20, 20], lineColor: [60, 60, 60], lineWidth: 0.3, cellPadding: 3 },
+    headStyles: { fillColor: [230, 230, 230], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'center' },
+    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 25 }, 2: { cellWidth: 35 } },
     margin: { left: 14, right: 14 },
   });
   return (doc as any).lastAutoTable.finalY as number;
-}
-
-function deliveryNoteFooter(doc: jsPDF, invoice: any, company: any, startY: number) {
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  let y = startY + 12;
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(60, 60, 60);
-  doc.text(`Nombre d'articles : ${invoice.items?.length || 0}`, 14, y);
-  const totalQty = (invoice.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
-  doc.text(`Quantité totale : ${totalQty}`, 14, y + 5);
-  y += 10;
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(26, 84, 255);
-  doc.text(`Montant livraison : ${fmt(invoice.total)}`, W - 14, y, { align: 'right' });
-  y += 6;
-
-  if (invoice.notes) {
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.5);
-    doc.setTextColor(90, 90, 90);
-    doc.text(`Remarques : ${invoice.notes}`, 14, y + 6, { maxWidth: W - 28 });
-    y += 10;
-  }
-
-  y += 18;
-  const sigW = (W - 28 - 12) / 2;
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.3);
-  doc.rect(14, y, sigW, 28);
-  doc.rect(14 + sigW + 12, y, sigW, 28);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(80, 80, 80);
-  doc.text('Signature et cachet expéditeur', 14 + sigW / 2, y - 2, { align: 'center' });
-  doc.text('Signature client (bon pour accord)', 14 + sigW + 12 + sigW / 2, y - 2, { align: 'center' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(130, 130, 130);
-  doc.text(company?.name || '', 14 + sigW / 2, y + 22, { align: 'center' });
-  doc.text('Date : ___/___/______', 14 + sigW + 12 + sigW / 2, y + 22, { align: 'center' });
-
-  doc.setDrawColor(26, 84, 255);
-  doc.setLineWidth(0.6);
-  doc.line(14, H - 18, W - 14, H - 18);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(120, 120, 120);
-  doc.text(
-    `Document généré le ${fDate(new Date())} — ${company?.name || ''} — Ce document atteste la livraison des marchandises listées ci-dessus.`,
-    W / 2, H - 12, { align: 'center', maxWidth: W - 40 },
-  );
-}
-
-function renderDeliveryNote(doc: jsPDF, invoice: any, company: any): number {
-  const W = doc.internal.pageSize.getWidth();
-
-  // En-tête volontairement vide : ni nom de société ni logo (reçu générique)
-  doc.setFillColor(26, 84, 255);
-  doc.rect(0, 0, W, 28, 'F');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(255, 255, 255);
-  doc.text('REÇU', W / 2, 14, { align: 'center' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(220, 230, 255);
-  doc.text(`N° ${invoice.number}`, W / 2, 21, { align: 'center' });
-  doc.text(fDate(invoice.createdAt), W - 14, 10, { align: 'right' });
-  if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 16, { align: 'right' });
-
-  doc.setDrawColor(220, 220, 220);
-  doc.setLineWidth(0.3);
-  doc.line(14, 36, W - 14, 36);
-
-  const clientEnd = clientBlock(doc, invoice, 14, 44, 'LIVRÉ À :');
-
-  doc.setDrawColor(220, 220, 220);
-  doc.line(14, clientEnd + 4, W - 14, clientEnd + 4);
-
-  const finalY = deliveryItemsTable(doc, invoice, clientEnd + 10);
-  deliveryNoteFooter(doc, invoice, company, finalY);
-  return finalY;
 }
 
 // ─── Main generators ──────────────────────────────────────────────────────────
