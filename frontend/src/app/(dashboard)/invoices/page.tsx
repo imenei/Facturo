@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import api from '@/lib/api';
-import { generateInvoicePDF } from '@/lib/pdfGenerator';
+import { generateInvoicePDF, printInvoicePDF } from '@/lib/pdfGenerator';
 import { useAuthStore } from '@/store/authStore';
 import { isManager } from '@/lib/roles';
 import { useI18nStore } from '@/store/i18nStore';
@@ -13,7 +13,7 @@ import clsx from 'clsx';
 import {
   Plus, Search, Eye, Edit, Trash2, FileDown, Loader2,
   FileText, CheckCircle, XCircle, Bell, ArrowUpDown, Hash,
-  ShieldCheck, Briefcase,
+  ShieldCheck, Briefcase, Printer,
 } from 'lucide-react';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -30,7 +30,7 @@ const WORKFLOW_LABELS: Record<string, string> = {
 function WorkflowBar({ step, t }: { step: string; t: (k: string) => string }) {
   const idx = WORKFLOW_STEPS.indexOf(step);
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex flex-wrap items-center gap-0.5">
       {WORKFLOW_STEPS.map((s, i) => (
         <div key={s} title={t(s)}
           className={clsx('h-1.5 rounded-full transition-all', i <= idx ? 'bg-brand-500' : 'bg-slate-200',
@@ -76,14 +76,14 @@ function CreatorBadge({ invoice }: { invoice: any }) {
   if (!creator) return null;
   const isAdmin = creator.role === 'admin';
   return (
-    <div className="flex items-center gap-1 mt-0.5">
+    <div className="flex flex-wrap items-center gap-1 mt-0.5">
       <span className={clsx(
         'inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium',
         isAdmin ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600',
       )}>
         {isAdmin ? <ShieldCheck size={10} /> : <Briefcase size={10} />}
         {creator.name}
-        <span className="opacity-60">· {creator.role === 'commercial' ? 'Commercial' : creator.role === 'admin' ? 'Administrateur' : creator.role}</span>
+        <span className="opacity-60 hidden xl:inline">· {creator.role === 'commercial' ? 'Commercial' : creator.role === 'admin' ? 'Administrateur' : creator.role}</span>
       </span>
       {invoice.lastModifiedBy && invoice.lastModifiedBy.id !== creator.id && (
         <span className="text-xs text-slate-400">
@@ -260,12 +260,13 @@ export default function InvoicesPage() {
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          {/* ✅ Plus de overflow-x-auto : le tableau s'adapte à la largeur de la page */}
+          <div>
+            <table className="w-full table-auto">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {[t('number'), t('type'), t('client'), t('amount'), t('payment'), t('workflow'), t('date'), t('actions')].map((h) => (
-                    <th key={h} className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                    <th key={h} className="text-left text-xs font-600 text-slate-500 px-3 py-3 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -280,31 +281,31 @@ export default function InvoicesPage() {
                 )}
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="font-mono text-sm font-semibold text-slate-900">{inv.number}</div>
+                    <td className="px-3 py-3">
+                      <div className="font-mono text-sm font-semibold text-slate-900 break-all">{inv.number}</div>
                       {/* MOD 3: creator badge */}
                       <CreatorBadge invoice={inv} />
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={clsx('badge whitespace-nowrap', TYPE_COLORS[inv.type])}>
+                    <td className="px-3 py-3">
+                      <span className={clsx('badge', TYPE_COLORS[inv.type])}>
                         {typeLabels[inv.type]}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <div className="text-sm font-medium text-slate-900">{inv.clientName}</div>
-                      {inv.clientEmail && <div className="text-xs text-slate-400 truncate max-w-36">{inv.clientEmail}</div>}
+                      {inv.clientEmail && <div className="text-xs text-slate-400 truncate max-w-28">{inv.clientEmail}</div>}
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">
+                    <td className="px-3 py-3 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">
                       {formatMoneyDzd(inv.total)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       {inv.type === 'facture' ? (
                         <PaymentBadge status={inv.paymentStatus || 'unpaid'} invoiceId={inv.id} onUpdate={load} t={t} />
                       ) : (
                         <span className="text-xs text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       {inv.type !== 'proforma' && inv.workflowStep ? (
                         <div className="relative">
                           <WorkflowBar step={inv.workflowStep} t={t} />
@@ -317,26 +318,29 @@ export default function InvoicesPage() {
                         </div>
                       ) : <span className="text-xs text-slate-400">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <Link href={`/invoices/${inv.id}`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600" title={t('view')}>
+                    <td className="px-3 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</td>
+                    <td className="px-3 py-3">
+                      <div className="flex flex-wrap items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Link href={`/invoices/${inv.id}`} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600" title={t('view')}>
                           <Eye size={15} />
                         </Link>
-                        <Link href={`/invoices/${inv.id}/edit`} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600" title={t('edit')}>
+                        <Link href={`/invoices/${inv.id}/edit`} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600" title={t('edit')}>
                           <Edit size={15} />
                         </Link>
-                        <button onClick={async () => { await generateInvoicePDF(inv, company); }} className="p-1.5 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
+                        <button onClick={async () => { await generateInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
                           <FileDown size={15} />
+                        </button>
+                        <button onClick={async () => { await printInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900" title="Imprimer">
+                          <Printer size={15} />
                         </button>
                         {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
                           <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
-                            className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
+                            className="p-1 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
                             {reminding === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
                           </button>
                         )}
                         {isManager(user?.role) && (
-                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}>
+                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}>
                             <Trash2 size={15} />
                           </button>
                         )}
