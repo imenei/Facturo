@@ -217,8 +217,10 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const labelX = W - 70;
   const valX = W - 14;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const chargesTotal = invoiceCharges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0);
-  const subtotalBeforeDiscount = roundMoney(Number(invoice.subtotal || 0) - chargesTotal);
+  const subtotalBeforeDiscount = roundMoney((invoice.items || []).reduce(
+    (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+    0,
+  ));
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);

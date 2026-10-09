@@ -39,7 +39,7 @@ export default function EditInvoicePage() {
       });
       setOtherCharges(data.otherCharges?.length
         ? data.otherCharges.map((charge: any) => ({ description: charge.description || '', amount: Number(charge.amount) || 0 }))
-        : Number(data.otherCharge) > 0 ? [{ description: 'Autre charge', amount: Number(data.otherCharge) }] : []);
+        : []);
       setItems(data.items.map((i: any) => ({
         description: i.description,
         quantity: Number(i.quantity),
@@ -186,7 +186,7 @@ export default function EditInvoicePage() {
             </div>
             <div className="md:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">Autres frais internes</label>
+                <label className="label mb-0">Frais supplémentaires facturés</label>
                 <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
                   <Plus size={13} /> Ajouter un frais
                 </button>

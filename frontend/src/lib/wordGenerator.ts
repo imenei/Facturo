@@ -83,8 +83,10 @@ export async function generateInvoiceWord(invoice: any, company: any) {
 
   const totalQty = (invoice.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const chargesTotal = invoiceCharges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0);
-  const subtotalBeforeDiscount = Number(invoice.subtotal || 0) - chargesTotal;
+  const subtotalBeforeDiscount = (invoice.items || []).reduce(
+    (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+    0,
+  );
 
   const doc = new Document({
     sections: [{

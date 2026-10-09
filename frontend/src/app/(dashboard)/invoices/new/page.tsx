@@ -673,7 +673,7 @@ export default function NewInvoicePage() {
             </div>
             <div className="md:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">Autres frais internes</label>
+                <label className="label mb-0">Frais supplémentaires facturés</label>
                 <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
                   <Plus size={13} /> Ajouter un frais
                 </button>

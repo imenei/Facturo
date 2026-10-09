@@ -163,7 +163,8 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
     return sum + lineGrossMargin(Number(item.unitPrice), Number(item.purchasePrice), Number(item.quantity));
   }, 0) || Number(invoice.totalMargin) || 0);
   const adjustmentImpact = adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount;
-  const netProfit = computeNetProfit(grossMargin + adjustmentImpact, Number(invoice.otherCharge) || 0, Number(invoice.deliveryPrice) || 0);
+  const billedCharges = charges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0);
+  const netProfit = computeNetProfit(grossMargin + adjustmentImpact + billedCharges, Number(invoice.otherCharge) || 0, Number(invoice.deliveryPrice) || 0);
   const marginRate = totalRevenue > 0 ? ((grossMargin / totalRevenue) * 100).toFixed(1) : '0';
 
   return (
@@ -353,9 +354,11 @@ export default function InvoiceDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-display font-700 text-slate-900">{invoice.number}</h1>
               <span className={clsx('badge', STATUS_COLORS[invoice.status])}>{t(invoice.status)}</span>
-              <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryStatus])}>
-                {t(invoice.deliveryStatus?.replace('_', ' '))}
-              </span>
+              {invoice.type !== 'proforma' && (
+                <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryStatus])}>
+                  {t(invoice.deliveryStatus?.replace('_', ' '))}
+                </span>
+              )}
               {invoice.type === 'facture' && (
                 <button onClick={togglePayment} disabled={updatingPayment}
                   className={clsx(
@@ -421,7 +424,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {invoice.workflowStep && (
+      {invoice.type !== 'proforma' && invoice.workflowStep && (
         <div className="card p-5 mb-6">
           <h3 className="text-sm font-600 text-slate-500 mb-3">{t('workflow_progress')}</h3>
           <WorkflowStepper current={invoice.workflowStep} invoiceId={invoice.id} onUpdate={load} canEdit={canManage} t={t} />
@@ -459,18 +462,20 @@ export default function InvoiceDetailPage() {
                 ))}
               </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('delivery_status')}</p>
-              <div className="flex flex-wrap gap-1.5">
-                {['en_attente', 'livree', 'non_livree'].map((s) => (
-                  <button key={s} onClick={() => updateDelivery(s)}
-                    className={clsx(
-                      'text-xs px-3 py-1.5 rounded-lg border transition-all',
-                      invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
-                    )}>{t(s.replace('_', ' '))}</button>
-                ))}
+            {invoice.type !== 'proforma' && (
+              <div>
+                <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('delivery_status')}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {['en_attente', 'livree', 'non_livree'].map((s) => (
+                    <button key={s} onClick={() => updateDelivery(s)}
+                      className={clsx(
+                        'text-xs px-3 py-1.5 rounded-lg border transition-all',
+                        invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
+                      )}>{t(s.replace('_', ' '))}</button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ) : null}
       </div>

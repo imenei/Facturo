@@ -443,6 +443,9 @@ export class InvoicesService {
   async updateDeliveryStatus(id: string, status: DeliveryStatus): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
+    if (invoice.type === InvoiceType.PROFORMA) {
+      throw new BadRequestException('Une proforma ne peut pas recevoir de statut de livraison.');
+    }
     invoice.deliveryStatus = status;
     const saved = await this.invoicesRepository.save(invoice);
     // Lien livreur → commercial : le commercial est notifié en temps réel
@@ -457,6 +460,9 @@ export class InvoicesService {
   async updatePaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
+    if (invoice.type === InvoiceType.PROFORMA) {
+      throw new BadRequestException('Une proforma ne peut pas être mise en recouvrement.');
+    }
     invoice.paymentStatus = paymentStatus;
     if (paymentStatus === PaymentStatus.PAID) {
       invoice.status = InvoiceStatus.PAYEE;
@@ -468,6 +474,9 @@ export class InvoicesService {
   async updateWorkflowStep(id: string, step: WorkflowStep): Promise<Invoice> {
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
+    if (invoice.type === InvoiceType.PROFORMA && step !== WorkflowStep.COMMANDE) {
+      throw new BadRequestException('Une proforma ne peut pas passer aux étapes livraison, facturation ou recouvrement.');
+    }
     invoice.workflowStep = step;
     return this.invoicesRepository.save(invoice);
   }

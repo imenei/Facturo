@@ -449,7 +449,7 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  {inv.workflowStep && <WorkflowBadge step={inv.workflowStep} />}
+                  {inv.type !== 'proforma' && inv.workflowStep && <WorkflowBadge step={inv.workflowStep} />}
                   <div className="text-right">
                     <div className="font-medium text-sm">{formatMoneyDzd(inv.total)}</div>
                     <span className={clsx('text-xs font-medium', inv.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-500')}>

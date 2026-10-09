@@ -21,7 +21,7 @@
   "app\\(dashboard)\\invoices\\[id]\\page.tsx -> @/lib/wordGenerator": {
     "id": 62619,
     "files": [
-      "static/chunks/619.3e2ebf070412ece6.js"
+      "static/chunks/619.756d40efab86ceaf.js"
     ]
   },
   "components\\PDFPreviewModal.tsx -> @/lib/pdfGenerator": {

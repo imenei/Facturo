@@ -305,7 +305,7 @@ export default function InvoicesPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {inv.workflowStep ? (
+                      {inv.type !== 'proforma' && inv.workflowStep ? (
                         <div className="relative">
                           <WorkflowBar step={inv.workflowStep} t={t} />
                           {isManager(user?.role) && (

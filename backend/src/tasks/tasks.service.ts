@@ -40,6 +40,11 @@ export class TasksService {
     }
   }
 
+  private isMissingInvoiceLinkColumn(error: any): boolean {
+    const driverError = error?.driverError || error;
+    return driverError?.code === '42703' && /invoiceId/i.test(String(driverError?.message || ''));
+  }
+
   async create(dto: any, adminId: string): Promise<Task> {
     if (!dto.assignedToId) {
       throw new BadRequestException('Un livreur doit être assigné');
@@ -67,36 +72,48 @@ export class TasksService {
       finalPrice: dto.price,
       createdBy: { id: adminId } as any,
       assignedTo: livreur,
-      invoice,
+      ...(invoice ? { invoice } : {}),
     }) as Task;
     return this.tasksRepository.save(task);
   }
 
   async findAll(user: { id: string; role: UserRole }): Promise<Task[]> {
-    const qb = this.tasksRepository
-      .createQueryBuilder('task')
-      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
-      .leftJoinAndSelect('task.createdBy', 'createdBy')
-      .leftJoin('task.invoice', 'invoice')
-      .addSelect(['invoice.id', 'invoice.number', 'invoice.type'])
-      .orderBy('task.createdAt', 'DESC');
+    const buildQuery = (includeInvoice: boolean) => {
+      const qb = this.tasksRepository
+        .createQueryBuilder('task')
+        .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+        .leftJoinAndSelect('task.createdBy', 'createdBy')
+        .orderBy('task.createdAt', 'DESC');
+      if (includeInvoice) qb.leftJoin('task.invoice', 'invoice').addSelect(['invoice.id', 'invoice.number', 'invoice.type']);
+      if (user.role === UserRole.LIVREUR) qb.andWhere('assignedTo.id = :userId', { userId: user.id });
+      return qb;
+    };
 
-    if (user.role === UserRole.LIVREUR) {
-      qb.andWhere('assignedTo.id = :userId', { userId: user.id });
+    try {
+      return await buildQuery(user.role !== UserRole.LIVREUR).getMany();
+    } catch (error) {
+      if (user.role === UserRole.LIVREUR || !this.isMissingInvoiceLinkColumn(error)) throw error;
+      return buildQuery(false).getMany();
     }
-
-    return qb.getMany();
   }
 
   async findOne(id: string, user: { id: string; role: UserRole }): Promise<Task> {
-    const task = await this.tasksRepository
-      .createQueryBuilder('task')
-      .leftJoinAndSelect('task.assignedTo', 'assignedTo')
-      .leftJoinAndSelect('task.createdBy', 'createdBy')
-      .leftJoin('task.invoice', 'invoice')
-      .addSelect(['invoice.id', 'invoice.number', 'invoice.type'])
-      .where('task.id = :id', { id })
-      .getOne();
+    const buildQuery = (includeInvoice: boolean) => {
+      const qb = this.tasksRepository
+        .createQueryBuilder('task')
+        .leftJoinAndSelect('task.assignedTo', 'assignedTo')
+        .leftJoinAndSelect('task.createdBy', 'createdBy')
+        .where('task.id = :id', { id });
+      if (includeInvoice) qb.leftJoin('task.invoice', 'invoice').addSelect(['invoice.id', 'invoice.number', 'invoice.type']);
+      return qb;
+    };
+    let task: Task | null;
+    try {
+      task = await buildQuery(user.role !== UserRole.LIVREUR).getOne();
+    } catch (error) {
+      if (user.role === UserRole.LIVREUR || !this.isMissingInvoiceLinkColumn(error)) throw error;
+      task = await buildQuery(false).getOne();
+    }
 
     if (!task) throw new NotFoundException('Tâche non trouvée');
     this.ensureLivreurAccess(task, user);
@@ -203,8 +220,6 @@ export class TasksService {
       .createQueryBuilder('task')
       .leftJoinAndSelect('task.assignedTo', 'assignedTo')
       .leftJoinAndSelect('task.createdBy', 'createdBy')
-      .leftJoin('task.invoice', 'invoice')
-      .addSelect(['invoice.id', 'invoice.number', 'invoice.type'])
       .where('assignedTo.id = :livreurId', { livreurId })
       .orderBy('task.createdAt', 'DESC');
 

@@ -53,7 +53,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
     api.get('/notifications/email-template').then(({ data }) => {
       if (data?.subject) setSubject(data.subject);
       if (data?.body) setBody(data.body);
-    }).catch(() => {}); // fallback to defaults
+    }).catch(() => toast.error('Impossible de charger le modèle. Vérifie que la migration des notifications a été appliquée.'));
   }, []);
 
   const insertVar = (v: string) => {
@@ -65,7 +65,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
     try {
       await api.put('/notifications/email-template', { subject, body });
       toast.success(t('template_saved'));
-    } catch { toast.error(t('error_saving')); }
+    } catch { toast.error('Impossible d’enregistrer le modèle. Vérifie la migration de la base de production.'); }
     setSaving(false);
   };
 
@@ -77,7 +77,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
       setSubject(DEFAULT_TEMPLATE.subject);
       setBody(DEFAULT_TEMPLATE.body);
       toast.success(t('template_saved'));
-    } catch { toast.error(t('error_saving')); }
+    } catch { toast.error('Impossible de réinitialiser le modèle. Vérifie la migration de la base de production.'); }
     setSaving(false);
   };
 
@@ -190,6 +190,7 @@ export default function NotificationsPage() {
   const [reminderTarget, setReminderTarget] = useState<any>(null);
   const [results, setResults] = useState<Record<string, any>>({});
   const [reminderHistory, setReminderHistory] = useState<Record<string, any[]>>({});
+  const [historyError, setHistoryError] = useState(false);
   const [historyOpenId, setHistoryOpenId] = useState<string | null>(null);
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
@@ -205,7 +206,7 @@ export default function NotificationsPage() {
         return result;
       }, {} as Record<string, any[]>);
       setReminderHistory(grouped);
-    }).catch(() => {});
+    }).catch(() => setHistoryError(true));
   }, []);
 
   const sendReminder = async (invoice: any) => {
@@ -217,11 +218,18 @@ export default function NotificationsPage() {
       setResults((prev) => ({ ...prev, [invoice.id]: data }));
       if (data.email?.success) toast.success(t('reminder_sent_success'));
       else toast.error(data.email?.message || t('all_sends_failed'));
-      const { data: history } = await api.get('/notifications/reminder-history');
-      setReminderHistory((history as any[]).reduce((result, row) => {
-        (result[row.invoiceId] ||= []).push(row);
-        return result;
-      }, {} as Record<string, any[]>));
+      const historyResponse = await api.get('/notifications/reminder-history').catch(() => {
+        setHistoryError(true);
+        return null;
+      });
+      if (historyResponse) {
+        const groupedHistory = (historyResponse.data as any[]).reduce((result, row) => {
+          (result[row.invoiceId] ||= []).push(row);
+          return result;
+        }, {} as Record<string, any[]>);
+        setReminderHistory(groupedHistory);
+        setHistoryError(false);
+      }
     } catch (error: any) { toast.error(error?.response?.data?.message || t('error_sending_reminder')); }
     setSending(null);
   };
@@ -258,6 +266,12 @@ export default function NotificationsPage() {
         <input className="input pl-9 max-w-sm" placeholder={t('search_by_client_or_invoice_number')} value={search}
           onChange={(e) => setSearch(e.target.value)} />
       </div>
+
+      {historyError && (
+        <div className="mb-5 border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Historique et modèle indisponibles : applique la migration `backend/scripts/migration-add-columns.sql` sur la base de production, puis redémarre le backend.
+        </div>
+      )}
 
       {showFullHistory && (
         <section className="mb-6 border-y border-slate-200">
