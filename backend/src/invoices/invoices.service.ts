@@ -8,6 +8,7 @@ import { UserRole } from '../users/user.entity';
 import { DeliveryGateway } from '../gateway/delivery.gateway';
 import { InvoiceDeletionRequest, DeletionRequestStatus } from './invoice-deletion-request.entity';
 import { UsersService } from '../users/users.service';
+import { TasksService } from '../tasks/tasks.service';
 import { roundMoney, computeNetProfit, parseDateOnly } from '../common/money';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class InvoicesService {
     private deletionRequestsRepository: Repository<InvoiceDeletionRequest>,
     private deliveryGateway: DeliveryGateway,
     private usersService: UsersService,
+    private tasksService: TasksService,
     private dataSource: DataSource,
   ) {}
 
@@ -187,7 +189,9 @@ export class InvoicesService {
         createdBy: { id: userId } as any,
       });
 
-      return await this.invoicesRepository.save(invoice);
+      const savedInvoice = await this.invoicesRepository.save(invoice);
+      await this.tasksService.syncInvoiceTask(savedInvoice, userId);
+      return savedInvoice;
     } catch (error) {
       console.error('=== ERROR in invoices.service.create ===');
       console.error('userId:', userId);
@@ -425,7 +429,9 @@ export class InvoicesService {
       Number(invoice.deliveryPrice || 0),
     );
 
-    return this.invoicesRepository.save(invoice);
+    const savedInvoice = await this.invoicesRepository.save(invoice);
+    await this.tasksService.syncInvoiceTask(savedInvoice, user.id);
+    return savedInvoice;
   }
 
   async deleteDeletionRequest(requestId: string, user: { id: string; role: UserRole }) {

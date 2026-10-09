@@ -6,9 +6,10 @@ import { Invoice } from './invoice.entity';
 import { InvoiceDeletionRequest } from './invoice-deletion-request.entity';
 import { GatewayModule } from '../gateway/gateway.module';
 import { UsersModule } from '../users/users.module';
+import { TasksModule } from '../tasks/tasks.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Invoice, InvoiceDeletionRequest]), GatewayModule, UsersModule],
+  imports: [TypeOrmModule.forFeature([Invoice, InvoiceDeletionRequest]), GatewayModule, UsersModule, TasksModule],
   providers: [InvoicesService],
   controllers: [InvoicesController],
   exports: [InvoicesService],

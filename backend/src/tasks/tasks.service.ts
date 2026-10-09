@@ -77,6 +77,43 @@ export class TasksService {
     return this.tasksRepository.save(task);
   }
 
+  async syncInvoiceTask(invoice: Invoice, creatorId: string): Promise<Task | null> {
+    if (invoice.type !== InvoiceType.FACTURE || !invoice.deliveryPersonId) return null;
+
+    const livreur = await this.usersRepository.findOne({ where: { id: invoice.deliveryPersonId } });
+    if (!livreur || livreur.role !== UserRole.LIVREUR || livreur.isActive === false) {
+      throw new BadRequestException('Livreur invalide ou introuvable');
+    }
+
+    const existingTask = await this.tasksRepository.findOne({
+      where: { invoice: { id: invoice.id } },
+    });
+    const price = Number(invoice.total || 0);
+    const task = existingTask || this.tasksRepository.create({
+      status: TaskStatus.EN_ATTENTE,
+      extraFees: 0,
+      createdBy: { id: creatorId } as any,
+    });
+
+    task.name = invoice.number;
+    task.description = (invoice.items || [])
+      .map((item) => `${item.quantity} x ${item.description}`)
+      .join('\n');
+    task.price = price;
+    task.finalPrice = price + Number(task.extraFees || 0);
+    task.dueDate = null;
+    task.deliveryDate = invoice.deliveryDate || null;
+    task.clientName = invoice.clientName || null;
+    task.clientLogoUrl = invoice.clientLogoUrl || null;
+    task.clientAddress = invoice.clientAddress || null;
+    task.clientPhone = invoice.clientPhone || null;
+    task.clientEmail = invoice.clientEmail || null;
+    task.assignedTo = livreur;
+    task.invoice = invoice;
+
+    return this.tasksRepository.save(task);
+  }
+
   async findAll(user: { id: string; role: UserRole }): Promise<Task[]> {
     const buildQuery = (includeInvoice: boolean) => {
       const qb = this.tasksRepository
