@@ -34,8 +34,8 @@ export class NotificationsController {
 
   // MOD 8b: Save custom email template
   @Put('email-template')
-  async saveEmailTemplate(@Body() body: { subject: string; body: string }) {
-    await this.notificationsService.saveEmailTemplate(body.subject, body.body);
+  async saveEmailTemplate(@Body() body: { subject: string; body: string; headerName?: string }) {
+    await this.notificationsService.saveEmailTemplate(body.subject, body.body, body.headerName);
     return { success: true, message: 'Modèle enregistré' };
   }
 

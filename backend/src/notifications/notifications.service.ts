@@ -8,6 +8,7 @@ import { formatMoney } from '../common/money';
 import * as nodemailer from 'nodemailer';
 
 const EMAIL_TEMPLATE_ID = 'payment-reminder';
+const EMAIL_HEADER_ID = 'payment-reminder-header';
 const DEFAULT_EMAIL_TEMPLATE = {
   subject: 'Rappel de paiement — Facture {{invoiceNumber}}',
   body: `Bonjour {{clientName}},\n\nNous vous rappelons que la facture {{invoiceNumber}} d'un montant de {{amount}} est en attente de règlement.\n\nDate d'échéance : {{dueDate}}\n\nMerci de bien vouloir procéder au règlement dans les meilleurs délais.\n\nCordialement,\n{{companyName}}`,
@@ -62,27 +63,45 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     return `${formatMoney(amount)} DZD`;
   }
 
-  async getEmailTemplate(): Promise<{ subject: string; body: string }> {
-    const saved = await this.notificationSettingsRepo.findOne({ where: { id: EMAIL_TEMPLATE_ID } });
-    return saved ? { subject: saved.subject, body: saved.body } : DEFAULT_EMAIL_TEMPLATE;
+  async getEmailTemplate(): Promise<{ subject: string; body: string; headerName: string }> {
+    const [saved, savedHeader] = await Promise.all([
+      this.notificationSettingsRepo.findOne({ where: { id: EMAIL_TEMPLATE_ID } }),
+      this.notificationSettingsRepo.findOne({ where: { id: EMAIL_HEADER_ID } }),
+    ]);
+    return {
+      ...(saved ? { subject: saved.subject, body: saved.body } : DEFAULT_EMAIL_TEMPLATE),
+      headerName: savedHeader?.subject || process.env.SMTP_FROM_NAME || 'HelpDZ',
+    };
   }
 
-  async saveEmailTemplate(subject: string, body: string): Promise<void> {
+  async saveEmailTemplate(subject: string, body: string, headerName?: string): Promise<void> {
+    if (headerName !== undefined && !headerName.trim()) {
+      throw new BadRequestException('Le nom affiché dans l’en-tête est obligatoire');
+    }
     await this.notificationSettingsRepo.save({ id: EMAIL_TEMPLATE_ID, subject, body });
+    if (headerName !== undefined) {
+      await this.notificationSettingsRepo.save({ id: EMAIL_HEADER_ID, subject: headerName.trim(), body: '' });
+    }
     this.logger.log('Email template updated');
   }
 
   async resetEmailTemplate(): Promise<void> {
-    await this.notificationSettingsRepo.delete(EMAIL_TEMPLATE_ID);
+    await this.notificationSettingsRepo.delete([EMAIL_TEMPLATE_ID, EMAIL_HEADER_ID]);
     this.logger.log('Email template reset to default');
   }
 
-  private buildEmailHtml(invoice: any, companyName: string, template: { subject: string; body: string }): string {
+  private buildEmailHtml(invoice: any, companyName: string, template: { subject: string; body: string; headerName: string }): string {
     const due = invoice.dueDate
       ? new Date(invoice.dueDate).toLocaleDateString('fr-DZ')
       : 'non définie';
 
-    const brandName = process.env.SMTP_FROM_NAME || 'HelpDZ';
+    const brandName = template.headerName.replace(/[&<>"']/g, (character) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    })[character] || character);
 
     // Replace variables in body
     const bodyContent = template.body
@@ -106,7 +125,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           ${bodyContent}
         </div>
         <div style="background:#f9fafb;padding:16px 30px;border-top:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">
-          Rappel automatique envoyé par <strong>HelpDZ</strong>. Merci de ne pas répondre à cet email.
+          Rappel automatique envoyé par <strong>${brandName}</strong>. Merci de ne pas répondre à cet email.
         </div>
       </div>
       </body></html>

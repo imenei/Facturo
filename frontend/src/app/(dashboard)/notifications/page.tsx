@@ -45,6 +45,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
   const { t } = useI18nStore();
   const [subject, setSubject] = useState(DEFAULT_TEMPLATE.subject);
   const [body, setBody] = useState(DEFAULT_TEMPLATE.body);
+  const [headerName, setHeaderName] = useState('HelpDZ');
   const [tab, setTab] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
 
@@ -53,6 +54,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
     api.get('/notifications/email-template').then(({ data }) => {
       if (data?.subject) setSubject(data.subject);
       if (data?.body) setBody(data.body);
+      if (data?.headerName) setHeaderName(data.headerName);
     }).catch(() => toast.error('Impossible de charger le modèle. Vérifie que la migration des notifications a été appliquée.'));
   }, []);
 
@@ -63,7 +65,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put('/notifications/email-template', { subject, body });
+      await api.put('/notifications/email-template', { subject, body, headerName });
       toast.success(t('template_saved'));
     } catch { toast.error('Impossible d’enregistrer le modèle. Vérifie la migration de la base de production.'); }
     setSaving(false);
@@ -76,6 +78,8 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
       await api.delete('/notifications/email-template');
       setSubject(DEFAULT_TEMPLATE.subject);
       setBody(DEFAULT_TEMPLATE.body);
+      const { data } = await api.get('/notifications/email-template');
+      setHeaderName(data.headerName || 'HelpDZ');
       toast.success(t('template_saved'));
     } catch { toast.error('Impossible de réinitialiser le modèle. Vérifie la migration de la base de production.'); }
     setSaving(false);
@@ -86,7 +90,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
   <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
   <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
     <div style="background:#1a54ff;padding:30px;text-align:center">
-      <h1 style="color:white;margin:0;font-size:22px">Mon Entreprise</h1>
+      <h1 style="color:white;margin:0;font-size:22px">${headerName.replace(/[&<>"']/g, '')}</h1>
       <p style="color:rgba(255,255,255,0.8);margin:8px 0 0">Rappel de paiement</p>
     </div>
     <div style="padding:30px;white-space:pre-line">
@@ -124,6 +128,10 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto p-5">
           {tab === 'edit' ? (
             <div className="space-y-4">
+              <div>
+                <label className="label">Nom affiché dans l’en-tête</label>
+                <input className="input" value={headerName} onChange={(e) => setHeaderName(e.target.value)} placeholder="HelpDZ" />
+              </div>
               <div>
                 <label className="label">Objet de l'email</label>
                 <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet..." />

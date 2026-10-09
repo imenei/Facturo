@@ -96,6 +96,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   const [templateSaving, setTemplateSaving] = useState(false);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [headerName, setHeaderName] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
@@ -117,6 +118,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       const { data } = await api.get('/notifications/email-template');
       setSubject(data.subject || '');
       setBody(data.body || '');
+      setHeaderName(data.headerName || 'HelpDZ');
       setTemplateOpen(true);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Impossible de charger le modèle de rappel.');
@@ -125,13 +127,13 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
   };
 
   const saveTemplate = async () => {
-    if (!subject.trim() || !body.trim()) {
-      toast.error('L’objet et le contenu du rappel sont obligatoires.');
+    if (!subject.trim() || !body.trim() || !headerName.trim()) {
+      toast.error('L’en-tête, l’objet et le contenu du rappel sont obligatoires.');
       return;
     }
     setTemplateSaving(true);
     try {
-      await api.put('/notifications/email-template', { subject, body });
+      await api.put('/notifications/email-template', { subject, body, headerName });
       setTemplateOpen(false);
       toast.success('Modèle de rappel enregistré.');
     } catch (error: any) {
@@ -178,6 +180,11 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       </div>
       {templateOpen && (
         <div className="mb-4 space-y-3 border-y border-slate-200 py-4">
+          <div>
+            <label className="label" htmlFor="reminderTemplateHeader">Nom affiché dans l’en-tête</label>
+            <input id="reminderTemplateHeader" className="input" value={headerName}
+              onChange={(event) => setHeaderName(event.target.value)} />
+          </div>
           <div>
             <label className="label" htmlFor="reminderTemplateSubject">Objet de l’email</label>
             <input id="reminderTemplateSubject" className="input" value={subject}
