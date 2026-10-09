@@ -211,8 +211,8 @@ function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[]
 }
 
 // Totals block
-// ✅ FIX: le bloc TOTAL TTC est maintenant centré (padding égal à gauche et à droite,
-//         texte centré verticalement) et toutes les valeurs sont alignées sur la même colonne.
+// Le bloc TOTAL TTC a un padding égal à gauche et à droite, le texte est centré
+// verticalement, et toutes les valeurs sont alignées sur la même colonne.
 function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const W = doc.internal.pageSize.getWidth();
   const RIGHT_MARGIN = 14;
@@ -221,7 +221,7 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const boxX = W - RIGHT_MARGIN - BOX_W; // bord gauche du bloc
   const boxR = W - RIGHT_MARGIN;         // bord droit du bloc
   const labelX = boxX + PAD;             // libellés
-  const valX = boxR - PAD;               // valeurs (alignées sur le même padding)
+  const valX = boxR - PAD;               // valeurs
 
   let ty = y + 8;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
@@ -307,7 +307,7 @@ function footerBlock(doc: jsPDF, invoice: any, company: any) {
   doc.setLineWidth(0.6);
   doc.line(14, H - 18, W - 14, H - 18);
 
-  // mentions légales seulement si company existe et footerText non vide
+  // mentions légales seulement si company existe
   if (company) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
@@ -736,4 +736,24 @@ export function generateInvoicePDFDoc(invoice: any, company: any): jsPDF {
 export async function generateInvoicePDF(invoice: any, company: any) {
   const prepared = await prepareCompanyForPdf(company);
   generateInvoicePDFDoc(invoice, prepared).save(`${invoice.number}.pdf`);
+}
+
+// ✅ NOUVEAU : impression directe du document
+export async function printInvoicePDF(invoice: any, company: any) {
+  const prepared = await prepareCompanyForPdf(company);
+  const doc = generateInvoicePDFDoc(invoice, prepared);
+  doc.autoPrint(); // ouvre la boîte de dialogue d'impression
+  const blobUrl = doc.output('bloburl') as unknown as string;
+  const win = window.open(blobUrl, '_blank');
+  if (!win) {
+    // popup bloquée : fallback via iframe caché
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = blobUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+    };
+  }
 }
