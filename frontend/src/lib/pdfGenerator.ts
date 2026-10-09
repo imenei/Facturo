@@ -211,11 +211,19 @@ function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[]
 }
 
 // Totals block
+// ✅ FIX: le bloc TOTAL TTC est maintenant centré (padding égal à gauche et à droite,
+//         texte centré verticalement) et toutes les valeurs sont alignées sur la même colonne.
 function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const W = doc.internal.pageSize.getWidth();
+  const RIGHT_MARGIN = 14;
+  const PAD = 4;                         // padding intérieur du rectangle noir
+  const BOX_W = 84;                      // largeur du bloc totaux
+  const boxX = W - RIGHT_MARGIN - BOX_W; // bord gauche du bloc
+  const boxR = W - RIGHT_MARGIN;         // bord droit du bloc
+  const labelX = boxX + PAD;             // libellés
+  const valX = boxR - PAD;               // valeurs (alignées sur le même padding)
+
   let ty = y + 8;
-  const labelX = W - 70;
-  const valX = W - 14;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
   const subtotalBeforeDiscount = roundMoney((invoice.items || []).reduce(
     (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
@@ -230,7 +238,7 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   for (const charge of invoiceCharges) {
     ty += 6;
-    doc.text(`Frais : ${charge.description || 'Autre frais'}`, labelX, ty, { maxWidth: 50 });
+    doc.text(`Frais : ${charge.description || 'Autre frais'}`, labelX, ty, { maxWidth: BOX_W - 2 * PAD - 30 });
     doc.text(fmt(charge.amount), valX, ty, { align: 'right' });
   }
 
@@ -243,18 +251,20 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   ty += 3;
   doc.setDrawColor(30, 30, 30);
   doc.setLineWidth(0.5);
-  doc.line(labelX - 2, ty, W - 14, ty);
+  doc.line(boxX, ty, boxR, ty);
 
   ty += 2;
+  const BOX_H = 11;
   doc.setFillColor(20, 20, 20);
-  doc.rect(labelX - 4, ty, W - 14 - (labelX - 4), 11, 'F');
+  doc.rect(boxX, ty, BOX_W, BOX_H, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(255, 255, 255);
-  doc.text('TOTAL TTC :', labelX, ty + 7.5);
-  doc.text(fmt(invoice.total), valX, ty + 7.5, { align: 'right' });
+  const midY = ty + BOX_H / 2; // centre vertical du rectangle
+  doc.text('TOTAL TTC :', labelX, midY, { baseline: 'middle' });
+  doc.text(fmt(invoice.total), valX, midY, { align: 'right', baseline: 'middle' });
 
-  ty += 11;
+  ty += BOX_H;
 
   // Montant en lettres sous le TTC
   doc.setFont('helvetica', 'italic');
@@ -297,7 +307,7 @@ function footerBlock(doc: jsPDF, invoice: any, company: any) {
   doc.setLineWidth(0.6);
   doc.line(14, H - 18, W - 14, H - 18);
 
-  // ✅ FIX: mentions légales seulement si company existe et footerText non vide
+  // mentions légales seulement si company existe et footerText non vide
   if (company) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
