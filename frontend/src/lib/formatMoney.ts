@@ -25,6 +25,11 @@ export function lineGrossMargin(unitPrice: number, purchasePrice: number, quanti
   return roundMoney((roundMoney(unitPrice) - roundMoney(purchasePrice)) * Number(quantity || 0));
 }
 
+export function lineAdjustmentAmount(lineTotal: number, percent: number): number {
+  const normalizedPercent = Math.min(Math.max(Number(percent) || 0, 0), 100);
+  return roundMoney((roundMoney(lineTotal) * normalizedPercent) / 100);
+}
+
 /**
  * Bénéfice net unique pour toute l'app.
  * Ne déduit pas deux fois : otherCharge et deliveryPrice sont des champs distincts.

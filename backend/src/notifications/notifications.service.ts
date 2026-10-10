@@ -31,7 +31,9 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
       port: Number.parseInt(process.env.SMTP_PORT || '', 10) || 587,
-      secure: Number.parseInt(process.env.SMTP_PORT || '', 10) === 465,
+      secure: process.env.SMTP_SECURE
+        ? process.env.SMTP_SECURE.toLowerCase() === 'true'
+        : Number.parseInt(process.env.SMTP_PORT || '', 10) === 465,
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
@@ -70,7 +72,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     ]);
     return {
       ...(saved ? { subject: saved.subject, body: saved.body } : DEFAULT_EMAIL_TEMPLATE),
-      headerName: savedHeader?.subject || process.env.SMTP_FROM_NAME || 'HelpDZ',
+      headerName: savedHeader?.subject || process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || 'HelpDZ',
     };
   }
 
@@ -125,7 +127,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
           ${bodyContent}
         </div>
         <div style="background:#f9fafb;padding:16px 30px;border-top:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">
-          Rappel automatique envoyé par <strong>${brandName}</strong>. Merci de ne pas répondre à cet email.
+          Rappel de paiement envoyé par <strong>${brandName}</strong>. Vous pouvez répondre à cet email si vous avez une question.
         </div>
       </div>
       </body></html>
@@ -167,8 +169,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const companyName = process.env.COMPANY_NAME || 'Mon Entreprise';
-    const senderName = process.env.SMTP_FROM_NAME || 'HelpDZ';
-    const senderAddress = process.env.SMTP_FROM || process.env.SMTP_USER || '';
+    const senderName = process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || 'HelpDZ';
+    const senderAddress = process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.SMTP_USER || '';
     const template = await this.getEmailTemplate();
     let success = false;
     let message: string;
@@ -178,9 +180,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
         from: { name: senderName, address: senderAddress },
         to: recipientEmail,
         replyTo: { name: senderName, address: senderAddress },
-        headers: {
-          'X-Auto-Response-Suppress': 'OOF, AutoReply',
-        },
         subject: this.buildEmailSubject(invoice, companyName, template),
         html: this.buildEmailHtml(invoice, companyName, template),
         text: this.buildEmailText(invoice, companyName, template),

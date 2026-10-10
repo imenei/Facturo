@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { formatMoneyDzd, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
+import { formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 // MOD 7: item includes purchasePrice (internal)
 interface Item {
@@ -217,8 +217,9 @@ export default function NewInvoicePage() {
     setShowProductPicker(null);
   };
 
-  const subtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(item.quantity * item.unitPrice), 0));
-  const adjustmentAmount = roundMoney((subtotal * (Number(form.adjustmentPercent) || 0)) / 100);
+  const lineAmounts = items.map((item) => roundMoney(item.quantity * item.unitPrice));
+  const subtotal = roundMoney(lineAmounts.reduce((sum, amount) => sum + amount, 0));
+  const adjustmentAmount = roundMoney(lineAmounts.reduce((sum, amount) => sum + lineAdjustmentAmount(amount, Number(form.adjustmentPercent)), 0));
   const adjustedSubtotal = roundMoney(subtotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
   const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
@@ -473,6 +474,7 @@ export default function NewInvoicePage() {
             {items.map((item, i) => {
               const margin = (item.unitPrice - item.purchasePrice) * item.quantity;
               const marginPct = item.unitPrice > 0 ? (((item.unitPrice - item.purchasePrice) / item.unitPrice) * 100).toFixed(0) : '0';
+              const lineAdjustment = lineAdjustmentAmount(item.quantity * item.unitPrice, Number(form.adjustmentPercent));
               return (
                 <div key={i} className="bg-slate-50 rounded-lg p-2">
                   <div className={clsx(
@@ -561,6 +563,11 @@ export default function NewInvoicePage() {
                     {item.quantity > 0 && item.unitPrice > 0 && (
                       <span className="text-xs text-slate-400">
                         = {formatMoneyDzd(roundMoney(item.quantity * item.unitPrice))}
+                      </span>
+                    )}
+                    {lineAdjustment > 0 && (
+                      <span className={clsx('text-xs', form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
+                        {form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustment)}
                       </span>
                     )}
                     {/* MOD 7: show margin hint when internal costs visible */}

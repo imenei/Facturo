@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { computeNetProfit, formatMoney, formatMoneyDzd, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
+import { computeNetProfit, formatMoney, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
@@ -620,7 +620,14 @@ export default function InvoiceDetailPage() {
           <tbody className="divide-y divide-slate-50">
             {invoice.items?.map((item: any, i: number) => (
               <tr key={i} className="hover:bg-slate-50/50">
-                <td className="px-5 py-3 text-sm text-slate-700">{item.description}</td>
+                <td className="px-5 py-3 text-sm text-slate-700">
+                  {item.description}
+                  {canManage && adjustmentAmount > 0 && (
+                    <div className={clsx('mt-1 text-xs', adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
+                      {adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)), Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)))}
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-sm text-center text-slate-500">{item.quantity}</td>
                 <td className="px-4 py-3 text-sm text-right text-slate-600">{formatMoneyDzd(item.unitPrice)}</td>
                 <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">{formatMoneyDzd(item.total)}</td>
