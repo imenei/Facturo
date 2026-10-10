@@ -1,4 +1,4 @@
-// backend/src/interventions/interventions.service.ts
+// backend/src/intervention/intervention.service.ts
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
@@ -12,6 +12,9 @@ interface RequestUser {
   role: UserRole | string;
 }
 
+const DATE_FIELDS = ['entryDate', 'expectedExitDate', 'actualExitDate'];
+const NUMBER_FIELDS = ['estimatedMinutes', 'workedMinutes', 'laborCost'];
+
 @Injectable()
 export class InterventionsService {
   constructor(
@@ -21,6 +24,22 @@ export class InterventionsService {
   ) {}
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Nettoie le corps de la requête : les champs vides envoyés par les
+   * formulaires ('') provoquaient "invalid input syntax for type date".
+   */
+  private sanitize(dto: any): any {
+    const clean = { ...(dto || {}) };
+    for (const f of DATE_FIELDS) {
+      if (clean[f] === '' || clean[f] === undefined && f in clean) clean[f] = null;
+    }
+    for (const f of NUMBER_FIELDS) {
+      if (clean[f] === '' || clean[f] === null) delete clean[f];
+    }
+    if (clean.assignedToId === '') clean.assignedToId = null;
+    return clean;
+  }
 
   private async generateTicket(): Promise<string> {
     const year = new Date().getFullYear();
@@ -56,7 +75,10 @@ export class InterventionsService {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
-  async create(dto: any, createdById: string): Promise<Intervention> {
+  async create(rawDto: any, createdById: string): Promise<Intervention> {
+    const dto = this.sanitize(rawDto);
+    if (!dto.entryDate) dto.entryDate = new Date().toISOString().slice(0, 10);
+
     const ticketNumber = await this.generateTicket();
     const materials = this.mapMaterials(dto.materialsUsed || []);
     const { partsCost, totalPrice } = this.calcTotals({ ...dto, materialsUsed: materials });
@@ -111,7 +133,11 @@ export class InterventionsService {
     return item;
   }
 
-  async update(id: string, dto: any, user: RequestUser): Promise<Intervention> {
+  async update(id: string, rawDto: any, user: RequestUser): Promise<Intervention> {
+    const dto = this.sanitize(rawDto);
+    // entryDate est obligatoire en base : on ne l'écrase jamais par null
+    if (dto.entryDate === null) delete dto.entryDate;
+
     const item = await this.findOne(id, user);
     this.assertAccess(item, user);
 

@@ -186,7 +186,7 @@ export default function NewInvoicePage() {
     : [];
 
   const pickExistingClient = (c: any) => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
     let logoUrl = c.clientLogoUrl || '';
     if (logoUrl && !logoUrl.startsWith('data:') && !logoUrl.startsWith('http')) {
       logoUrl = `${API_BASE}${logoUrl}`;
@@ -396,7 +396,7 @@ export default function NewInvoicePage() {
                       className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-brand-50 transition-colors text-left">
                       <div className="w-8 h-8 rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0 flex items-center justify-center">
                         {c.clientLogoUrl
-                          ? <img src={c.clientLogoUrl.startsWith('data:') || c.clientLogoUrl.startsWith('http') ? c.clientLogoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${c.clientLogoUrl}`} alt="" className="w-full h-full object-contain" />
+                          ? <img src={c.clientLogoUrl.startsWith('data:') || c.clientLogoUrl.startsWith('http') ? c.clientLogoUrl : `${process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')}${c.clientLogoUrl}`} alt="" className="w-full h-full object-contain" />
                           : <span className="text-xs font-700 text-slate-500 uppercase">{c.clientName?.charAt(0)}</span>
                         }
                       </div>

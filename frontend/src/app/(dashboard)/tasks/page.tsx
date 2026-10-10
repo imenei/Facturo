@@ -15,7 +15,7 @@ import Link from 'next/link';
 import { isManager } from '@/lib/roles';
 import { formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'https://api.helpdz.com';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
 function logoSrc(url: string | null | undefined): string | null {
   if (!url) return null;

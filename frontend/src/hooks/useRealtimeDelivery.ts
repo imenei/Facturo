@@ -12,7 +12,7 @@ export function useRealtimeDelivery(onUpdate?: (data: any) => void) {
 
     // Lazy import socket.io-client
     import('socket.io-client').then(({ io }) => {
-      const socket = io(`${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}/realtime`, {
+      const socket = io(`${process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')}/realtime`, {
         query: { role: user.role, userId: user.id },
         auth: { token },
         transports: ['websocket'],
