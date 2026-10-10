@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { roundMoney } from './formatMoney';
+import { adjustedUnitPrice, lineAdjustmentAmount, roundMoney } from './formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
@@ -191,12 +191,19 @@ function clientBlock(doc: jsPDF, invoice: any, x: number, y: number, label = 'FA
 
 // Items table helper
 function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[], headText: number[]) {
-  const body = invoice.items.map((i: any) => [
-    i.description,
-    { content: String(i.quantity), styles: { halign: 'center' } },
-    { content: fmt(i.unitPrice), styles: { halign: 'right' } },
-    { content: fmt(i.total), styles: { halign: 'right' } },
-  ]);
+  const adjustmentType = invoice.adjustmentType || 'discount';
+  const adjustmentPercent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0);
+  const body = (invoice.items || []).map((item: any) => {
+    const unitPrice = invoice.type === 'bon_livraison'
+      ? roundMoney(item.unitPrice)
+      : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
+    return [
+      item.description,
+      { content: String(item.quantity), styles: { halign: 'center' } },
+      { content: fmt(unitPrice), styles: { halign: 'right' } },
+      { content: fmt(roundMoney(unitPrice * Number(item.quantity || 0))), styles: { halign: 'right' } },
+    ];
+  });
   autoTable(doc, {
     startY,
     head: [['Désignation', 'Qté', 'Prix Unitaire HT', 'Total HT']],
@@ -225,22 +232,30 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   let ty = y + 8;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const subtotalBeforeDiscount = roundMoney((invoice.items || []).reduce(
-    (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+  const adjustmentType = invoice.adjustmentType || 'discount';
+  const adjustmentPercent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0);
+  const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
+    const unitPrice = invoice.type === 'bon_livraison'
+      ? roundMoney(item.unitPrice)
+      : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
+    return sum + roundMoney(unitPrice * Number(item.quantity || 0));
+  }, 0));
+  const calculatedAdjustment = roundMoney((invoice.items || []).reduce(
+    (sum: number, item: any) => sum + lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent),
     0,
   ));
-  const discountAmount = roundMoney(Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0));
+  const discountAmount = roundMoney(Number(invoice.adjustmentAmount || invoice.discountAmount || calculatedAdjustment));
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(70, 70, 70);
   doc.text('Sous-total HT :', labelX, ty);
-  doc.text(fmt(subtotalBeforeDiscount), valX, ty, { align: 'right' });
+  doc.text(fmt(subtotalAfterAdjustment), valX, ty, { align: 'right' });
 
   if ((invoice.adjustmentType || 'discount') === 'discount' && discountAmount > 0) {
     ty += 6;
-    doc.text(`Remise (${Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) :`, labelX, ty);
-    doc.text(`-${fmt(discountAmount)}`, valX, ty, { align: 'right' });
+    doc.text(`Remise appliquée (${adjustmentPercent}%, incluse dans les prix) :`, labelX, ty);
+    doc.text(fmt(discountAmount), valX, ty, { align: 'right' });
   }
 
   for (const charge of invoiceCharges) {

@@ -1,4 +1,4 @@
-import { formatMoney } from './formatMoney';
+import { adjustedUnitPrice, formatMoney, lineAdjustmentAmount, roundMoney } from './formatMoney';
 
 function amountInWords(n: number): string {
   return numberToFrenchWords(n);
@@ -49,6 +49,8 @@ export async function generateInvoiceWord(invoice: any, company: any) {
   const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, HeadingLevel } = await import('docx');
 
   const isDeliveryNote = invoice.type === 'bon_livraison';
+  const adjustmentType = invoice.adjustmentType || 'discount';
+  const adjustmentPercent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0);
   const typeLabel = invoice.type === 'facture' ? 'FACTURE' : invoice.type === 'proforma' ? 'PROFORMA' : 'REÇU';
   // Identité société choisie pour ce document, sinon société par défaut. Le reçu reste anonyme (pas de nom).
   const displayCompanyName = isDeliveryNote ? '' : (invoice.issuerName || company?.name || 'Mon Entreprise');
@@ -66,16 +68,19 @@ export async function generateInvoiceWord(invoice: any, company: any) {
           ],
         }),
       )
-    : invoice.items.map((item: any) =>
+    : invoice.items.map((item: any) => {
+        const unitPrice = adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
+        const total = roundMoney(unitPrice * Number(item.quantity || 0));
+        return
         new TableRow({
           children: [
             new TableCell({ children: [new Paragraph(item.description)], width: { size: 50, type: WidthType.PERCENTAGE } }),
             new TableCell({ children: [new Paragraph({ text: String(item.quantity), alignment: AlignmentType.CENTER })] }),
-            new TableCell({ children: [new Paragraph({ text: formatMoney(item.unitPrice), alignment: AlignmentType.RIGHT })] }),
-            new TableCell({ children: [new Paragraph({ text: formatMoney(item.total), alignment: AlignmentType.RIGHT })] }),
+              new TableCell({ children: [new Paragraph({ text: formatMoney(unitPrice), alignment: AlignmentType.RIGHT })] }),
+              new TableCell({ children: [new Paragraph({ text: formatMoney(total), alignment: AlignmentType.RIGHT })] }),
           ],
-        }),
-      );
+          });
+      });
 
   const tableHeader = isDeliveryNote
     ? ['#', 'Désignation / Référence', 'Qté', 'Prix', 'Total', 'Reçu']
@@ -83,11 +88,15 @@ export async function generateInvoiceWord(invoice: any, company: any) {
 
   const totalQty = (invoice.items || []).reduce((s: number, i: any) => s + Number(i.quantity || 0), 0);
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const subtotalBeforeDiscount = (invoice.items || []).reduce(
-    (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+  const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
+    const unitPrice = isDeliveryNote ? Number(item.unitPrice) : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
+    return sum + roundMoney(unitPrice * Number(item.quantity || 0));
+  }, 0));
+  const calculatedAdjustment = roundMoney((invoice.items || []).reduce(
+    (sum: number, item: any) => sum + lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent),
     0,
-  );
-  const discountAmount = Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0);
+  ));
+  const discountAmount = Number(invoice.adjustmentAmount || invoice.discountAmount || calculatedAdjustment);
 
   const doc = new Document({
     sections: [{
@@ -128,9 +137,9 @@ export async function generateInvoiceWord(invoice: any, company: any) {
               new Paragraph({ text: 'Date de réception : ___/___/______' }),
             ]
           : [
-              new Paragraph({ text: `Sous-total HT : ${formatMoney(subtotalBeforeDiscount)}`, alignment: AlignmentType.RIGHT }),
+              new Paragraph({ text: `Sous-total HT : ${formatMoney(subtotalAfterAdjustment)}`, alignment: AlignmentType.RIGHT }),
               ...((invoice.adjustmentType || 'discount') === 'discount' && discountAmount > 0
-                ? [new Paragraph({ text: `Remise (${Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) : -${formatMoney(discountAmount)}`, alignment: AlignmentType.RIGHT })]
+                ? [new Paragraph({ text: `Remise appliquée (${adjustmentPercent}%, incluse dans les prix) : ${formatMoney(discountAmount)}`, alignment: AlignmentType.RIGHT })]
                 : []),
               ...invoiceCharges.map((charge: any) => new Paragraph({
                 text: `Frais : ${charge.description || 'Autre frais'} : ${formatMoney(charge.amount)}`,

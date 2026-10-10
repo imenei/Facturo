@@ -25,9 +25,17 @@ export function lineGrossMargin(unitPrice: number, purchasePrice: number, quanti
   return roundMoney((roundMoney(unitPrice) - roundMoney(purchasePrice)) * Number(quantity || 0));
 }
 
-export function lineAdjustmentAmount(lineTotal: number, percent: number): number {
+export function adjustedUnitPrice(unitPrice: number, adjustmentType: string, percent: number): number {
   const normalizedPercent = Math.min(Math.max(Number(percent) || 0, 0), 100);
-  return roundMoney((roundMoney(lineTotal) * normalizedPercent) / 100);
+  const basePrice = roundMoney(unitPrice);
+  const unitAdjustment = roundMoney((basePrice * normalizedPercent) / 100);
+  return roundMoney(basePrice + (adjustmentType === 'addition' ? unitAdjustment : -unitAdjustment));
+}
+
+export function lineAdjustmentAmount(unitPrice: number, quantity: number, adjustmentType: string, percent: number): number {
+  const baseTotal = roundMoney(roundMoney(unitPrice) * Number(quantity || 0));
+  const adjustedTotal = roundMoney(adjustedUnitPrice(unitPrice, adjustmentType, percent) * Number(quantity || 0));
+  return roundMoney(Math.abs(adjustedTotal - baseTotal));
 }
 
 /**

@@ -6,7 +6,7 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, Trash2, Loader2, Save } from 'lucide-react';
 import Link from 'next/link';
-import { formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
+import { adjustedUnitPrice, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 interface Item { description: string; quantity: number; unitPrice: number; purchasePrice: number; }
 
@@ -61,8 +61,8 @@ export default function EditInvoicePage() {
 
   const lineAmounts = items.map((item) => roundMoney(item.quantity * item.unitPrice));
   const subtotal = roundMoney(lineAmounts.reduce((sum, amount) => sum + amount, 0));
-  const adjustmentAmount = roundMoney(lineAmounts.reduce((sum, amount) => sum + lineAdjustmentAmount(amount, Number(form.adjustmentPercent)), 0));
-  const adjustedSubtotal = roundMoney(subtotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount));
+  const adjustmentAmount = roundMoney(items.reduce((sum, item) => sum + lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)), 0));
+  const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
   const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
   const tvaAmount = form.hasTva ? roundMoney((subtotalWithCharges * form.tvaRate) / 100) : 0;
@@ -286,10 +286,10 @@ export default function EditInvoicePage() {
                 <div className="col-span-1 flex justify-center">
                   {items.length > 1 && <button type="button" onClick={() => removeItem(i)} className="p-1.5 text-red-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>}
                 </div>
-                {lineAdjustmentAmount(item.quantity * item.unitPrice, Number(form.adjustmentPercent)) > 0 && (
+                {lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)) > 0 && (
                   <div className="col-span-12 text-right text-xs">
                     <span className={form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600'}>
-                      {form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(item.quantity * item.unitPrice, Number(form.adjustmentPercent)))}
+                      {form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)))}
                     </span>
                   </div>
                 )}

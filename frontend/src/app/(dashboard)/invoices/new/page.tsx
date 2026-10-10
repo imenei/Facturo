@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
-import { formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
+import { adjustedUnitPrice, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 // MOD 7: item includes purchasePrice (internal)
 interface Item {
@@ -219,8 +219,8 @@ export default function NewInvoicePage() {
 
   const lineAmounts = items.map((item) => roundMoney(item.quantity * item.unitPrice));
   const subtotal = roundMoney(lineAmounts.reduce((sum, amount) => sum + amount, 0));
-  const adjustmentAmount = roundMoney(lineAmounts.reduce((sum, amount) => sum + lineAdjustmentAmount(amount, Number(form.adjustmentPercent)), 0));
-  const adjustedSubtotal = roundMoney(subtotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount));
+  const adjustmentAmount = roundMoney(items.reduce((sum, item) => sum + lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)), 0));
+  const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
   const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
   const tvaAmount = form.hasTva ? roundMoney((subtotalWithCharges * form.tvaRate) / 100) : 0;
@@ -474,7 +474,7 @@ export default function NewInvoicePage() {
             {items.map((item, i) => {
               const margin = (item.unitPrice - item.purchasePrice) * item.quantity;
               const marginPct = item.unitPrice > 0 ? (((item.unitPrice - item.purchasePrice) / item.unitPrice) * 100).toFixed(0) : '0';
-              const lineAdjustment = lineAdjustmentAmount(item.quantity * item.unitPrice, Number(form.adjustmentPercent));
+              const lineAdjustment = lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent));
               return (
                 <div key={i} className="bg-slate-50 rounded-lg p-2">
                   <div className={clsx(

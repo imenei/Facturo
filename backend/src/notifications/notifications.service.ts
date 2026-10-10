@@ -10,8 +10,8 @@ import * as nodemailer from 'nodemailer';
 const EMAIL_TEMPLATE_ID = 'payment-reminder';
 const EMAIL_HEADER_ID = 'payment-reminder-header';
 const DEFAULT_EMAIL_TEMPLATE = {
-  subject: 'Rappel de paiement — Facture {{invoiceNumber}}',
-  body: `Bonjour {{clientName}},\n\nNous vous rappelons que la facture {{invoiceNumber}} d'un montant de {{amount}} est en attente de règlement.\n\nDate d'échéance : {{dueDate}}\n\nMerci de bien vouloir procéder au règlement dans les meilleurs délais.\n\nCordialement,\n{{companyName}}`,
+  subject: 'Facture {{invoiceNumber}} - échéance de paiement',
+  body: `Bonjour {{clientName}},\n\nNous vous contactons au sujet de la facture {{invoiceNumber}}, d'un montant de {{amount}}, dont le règlement est en attente.\n\nDate d'échéance : {{dueDate}}\n\nSi le paiement a déjà été effectué, vous pouvez ignorer ce message. Pour toute question, vous pouvez répondre à cet email.\n\nCordialement,\n{{companyName}}`,
 };
 
 @Injectable()
@@ -115,23 +115,7 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       // Convert newlines to <br> for HTML if body is plain text
       .replace(/\n/g, '<br>');
 
-    return `
-      <!DOCTYPE html><html><head><meta charset="utf-8"></head>
-      <body style="font-family:Arial,sans-serif;background:#f5f5f5;margin:0;padding:20px">
-      <div style="max-width:600px;margin:0 auto;background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
-        <div style="background:#1a54ff;padding:30px;text-align:center">
-          <h1 style="color:white;margin:0;font-size:22px">${brandName}</h1>
-          <p style="color:rgba(255,255,255,0.8);margin:8px 0 0">Rappel de paiement — ${companyName}</p>
-        </div>
-        <div style="padding:30px;color:#374151;font-size:15px;line-height:1.6">
-          ${bodyContent}
-        </div>
-        <div style="background:#f9fafb;padding:16px 30px;border-top:1px solid #e5e7eb;text-align:center;font-size:12px;color:#9ca3af">
-          Rappel de paiement envoyé par <strong>${brandName}</strong>. Vous pouvez répondre à cet email si vous avez une question.
-        </div>
-      </div>
-      </body></html>
-    `;
+    return `<!doctype html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;color:#222;line-height:1.5"><p><strong>${brandName}</strong></p><p>${bodyContent}</p><p>${companyName}</p></body></html>`;
   }
 
   private buildEmailText(invoice: any, companyName: string, template: { subject: string; body: string }): string {
@@ -170,7 +154,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
 
     const companyName = process.env.COMPANY_NAME || 'Mon Entreprise';
     const senderName = process.env.SMTP_FROM_NAME || process.env.MAIL_FROM_NAME || 'HelpDZ';
-    const senderAddress = process.env.SMTP_FROM || process.env.MAIL_FROM || process.env.SMTP_USER || '';
+    const authenticatedAddress = process.env.SMTP_USER?.trim() || '';
+    const configuredAddress = process.env.SMTP_FROM || process.env.MAIL_FROM || '';
+    const smtpHost = (process.env.SMTP_HOST || 'smtp.gmail.com').toLowerCase();
+    const usesGoogleSmtp = smtpHost === 'smtp.gmail.com' || smtpHost.endsWith('.googlemail.com');
+    const senderAddress = usesGoogleSmtp
+      ? authenticatedAddress || configuredAddress
+      : configuredAddress || authenticatedAddress;
     const template = await this.getEmailTemplate();
     let success = false;
     let message: string;
