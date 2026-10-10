@@ -30,8 +30,8 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT) || 587,
-      secure: false,
+      port: Number.parseInt(process.env.SMTP_PORT || '', 10) || 587,
+      secure: Number.parseInt(process.env.SMTP_PORT || '', 10) === 465,
       auth: {
         user: process.env.SMTP_USER || '',
         pass: process.env.SMTP_PASS || '',
@@ -132,6 +132,23 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     `;
   }
 
+  private buildEmailText(invoice: any, companyName: string, template: { subject: string; body: string }): string {
+    const due = invoice.dueDate
+      ? new Date(invoice.dueDate).toLocaleDateString('fr-DZ')
+      : 'non définie';
+
+    return template.body
+      .replace(/{{clientName}}/g, invoice.clientName || '')
+      .replace(/{{invoiceNumber}}/g, invoice.number || '')
+      .replace(/{{amount}}/g, this.formatAmount(invoice.total))
+      .replace(/{{dueDate}}/g, due)
+      .replace(/{{companyName}}/g, companyName)
+      .replace(/<br\s*\/?\s*>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  }
+
   // MOD 8b: build email subject from template
   private buildEmailSubject(invoice: any, companyName: string, template: { subject: string; body: string }): string {
     return template.subject
@@ -152,7 +169,6 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
     const companyName = process.env.COMPANY_NAME || 'Mon Entreprise';
     const senderName = process.env.SMTP_FROM_NAME || 'HelpDZ';
     const senderAddress = process.env.SMTP_FROM || process.env.SMTP_USER || '';
-    const noReplyAddress = process.env.SMTP_NOREPLY || 'noreply@helpdz.app';
     const template = await this.getEmailTemplate();
     let success = false;
     let message: string;
@@ -161,13 +177,13 @@ export class NotificationsService implements OnModuleInit, OnModuleDestroy {
       await this.transporter.sendMail({
         from: { name: senderName, address: senderAddress },
         to: recipientEmail,
-        replyTo: { name: senderName, address: noReplyAddress },
+        replyTo: { name: senderName, address: senderAddress },
         headers: {
           'X-Auto-Response-Suppress': 'OOF, AutoReply',
-          Precedence: 'bulk',
         },
         subject: this.buildEmailSubject(invoice, companyName, template),
         html: this.buildEmailHtml(invoice, companyName, template),
+        text: this.buildEmailText(invoice, companyName, template),
       });
       success = true;
       message = `Email envoyé à ${recipientEmail}`;

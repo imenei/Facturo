@@ -229,12 +229,19 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
     (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
     0,
   ));
+  const discountAmount = roundMoney(Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0));
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(70, 70, 70);
   doc.text('Sous-total HT :', labelX, ty);
   doc.text(fmt(subtotalBeforeDiscount), valX, ty, { align: 'right' });
+
+  if ((invoice.adjustmentType || 'discount') === 'discount' && discountAmount > 0) {
+    ty += 6;
+    doc.text(`Remise (${Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) :`, labelX, ty);
+    doc.text(`-${fmt(discountAmount)}`, valX, ty, { align: 'right' });
+  }
 
   for (const charge of invoiceCharges) {
     ty += 6;

@@ -6,9 +6,9 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, Trash2, Loader2, Save } from 'lucide-react';
 import Link from 'next/link';
-import { formatMoneyDzd, roundMoney } from '@/lib/formatMoney';
+import { formatMoneyDzd, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
-interface Item { description: string; quantity: number; unitPrice: number; }
+interface Item { description: string; quantity: number; unitPrice: number; purchasePrice: number; }
 
 export default function EditInvoicePage() {
   const { id } = useParams();
@@ -44,6 +44,7 @@ export default function EditInvoicePage() {
         description: i.description,
         quantity: Number(i.quantity),
         unitPrice: Number(i.unitPrice),
+        purchasePrice: Number(i.purchasePrice) || 0,
       })));
       setLoading(false);
     }).catch(() => { toast.error(t('error_loading_invoice')); router.push('/invoices'); });
@@ -55,7 +56,7 @@ export default function EditInvoicePage() {
 
   const updateItem = (i: number, field: keyof Item, val: any) =>
     setItems((prev) => prev.map((item, idx) => idx === i ? { ...item, [field]: val } : item));
-  const addItem = () => setItems((p) => [...p, { description: '', quantity: 1, unitPrice: 0 }]);
+  const addItem = () => setItems((p) => [...p, { description: '', quantity: 1, unitPrice: 0, purchasePrice: 0 }]);
   const removeItem = (i: number) => setItems((p) => p.filter((_, idx) => idx !== i));
 
   const subtotal = roundMoney(items.reduce((s, i) => s + roundMoney(i.quantity * i.unitPrice), 0));
@@ -101,6 +102,7 @@ export default function EditInvoicePage() {
           description: item.description.trim(),
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
+          purchasePrice: Number(item.purchasePrice) || 0,
         })),
       };
       await api.put(`/invoices/${id}`, payload);
@@ -265,18 +267,25 @@ export default function EditInvoicePage() {
           <div className="space-y-2">
             {items.map((item, i) => (
               <div key={i} className="grid grid-cols-12 gap-2 items-center bg-slate-50 rounded-lg p-2">
-                <div className="col-span-12 md:col-span-6">
+                <div className="col-span-12 md:col-span-5">
                   <input className="input bg-white" value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} required placeholder={t('description')} />
                 </div>
-                <div className="col-span-4 md:col-span-2">
-                  <input className="input bg-white text-center" type="number" min={1} value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))} />
+                <div className="col-span-3 md:col-span-1">
+                  <label className="block text-xs text-slate-500 mb-1">Qté</label>
+                  <input aria-label="Quantité" className="input bg-white text-center" type="number" min={1} value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))} />
                 </div>
-                <div className="col-span-7 md:col-span-3">
-                  <input className="input bg-white text-right" type="number" min={0} step="0.01" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))} />
+                <div className="col-span-4 md:col-span-2">
+                  <label className="block text-xs text-amber-700 mb-1">Prix d'achat</label>
+                  <input aria-label="Prix d'achat" className="input bg-amber-50 border-amber-200 text-right" type="number" min={0} step="0.01" value={item.purchasePrice} onChange={(e) => updateItem(i, 'purchasePrice', Number(e.target.value))} />
+                </div>
+                <div className="col-span-4 md:col-span-3">
+                  <label className="block text-xs text-slate-500 mb-1">Prix de vente</label>
+                  <input aria-label="Prix de vente" className="input bg-white text-right" type="number" min={0} step="0.01" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))} />
                 </div>
                 <div className="col-span-1 flex justify-center">
                   {items.length > 1 && <button type="button" onClick={() => removeItem(i)} className="p-1.5 text-red-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>}
                 </div>
+                {item.purchasePrice > 0 && <div className="col-span-12 text-right text-xs text-emerald-700">Marge : {formatMoneyDzd(lineGrossMargin(item.unitPrice, item.purchasePrice, item.quantity))}</div>}
               </div>
             ))}
           </div>

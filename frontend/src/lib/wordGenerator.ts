@@ -87,6 +87,7 @@ export async function generateInvoiceWord(invoice: any, company: any) {
     (sum: number, item: any) => sum + Number(item.total ?? Number(item.quantity || 0) * Number(item.unitPrice || 0)),
     0,
   );
+  const discountAmount = Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0);
 
   const doc = new Document({
     sections: [{
@@ -128,6 +129,9 @@ export async function generateInvoiceWord(invoice: any, company: any) {
             ]
           : [
               new Paragraph({ text: `Sous-total HT : ${formatMoney(subtotalBeforeDiscount)}`, alignment: AlignmentType.RIGHT }),
+              ...((invoice.adjustmentType || 'discount') === 'discount' && discountAmount > 0
+                ? [new Paragraph({ text: `Remise (${Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) : -${formatMoney(discountAmount)}`, alignment: AlignmentType.RIGHT })]
+                : []),
               ...invoiceCharges.map((charge: any) => new Paragraph({
                 text: `Frais : ${charge.description || 'Autre frais'} : ${formatMoney(charge.amount)}`,
                 alignment: AlignmentType.RIGHT,
