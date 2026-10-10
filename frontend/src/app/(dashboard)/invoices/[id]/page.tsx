@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
+import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, resolveInvoiceAdjustment, roundMoney } from '@/lib/formatMoney';
 
 const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
@@ -459,10 +459,9 @@ export default function InvoiceDetailPage() {
 
   const canManage = isManager(user?.role);
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
-  const adjustmentAmount = Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0);
-  const adjustmentType = invoice.adjustmentType || 'discount';
+  const { type: adjustmentType, percent: adjustmentPercent, amount: adjustmentAmount } = resolveInvoiceAdjustment(invoice);
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const subtotalBeforeAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => sum + roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)) * Number(item.quantity || 0)), 0));
+  const subtotalBeforeAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => sum + roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent) * Number(item.quantity || 0)), 0));
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -624,13 +623,13 @@ export default function InvoiceDetailPage() {
                   {item.description}
                   {canManage && adjustmentAmount > 0 && (
                     <div className={clsx('mt-1 text-xs', adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
-                      {adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)))}
+                      {adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent))}
                     </div>
                   )}
                 </td>
                 <td className="px-4 py-3 text-sm text-center text-slate-500">{item.quantity}</td>
-                <td className="px-4 py-3 text-sm text-right text-slate-600">{formatMoneyDzd(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)))}</td>
-                <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">{formatMoneyDzd(roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)) * Number(item.quantity || 0)))}</td>
+                <td className="px-4 py-3 text-sm text-right text-slate-600">{formatMoneyDzd(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent))}</td>
+                <td className="px-5 py-3 text-sm text-right font-semibold text-slate-900">{formatMoneyDzd(roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent) * Number(item.quantity || 0)))}</td>
               </tr>
             ))}
           </tbody>

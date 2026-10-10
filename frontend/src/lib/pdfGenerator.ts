@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { adjustedUnitPrice, lineAdjustmentAmount, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, lineAdjustmentAmount, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
@@ -191,8 +191,7 @@ function clientBlock(doc: jsPDF, invoice: any, x: number, y: number, label = 'FA
 
 // Items table helper
 function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[], headText: number[]) {
-  const adjustmentType = invoice.adjustmentType || 'discount';
-  const adjustmentPercent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0);
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const body = (invoice.items || []).map((item: any) => {
     const unitPrice = invoice.type === 'bon_livraison'
       ? roundMoney(item.unitPrice)
@@ -232,19 +231,17 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   let ty = y + 8;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const adjustmentType = invoice.adjustmentType || 'discount';
-  const adjustmentPercent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0);
+  const { type: adjustmentType, percent: adjustmentPercent, amount: storedAdjustmentAmount } = resolveInvoiceAdjustment(invoice);
   const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
     const unitPrice = invoice.type === 'bon_livraison'
       ? roundMoney(item.unitPrice)
       : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
     return sum + roundMoney(unitPrice * Number(item.quantity || 0));
   }, 0));
-  const calculatedAdjustment = roundMoney((invoice.items || []).reduce(
+  const discountAmount = roundMoney(storedAdjustmentAmount || (invoice.items || []).reduce(
     (sum: number, item: any) => sum + lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent),
     0,
   ));
-  const discountAmount = roundMoney(Number(invoice.adjustmentAmount || invoice.discountAmount || calculatedAdjustment));
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -252,7 +249,7 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   doc.text('Sous-total HT :', labelX, ty);
   doc.text(fmt(subtotalAfterAdjustment), valX, ty, { align: 'right' });
 
-  if ((invoice.adjustmentType || 'discount') === 'discount' && discountAmount > 0) {
+  if (adjustmentType === 'discount' && discountAmount > 0) {
     ty += 6;
     doc.text(`Remise appliquée (${adjustmentPercent}%, incluse dans les prix) :`, labelX, ty);
     doc.text(fmt(discountAmount), valX, ty, { align: 'right' });

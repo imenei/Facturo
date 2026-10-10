@@ -38,6 +38,31 @@ export function lineAdjustmentAmount(unitPrice: number, quantity: number, adjust
   return roundMoney(Math.abs(adjustedTotal - baseTotal));
 }
 
+export function resolveInvoiceAdjustment(invoice: any): { type: string; percent: number; amount: number } {
+  const items = Array.isArray(invoice?.items) ? invoice.items : [];
+  const baseSubtotal = roundMoney(items.reduce(
+    (sum: number, item: any) => sum + roundMoney(Number(item.quantity || 0) * Number(item.unitPrice || 0)),
+    0,
+  ));
+  const charges = roundMoney((invoice?.otherCharges || []).reduce(
+    (sum: number, charge: any) => sum + Number(charge.amount || 0),
+    0,
+  ));
+  const subtotalDelta = roundMoney(Number(invoice?.subtotal || 0) - baseSubtotal - charges);
+  const amount = roundMoney(
+    Number(invoice?.adjustmentAmount || invoice?.discountAmount || Math.abs(subtotalDelta)),
+  );
+  const type = invoice?.adjustmentType === 'addition' || invoice?.adjustmentType === 'discount'
+    ? invoice.adjustmentType
+    : Number(invoice?.discountAmount || invoice?.discountPercent || 0) > 0 || subtotalDelta < 0
+      ? 'discount'
+      : 'addition';
+  const percent = Number(invoice?.adjustmentPercent || invoice?.discountPercent || 0)
+    || (baseSubtotal > 0 ? roundMoney((amount / baseSubtotal) * 100) : 0);
+
+  return { type, percent, amount };
+}
+
 /**
  * Bénéfice net unique pour toute l'app.
  * Ne déduit pas deux fois : otherCharge et deliveryPrice sont des champs distincts.
