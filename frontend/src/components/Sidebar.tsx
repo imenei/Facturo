@@ -61,7 +61,7 @@ export default function Sidebar() {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white shadow-lg md:hidden"
+        className="mobile-nav-toggle fixed left-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white shadow-lg md:hidden"
         aria-label="Open navigation"
       >
         <Menu size={20} />

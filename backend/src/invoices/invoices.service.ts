@@ -201,7 +201,13 @@ export class InvoicesService {
       });
 
       const savedInvoice = await this.invoicesRepository.save(invoice);
-      await this.tasksService.syncInvoiceTask(savedInvoice, userId);
+      const task = await this.tasksService.syncInvoiceTask(savedInvoice, userId);
+      if (task && savedInvoice.type === InvoiceType.BON_LIVRAISON && savedInvoice.deliveryPersonId) {
+        this.deliveryGateway.emitTaskAssigned(
+          savedInvoice.deliveryPersonId,
+          this.tasksService.presentForLivreur(task),
+        );
+      }
       return savedInvoice;
     } catch (error) {
       console.error('=== ERROR in invoices.service.create ===');
@@ -439,7 +445,13 @@ export class InvoicesService {
     );
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
-    await this.tasksService.syncInvoiceTask(savedInvoice, user.id);
+    const task = await this.tasksService.syncInvoiceTask(savedInvoice, user.id);
+    if (task && savedInvoice.type === InvoiceType.BON_LIVRAISON && savedInvoice.deliveryPersonId) {
+      this.deliveryGateway.emitTaskAssigned(
+        savedInvoice.deliveryPersonId,
+        this.tasksService.presentForLivreur(task),
+      );
+    }
     return savedInvoice;
   }
 

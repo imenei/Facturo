@@ -41,6 +41,7 @@ export function useRealtimeDelivery(onUpdate?: (data: any) => void) {
 
       socket.on('task:assigned', (data: any) => {
         toast.success(`Nouvelle tâche assignée: ${data.task?.name}`);
+        window.dispatchEvent(new CustomEvent('facturo:task-assigned', { detail: data }));
         onUpdate?.(data);
       });
 

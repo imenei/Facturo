@@ -33,6 +33,12 @@ export class TasksController {
     return this.tasksService.getLivreurStats(req.user.id);
   }
 
+  @Get(':id/delivery-note')
+  @Roles(UserRole.LIVREUR)
+  getDeliveryNote(@Param('id') id: string, @Request() req) {
+    return this.tasksService.getDeliveryNote(id, req.user);
+  }
+
   // MOD 8a: admin fetches tasks of a specific livreur to print summary
   @Get('by-livreur/:livreurId')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
@@ -45,8 +51,11 @@ export class TasksController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @Request() req) {
-    return this.tasksService.findOne(id, req.user);
+  async findOne(@Param('id') id: string, @Request() req) {
+    const task = await this.tasksService.findOne(id, req.user);
+    return req.user.role === UserRole.LIVREUR
+      ? this.tasksService.presentForLivreur(task)
+      : task;
   }
 
   @Put(':id')

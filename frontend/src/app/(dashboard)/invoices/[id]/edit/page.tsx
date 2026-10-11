@@ -6,7 +6,7 @@ import { useI18nStore } from '@/store/i18nStore';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Plus, Trash2, Loader2, Save } from 'lucide-react';
 import Link from 'next/link';
-import { adjustedUnitPrice, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
+import { adjustedUnitPrice, formatMoneyDzd, lineGrossMargin, roundMoney } from '@/lib/formatMoney';
 
 interface Item { description: string; quantity: number; unitPrice: number; purchasePrice: number; }
 
@@ -59,9 +59,6 @@ export default function EditInvoicePage() {
   const addItem = () => setItems((p) => [...p, { description: '', quantity: 1, unitPrice: 0, purchasePrice: 0 }]);
   const removeItem = (i: number) => setItems((p) => p.filter((_, idx) => idx !== i));
 
-  const lineAmounts = items.map((item) => roundMoney(item.quantity * item.unitPrice));
-  const subtotal = roundMoney(lineAmounts.reduce((sum, amount) => sum + amount, 0));
-  const adjustmentAmount = roundMoney(items.reduce((sum, item) => sum + lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)), 0));
   const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
   const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
@@ -286,24 +283,12 @@ export default function EditInvoicePage() {
                 <div className="col-span-1 flex justify-center">
                   {items.length > 1 && <button type="button" onClick={() => removeItem(i)} className="p-1.5 text-red-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>}
                 </div>
-                {lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)) > 0 && (
-                  <div className="col-span-12 text-right text-xs">
-                    <span className={form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600'}>
-                      {form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)))}
-                    </span>
-                  </div>
-                )}
                 {item.purchasePrice > 0 && <div className="col-span-12 text-right text-xs text-emerald-700">Marge : {formatMoneyDzd(lineGrossMargin(item.unitPrice, item.purchasePrice, item.quantity))}</div>}
               </div>
             ))}
           </div>
           <div className="mt-4 border-t pt-4 space-y-1.5 text-right">
-            <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{formatMoneyDzd(subtotal)}</span></div>
-            {Number(form.adjustmentPercent) > 0 && (
-              <div className={`text-sm ${form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600'}`}>
-                {form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({form.adjustmentPercent}%): <span className="font-medium">{form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</span>
-              </div>
-            )}
+            <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{formatMoneyDzd(adjustedSubtotal)}</span></div>
             {otherChargeTotal > 0 && (
               <div className="text-sm text-slate-600">Frais supplémentaires : <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span></div>
             )}

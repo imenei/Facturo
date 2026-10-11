@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, lineAdjustmentAmount, lineGrossMargin, resolveInvoiceAdjustment, roundMoney } from '@/lib/formatMoney';
+import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, lineGrossMargin, resolveInvoiceAdjustment, roundMoney } from '@/lib/formatMoney';
 
 const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
@@ -459,9 +459,9 @@ export default function InvoiceDetailPage() {
 
   const canManage = isManager(user?.role);
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
-  const { type: adjustmentType, percent: adjustmentPercent, amount: adjustmentAmount } = resolveInvoiceAdjustment(invoice);
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const subtotalBeforeAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => sum + roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent) * Number(item.quantity || 0)), 0));
+  const adjustedSubtotal = roundMoney((invoice.items || []).reduce((sum: number, item: any) => sum + roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent) * Number(item.quantity || 0)), 0));
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -621,11 +621,6 @@ export default function InvoiceDetailPage() {
               <tr key={i} className="hover:bg-slate-50/50">
                 <td className="px-5 py-3 text-sm text-slate-700">
                   {item.description}
-                  {canManage && adjustmentAmount > 0 && (
-                    <div className={clsx('mt-1 text-xs', adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
-                      {adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent))}
-                    </div>
-                  )}
                 </td>
                 <td className="px-4 py-3 text-sm text-center text-slate-500">{item.quantity}</td>
                 <td className="px-4 py-3 text-sm text-right text-slate-600">{formatMoneyDzd(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent))}</td>
@@ -637,14 +632,8 @@ export default function InvoiceDetailPage() {
         <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-500">
             <span>{t('subtotal_excl_tax')}</span>
-            <span>{formatMoneyDzd(subtotalBeforeAdjustment)}</span>
+            <span>{formatMoneyDzd(adjustedSubtotal)}</span>
           </div>
-          {canManage && adjustmentAmount > 0 && (
-            <div className={clsx('flex justify-between text-sm', adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
-              <span>{adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%)</span>
-              <span>{adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</span>
-            </div>
-          )}
           {canManage && invoiceCharges.map((charge: any, index: number) => (
             <div key={`${charge.description}-${index}`} className="flex justify-between text-sm text-slate-600">
               <span>Frais : {charge.description || 'Autre frais'}</span>
@@ -661,6 +650,11 @@ export default function InvoiceDetailPage() {
             <span>{t('total_incl_tax')}</span>
             <span className="text-brand-600">{formatMoneyDzd(invoice.total)}</span>
           </div>
+          {invoice.type !== 'bon_livraison' && adjustmentType === 'discount' && adjustmentPercent > 0 && (
+            <p className="pt-2 text-right text-xs text-slate-500">
+              Remise appliquée : {adjustmentPercent}% (incluse dans les prix unitaires)
+            </p>
+          )}
         </div>
       </div>
 

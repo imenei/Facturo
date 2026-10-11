@@ -5,6 +5,10 @@ import { Task, TaskStatus } from './task.entity';
 import { User, UserRole } from '../users/user.entity';
 import { Invoice, InvoiceType } from '../invoices/invoice.entity';
 
+type LivreurTask = Omit<Task, 'price' | 'finalPrice' | 'extraFees' | 'extraFeesNote' | 'assignedTo' | 'createdBy' | 'invoice'> & {
+  hasDeliveryNote: boolean;
+};
+
 @Injectable()
 export class TasksService {
   constructor(
@@ -19,10 +23,13 @@ export class TasksService {
   private async resolveLinkedInvoice(invoiceId?: string | null): Promise<Invoice | null> {
     if (!invoiceId) return null;
     const invoice = await this.invoicesRepository.findOne({
-      where: { id: invoiceId, type: InvoiceType.FACTURE, isDeleted: false },
+      where: [
+        { id: invoiceId, type: InvoiceType.FACTURE, isDeleted: false },
+        { id: invoiceId, type: InvoiceType.BON_LIVRAISON, isDeleted: false },
+      ],
     });
     if (!invoice) {
-      throw new BadRequestException('Une tâche ne peut être liée qu’à une facture définitive active.');
+      throw new BadRequestException('Une tâche ne peut être liée qu’à une facture définitive ou un bon de livraison actif.');
     }
     return invoice;
   }
@@ -35,9 +42,35 @@ export class TasksService {
   private ensureLivreurAccess(task: Task, user: { id: string; role: UserRole }): void {
     if (user.role !== UserRole.LIVREUR) return;
     const assigneeId = this.getAssigneeId(task);
-    if (!assigneeId || String(assigneeId) !== String(user.id)) {
+    if (
+      !assigneeId
+      || String(assigneeId) !== String(user.id)
+      || task.invoice?.type === InvoiceType.FACTURE
+    ) {
       throw new ForbiddenException('Accès refusé');
     }
+  }
+
+  private sanitizeLivreurTask(task: Task): LivreurTask {
+    const {
+      price,
+      finalPrice,
+      extraFees,
+      extraFeesNote,
+      assignedTo,
+      createdBy,
+      invoice,
+      ...safeTask
+    } = task;
+    return {
+      ...safeTask,
+      hasDeliveryNote: invoice?.type === InvoiceType.BON_LIVRAISON
+        && invoice.deliveryPersonId === assignedTo?.id,
+    };
+  }
+
+  presentForLivreur(task: Task): LivreurTask {
+    return this.sanitizeLivreurTask(task);
   }
 
   private isMissingInvoiceLinkColumn(error: any): boolean {
@@ -78,7 +111,7 @@ export class TasksService {
   }
 
   async syncInvoiceTask(invoice: Invoice, creatorId: string): Promise<Task | null> {
-    if (invoice.type !== InvoiceType.FACTURE || !invoice.deliveryPersonId) return null;
+    if (![InvoiceType.FACTURE, InvoiceType.BON_LIVRAISON].includes(invoice.type) || !invoice.deliveryPersonId) return null;
 
     const livreur = await this.usersRepository.findOne({ where: { id: invoice.deliveryPersonId } });
     if (!livreur || livreur.role !== UserRole.LIVREUR || livreur.isActive === false) {
@@ -114,20 +147,26 @@ export class TasksService {
     return this.tasksRepository.save(task);
   }
 
-  async findAll(user: { id: string; role: UserRole }): Promise<Task[]> {
+  async findAll(user: { id: string; role: UserRole }): Promise<Array<Task | LivreurTask>> {
     const buildQuery = (includeInvoice: boolean) => {
       const qb = this.tasksRepository
         .createQueryBuilder('task')
         .leftJoinAndSelect('task.assignedTo', 'assignedTo')
         .leftJoinAndSelect('task.createdBy', 'createdBy')
         .orderBy('task.createdAt', 'DESC');
-      if (includeInvoice) qb.leftJoin('task.invoice', 'invoice').addSelect(['invoice.id', 'invoice.number', 'invoice.type']);
-      if (user.role === UserRole.LIVREUR) qb.andWhere('assignedTo.id = :userId', { userId: user.id });
+      if (includeInvoice) qb.leftJoinAndSelect('task.invoice', 'invoice');
+      if (user.role === UserRole.LIVREUR) {
+        qb.andWhere('assignedTo.id = :userId', { userId: user.id })
+          .andWhere('(invoice.id IS NULL OR invoice.type != :invoiceType)', { invoiceType: InvoiceType.FACTURE });
+      }
       return qb;
     };
 
     try {
-      return await buildQuery(user.role !== UserRole.LIVREUR).getMany();
+      const tasks = await buildQuery(true).getMany();
+      return user.role === UserRole.LIVREUR
+        ? tasks.map((task) => this.sanitizeLivreurTask(task))
+        : tasks;
     } catch (error) {
       if (user.role === UserRole.LIVREUR || !this.isMissingInvoiceLinkColumn(error)) throw error;
       return buildQuery(false).getMany();
@@ -141,12 +180,12 @@ export class TasksService {
         .leftJoinAndSelect('task.assignedTo', 'assignedTo')
         .leftJoinAndSelect('task.createdBy', 'createdBy')
         .where('task.id = :id', { id });
-      if (includeInvoice) qb.leftJoin('task.invoice', 'invoice').addSelect(['invoice.id', 'invoice.number', 'invoice.type']);
+      if (includeInvoice) qb.leftJoinAndSelect('task.invoice', 'invoice');
       return qb;
     };
     let task: Task | null;
     try {
-      task = await buildQuery(user.role !== UserRole.LIVREUR).getOne();
+      task = await buildQuery(true).getOne();
     } catch (error) {
       if (user.role === UserRole.LIVREUR || !this.isMissingInvoiceLinkColumn(error)) throw error;
       task = await buildQuery(false).getOne();
@@ -157,7 +196,39 @@ export class TasksService {
     return task;
   }
 
-  async update(id: string, dto: any, user: { id: string; role: UserRole }): Promise<Task> {
+  async getDeliveryNote(id: string, user: { id: string; role: UserRole }) {
+    const task = await this.findOne(id, user);
+    const invoiceId = task.invoice?.id;
+    if (!invoiceId) {
+      throw new NotFoundException('Aucun bon de livraison n’est associé à cette tâche.');
+    }
+
+    const invoice = await this.invoicesRepository.findOne({
+      where: { id: invoiceId, type: InvoiceType.BON_LIVRAISON, isDeleted: false },
+    });
+    if (!invoice) {
+      throw new NotFoundException('Le bon de livraison associé est introuvable.');
+    }
+    if (invoice.deliveryPersonId !== user.id) {
+      throw new ForbiddenException('Ce bon de livraison n’est pas attribué à ce livreur.');
+    }
+
+    return {
+      number: invoice.number,
+      createdAt: invoice.createdAt,
+      deliveryDate: invoice.deliveryDate,
+      clientName: invoice.clientName,
+      clientAddress: invoice.clientAddress,
+      clientPhone: invoice.clientPhone,
+      clientEmail: invoice.clientEmail,
+      items: (invoice.items || []).map((item) => ({
+        description: item.description,
+        quantity: item.quantity,
+      })),
+    };
+  }
+
+  async update(id: string, dto: any, user: { id: string; role: UserRole }): Promise<Task | LivreurTask> {
     const task = await this.findOne(id, user);
 
     if (user.role === UserRole.LIVREUR) {
@@ -188,7 +259,10 @@ export class TasksService {
       if (dto.status === TaskStatus.EN_ATTENTE) task.completedAt = null;
       task.finalPrice = Number(task.price) + Number(task.extraFees || 0);
     }
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+    return user.role === UserRole.LIVREUR
+      ? this.sanitizeLivreurTask(savedTask)
+      : savedTask;
   }
 
   async remove(id: string): Promise<void> {
@@ -200,20 +274,20 @@ export class TasksService {
     const tasks = await this.tasksRepository
       .createQueryBuilder('task')
       .innerJoin('task.assignedTo', 'assignee')
+      .leftJoin('task.invoice', 'invoice')
       .where('assignee.id = :userId', { userId })
+      .andWhere('(invoice.id IS NULL OR invoice.type != :invoiceType)', { invoiceType: InvoiceType.FACTURE })
       .getMany();
 
     const completed = tasks.filter((t) => t.status === TaskStatus.TERMINEE);
-    const totalEarned = completed.reduce((sum, t) => sum + Number(t.finalPrice || t.price), 0);
     return {
       total: tasks.length,
       completed: completed.length,
       pending: tasks.filter((t) => t.status === TaskStatus.EN_ATTENTE).length,
-      totalEarned,
     };
   }
 
-  async startDelivery(id: string, user: { id: string; role: UserRole }): Promise<Task> {
+  async startDelivery(id: string, user: { id: string; role: UserRole }): Promise<Task | LivreurTask> {
     const task = await this.findOne(id, user);
     if (task.startedDeliveryAt && !task.finishedDeliveryAt) {
       throw new BadRequestException('La livraison est déjà démarrée');
@@ -224,10 +298,13 @@ export class TasksService {
     task.startedDeliveryAt = new Date();
     task.finishedDeliveryAt = null;
     task.deliveryDurationMinutes = null;
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+    return user.role === UserRole.LIVREUR
+      ? this.sanitizeLivreurTask(savedTask)
+      : savedTask;
   }
 
-  async finishDelivery(id: string, user: { id: string; role: UserRole }): Promise<Task> {
+  async finishDelivery(id: string, user: { id: string; role: UserRole }): Promise<Task | LivreurTask> {
     const task = await this.findOne(id, user);
     if (!task.startedDeliveryAt) {
       throw new BadRequestException('La livraison n\'a pas encore été démarrée');
@@ -240,7 +317,10 @@ export class TasksService {
     task.deliveryDurationMinutes = Math.round(diffMs / 60000);
     task.status = TaskStatus.TERMINEE;
     task.completedAt = new Date();
-    return this.tasksRepository.save(task);
+    const savedTask = await this.tasksRepository.save(task);
+    return user.role === UserRole.LIVREUR
+      ? this.sanitizeLivreurTask(savedTask)
+      : savedTask;
   }
 
   async addExtraFees(id: string, dto: { extraFees: number; extraFeesNote?: string }): Promise<Task> {

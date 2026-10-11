@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { adjustedUnitPrice, lineAdjustmentAmount, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
@@ -231,29 +231,19 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   let ty = y + 8;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const { type: adjustmentType, percent: adjustmentPercent, amount: storedAdjustmentAmount } = resolveInvoiceAdjustment(invoice);
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
     const unitPrice = invoice.type === 'bon_livraison'
       ? roundMoney(item.unitPrice)
       : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
     return sum + roundMoney(unitPrice * Number(item.quantity || 0));
   }, 0));
-  const discountAmount = roundMoney(storedAdjustmentAmount || (invoice.items || []).reduce(
-    (sum: number, item: any) => sum + lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent),
-    0,
-  ));
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(70, 70, 70);
   doc.text('Sous-total HT :', labelX, ty);
   doc.text(fmt(subtotalAfterAdjustment), valX, ty, { align: 'right' });
-
-  if (adjustmentType === 'discount' && discountAmount > 0) {
-    ty += 6;
-    doc.text(`Remise appliquée (${adjustmentPercent}%, incluse dans les prix) :`, labelX, ty);
-    doc.text(fmt(discountAmount), valX, ty, { align: 'right' });
-  }
 
   for (const charge of invoiceCharges) {
     ty += 6;
@@ -293,6 +283,12 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const wrapped = doc.splitTextToSize(words, W - 28);
   doc.text(wrapped, 14, ty + 6);
   ty += 6 + wrapped.length * 3.6;
+  if (adjustmentType === 'discount' && adjustmentPercent > 0) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text(`Remise appliquée : ${adjustmentPercent}% (incluse dans les prix unitaires)`, 14, ty + 4);
+    ty += 4;
+  }
 
   return ty;
 }
@@ -607,12 +603,16 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   if (invoice.dueDate) doc.text(`Échéance : ${fDate(invoice.dueDate)}`, W - 14, 65, { align: 'right' });
   if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 71, { align: 'right' });
 
-  const body = invoice.items.map((i: any) => [
-    i.description,
-    { content: String(i.quantity), styles: { halign: 'center' } },
-    { content: fmt(i.unitPrice), styles: { halign: 'right' } },
-    { content: fmt(i.total), styles: { halign: 'right', fontStyle: 'bold' } },
-  ]);
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
+  const body = invoice.items.map((i: any) => {
+    const unitPrice = adjustedUnitPrice(Number(i.unitPrice), adjustmentType, adjustmentPercent);
+    return [
+      i.description,
+      { content: String(i.quantity), styles: { halign: 'center' } },
+      { content: fmt(unitPrice), styles: { halign: 'right' } },
+      { content: fmt(roundMoney(unitPrice * Number(i.quantity || 0))), styles: { halign: 'right', fontStyle: 'bold' } },
+    ];
+  });
   autoTable(doc, {
     startY: 76,
     head: [['Désignation', 'Qté', 'Prix Unitaire HT', 'Total HT']],

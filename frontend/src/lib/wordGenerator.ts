@@ -1,4 +1,4 @@
-import { adjustedUnitPrice, formatMoney, lineAdjustmentAmount, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, formatMoney, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
 
 function amountInWords(n: number): string {
   return numberToFrenchWords(n);
@@ -49,7 +49,7 @@ export async function generateInvoiceWord(invoice: any, company: any) {
   const { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, AlignmentType, WidthType, HeadingLevel } = await import('docx');
 
   const isDeliveryNote = invoice.type === 'bon_livraison';
-  const { type: adjustmentType, percent: adjustmentPercent, amount: storedAdjustmentAmount } = resolveInvoiceAdjustment(invoice);
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const typeLabel = invoice.type === 'facture' ? 'FACTURE' : invoice.type === 'proforma' ? 'PROFORMA' : 'REÇU';
   // Identité société choisie pour ce document, sinon société par défaut. Le reçu reste anonyme (pas de nom).
   const displayCompanyName = isDeliveryNote ? '' : (invoice.issuerName || company?.name || 'Mon Entreprise');
@@ -70,8 +70,7 @@ export async function generateInvoiceWord(invoice: any, company: any) {
     : invoice.items.map((item: any) => {
         const unitPrice = adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
         const total = roundMoney(unitPrice * Number(item.quantity || 0));
-        return
-        new TableRow({
+        return new TableRow({
           children: [
             new TableCell({ children: [new Paragraph(item.description)], width: { size: 50, type: WidthType.PERCENTAGE } }),
             new TableCell({ children: [new Paragraph({ text: String(item.quantity), alignment: AlignmentType.CENTER })] }),
@@ -91,10 +90,6 @@ export async function generateInvoiceWord(invoice: any, company: any) {
     const unitPrice = isDeliveryNote ? Number(item.unitPrice) : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
     return sum + roundMoney(unitPrice * Number(item.quantity || 0));
   }, 0));
-  const discountAmount = roundMoney(storedAdjustmentAmount || (invoice.items || []).reduce(
-    (sum: number, item: any) => sum + lineAdjustmentAmount(Number(item.unitPrice), Number(item.quantity || 0), adjustmentType, adjustmentPercent),
-    0,
-  ));
 
   const doc = new Document({
     sections: [{
@@ -136,15 +131,15 @@ export async function generateInvoiceWord(invoice: any, company: any) {
             ]
           : [
               new Paragraph({ text: `Sous-total HT : ${formatMoney(subtotalAfterAdjustment)}`, alignment: AlignmentType.RIGHT }),
-              ...(adjustmentType === 'discount' && discountAmount > 0
-                ? [new Paragraph({ text: `Remise appliquée (${adjustmentPercent}%, incluse dans les prix) : ${formatMoney(discountAmount)}`, alignment: AlignmentType.RIGHT })]
-                : []),
               ...invoiceCharges.map((charge: any) => new Paragraph({
                 text: `Frais : ${charge.description || 'Autre frais'} : ${formatMoney(charge.amount)}`,
                 alignment: AlignmentType.RIGHT,
               })),
               ...(invoice.hasTva ? [new Paragraph({ text: `TVA (${invoice.tvaRate}%) : ${formatMoney(invoice.tvaAmount)}`, alignment: AlignmentType.RIGHT })] : []),
               new Paragraph({ children: [new TextRun({ text: `TOTAL TTC : ${formatMoney(invoice.total)}`, bold: true, size: 28 })], alignment: AlignmentType.RIGHT }),
+              ...(adjustmentType === 'discount' && adjustmentPercent > 0
+                ? [new Paragraph({ text: `Remise appliquée : ${adjustmentPercent}% (incluse dans les prix unitaires)`, alignment: AlignmentType.RIGHT })]
+                : []),
               new Paragraph({ children: [new TextRun({ text: `Arrêtée la présente facture à la somme de : ${amountInWords(invoice.total)} dinars algériens`, italics: true, size: 18 })] }),
             ]),
         ...(invoice.notes ? [new Paragraph({ text: '' }), new Paragraph({ text: `Remarques : ${invoice.notes}` })] : []),

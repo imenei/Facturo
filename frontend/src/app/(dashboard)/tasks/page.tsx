@@ -60,57 +60,63 @@ function ClientLogo({ name, logoUrl, size = 'md' }: { name?: string; logoUrl?: s
   );
 }
 
-// MOD 8a: Print bon de livraison
-function printBonDeLivraison(task: any, companyName: string) {
-  const w = window.open('', '_blank');
-  if (!w) return;
-  const id = task.id?.slice(-6).toUpperCase() || '------';
+function escapeHtml(value: unknown): string {
+  const entities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return String(value ?? '').replace(/[&<>"']/g, (character) => entities[character] || character);
+}
+
+function printBonDeLivraison(w: Window, note: any, companyName: string) {
+  const items = (note.items || []).map((item: any, index: number) => `
+    <tr><td>${index + 1}</td><td>${escapeHtml(item.description)}</td>
+    <td>${escapeHtml(item.quantity)}</td><td>☐</td></tr>`).join('');
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Bon de Livraison - ${id}</title>
+  <title>Bon de livraison ${escapeHtml(note.number)}</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 32px; color: #1e293b; max-width: 700px; margin: 0 auto; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1a54ff; padding-bottom: 16px; margin-bottom: 24px; }
+    body { font-family: Arial, sans-serif; padding: 28px; color: #1e293b; max-width: 760px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1a54ff; padding-bottom: 16px; margin-bottom: 24px; }
     .company { font-size: 20px; font-weight: bold; color: #1a54ff; }
-    .doc-title { font-size: 14px; font-weight: bold; color: #64748b; text-align: right; }
-    .doc-num { font-size: 22px; font-weight: bold; color: #1e293b; }
-    h3 { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-    .info-box { background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .row { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .label { color: #64748b; font-size: 13px; }
-    .value { font-weight: bold; font-size: 13px; }
-    .signature-zone { margin-top: 40px; display: flex; gap: 32px; }
-    .sig-box { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; min-height: 80px; }
-    .sig-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
-    .footer { margin-top: 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 12px; }
-    @media print { body { padding: 16px; } }
+    .title { text-align: right; color: #64748b; font-size: 13px; font-weight: bold; }
+    .number { font-size: 22px; color: #1e293b; margin-top: 4px; }
+    h3 { color: #64748b; font-size: 11px; text-transform: uppercase; margin: 0 0 8px; }
+    .info { background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .meta { margin: 6px 0; color: #475569; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #cbd5e1; padding: 9px; text-align: left; }
+    th { background: #f1f5f9; }
+    .signature { display: flex; gap: 24px; margin-top: 48px; }
+    .sigbox { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; min-height: 72px; }
+    .footer { margin-top: 28px; text-align: center; font-size: 11px; color: #94a3b8; }
+    @media (max-width: 520px) { body { padding: 14px; } .signature { gap: 10px; } }
+    @media print { body { padding: 12px; } }
   </style></head><body>
   <div class="header">
-    <div><div class="company">${companyName}</div><div style="font-size:12px;color:#64748b">Bon de livraison</div></div>
-    <div class="doc-title"><div>BON DE LIVRAISON</div><div class="doc-num">N° ${id}</div></div>
+    <div><div class="company">${escapeHtml(companyName)}</div><div class="meta">Bon de livraison</div></div>
+    <div class="title"><div>BON DE LIVRAISON</div><div class="number">N° ${escapeHtml(note.number)}</div></div>
   </div>
-  <div class="info-box">
+  <div class="info">
     <h3>Client</h3>
-    <div style="font-size:16px;font-weight:bold">${task.clientName || '—'}</div>
-    ${task.clientAddress ? `<div style="color:#64748b;font-size:13px;margin-top:4px">📍 ${task.clientAddress}</div>` : ''}
-    ${task.clientPhone ? `<div style="color:#64748b;font-size:13px;margin-top:4px">📞 ${task.clientPhone}</div>` : ''}
-    ${task.clientEmail ? `<div style="color:#64748b;font-size:13px;margin-top:4px">✉ ${task.clientEmail}</div>` : ''}
+    <strong>${escapeHtml(note.clientName || '—')}</strong>
+    ${note.clientAddress ? `<div class="meta">Adresse : ${escapeHtml(note.clientAddress)}</div>` : ''}
+    ${note.clientPhone ? `<div class="meta">Téléphone : ${escapeHtml(note.clientPhone)}</div>` : ''}
+    ${note.clientEmail ? `<div class="meta">Email : ${escapeHtml(note.clientEmail)}</div>` : ''}
   </div>
-  <div class="info-box">
-    <h3>Tâche / Description</h3>
-    <div style="font-weight:bold">${task.name}</div>
-    ${task.description ? `<div style="color:#64748b;font-size:13px;margin-top:4px">${task.description}</div>` : ''}
+  <div class="meta">Date d’émission : ${note.createdAt ? new Date(note.createdAt).toLocaleDateString('fr-FR') : '—'}</div>
+  <div class="meta">Date de livraison prévue : ${note.deliveryDate ? new Date(note.deliveryDate).toLocaleDateString('fr-FR') : '—'}</div>
+  <table>
+    <thead><tr><th>#</th><th>Désignation</th><th>Quantité</th><th>Reçu</th></tr></thead>
+    <tbody>${items}</tbody>
+  </table>
+  <div class="signature">
+    <div class="sigbox"><h3>Signature expéditeur</h3></div>
+    <div class="sigbox"><h3>Signature client</h3></div>
   </div>
-  <div class="row"><span class="label">Date de livraison prévue</span><span class="value">${task.deliveryDate ? new Date(task.deliveryDate).toLocaleDateString('fr-FR') : '___/___/______'}</span></div>
-  <div class="row"><span class="label">Prix final</span><span class="value">${formatMoneyDzd(task.finalPrice || task.price)}</span></div>
-  ${task.extraFees > 0 ? `<div class="row"><span class="label">Frais imprévus</span><span class="value">+${formatMoneyDzd(task.extraFees)}${task.extraFeesNote ? ' (' + task.extraFeesNote + ')' : ''}</span></div>` : ''}
-  <div class="row"><span class="label">Livré le</span><span class="value">___/___/______</span></div>
-  <div class="signature-zone">
-    <div class="sig-box"><div class="sig-label">Signature du client</div></div>
-    <div class="sig-box">
-      <div class="sig-label">Livreur : ${task.assignedTo?.name || ''}</div>
-    </div>
-  </div>
-  <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')} — ${companyName}</div>
+  <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')} — ${escapeHtml(companyName)}</div>
   </body></html>`);
   w.document.close();
   setTimeout(() => w.print(), 500);
@@ -229,6 +235,7 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
   const [editing, setEditing] = useState(false);
   const [remarks, setRemarks] = useState(task.remarks || '');
   const [saving, setSaving] = useState(false);
+  const [loadingDeliveryNote, setLoadingDeliveryNote] = useState(false);
   // MOD 6: extra fees modal for admin
   const [showExtraFees, setShowExtraFees] = useState(false);
   const [extraFees, setExtraFees] = useState(String(task.extraFees || 0));
@@ -277,6 +284,24 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
       toast.success('Livraison terminée !');
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
+  };
+
+  const openDeliveryNote = async () => {
+    const documentWindow = window.open('', '_blank');
+    if (!documentWindow) {
+      toast.error('Autorisez les fenêtres pop-up pour consulter le bon de livraison.');
+      return;
+    }
+    documentWindow.document.write('<!DOCTYPE html><html><body>Chargement du bon de livraison…</body></html>');
+    setLoadingDeliveryNote(true);
+    try {
+      const { data } = await api.get(`/tasks/${task.id}/delivery-note`);
+      printBonDeLivraison(documentWindow, data, companyName);
+    } catch (error: any) {
+      documentWindow.close();
+      toast.error(error?.response?.data?.message || 'Impossible de charger le bon de livraison.');
+    }
+    setLoadingDeliveryNote(false);
   };
 
   // MOD 6: admin saves extra fees
@@ -340,10 +365,6 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
                   <Mail size={10} /> {task.clientEmail}
                 </p>
               )}
-              <p className="text-sm font-display font-700 text-brand-600 pt-1">
-                Total : {formatMoneyDzd(finalPrice)}
-                {extra > 0 && <span className="text-xs text-orange-500 font-normal ml-1">(+{formatMoney(extra)} imprévus)</span>}
-              </p>
             </div>
           </div>
         </div>
@@ -386,8 +407,8 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
                 </button>
               )}
             </div>
-            <span className="font-display font-700 text-brand-600 text-sm">{formatMoneyDzd(finalPrice)}</span>
-            {extra > 0 && (
+            {!isLivreur && <span className="font-display font-700 text-brand-600 text-sm">{formatMoneyDzd(finalPrice)}</span>}
+            {!isLivreur && extra > 0 && (
               <span className="text-xs text-orange-500">(base {formatMoney(basePrice)} + {formatMoney(extra)} imprévus)</span>
             )}
           </div>
@@ -440,9 +461,15 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
                 </button>
               </>
             )}
-            <button onClick={() => printBonDeLivraison(task, companyName)}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium transition-all">
-              <Printer size={14} /> Bon de livraison
+          </div>
+        )}
+
+        {isLivreur && task.hasDeliveryNote && (
+          <div className="mb-3">
+            <button onClick={() => void openDeliveryNote()} disabled={loadingDeliveryNote}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium transition-all disabled:opacity-50">
+              {loadingDeliveryNote ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
+              Consulter / télécharger le bon
             </button>
           </div>
         )}
@@ -581,10 +608,7 @@ export default function TasksPage() {
 
   const filterTasksForUser = (list: any[]) => {
     if (user?.role === 'livreur') {
-      return list.filter((task) => {
-        const assigneeId = task.assignedToId || task.assignedTo?.id;
-        return assigneeId && String(assigneeId) === String(user.id);
-      });
+      return list;
     }
     return list;
   };
@@ -628,6 +652,17 @@ export default function TasksPage() {
   };
 
   useEffect(() => { load(); }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if (user?.role !== 'livreur') return;
+    const addAssignedTask = (event: Event) => {
+      const task = (event as CustomEvent).detail?.task;
+      if (!task) return;
+      setTasks((current) => [task, ...current.filter((existing) => existing.id !== task.id)]);
+    };
+    window.addEventListener('facturo:task-assigned', addAssignedTask);
+    return () => window.removeEventListener('facturo:task-assigned', addAssignedTask);
+  }, [user?.role]);
 
   useEffect(() => {
     if (!showNew || !canManage) return;
@@ -704,10 +739,10 @@ export default function TasksPage() {
 
       {/* Livreur stats */}
       {isLivreur && stats && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="task-stats grid grid-cols-3 gap-4 mb-6">
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-slate-900">{stats.total}</div><div className="text-xs text-slate-500 mt-1">{t('total')}</div></div>
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-emerald-600">{stats.completed}</div><div className="text-xs text-slate-500 mt-1">{t('completed_tasks')}</div></div>
-          <div className="card p-4 text-center"><div className="text-lg font-display font-700 text-brand-600">{formatMoney(stats.totalEarned)}</div><div className="text-xs text-slate-500 mt-1">DZD {t('earned')}</div></div>
+          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-amber-600">{stats.pending}</div><div className="text-xs text-slate-500 mt-1">En attente</div></div>
         </div>
       )}
 

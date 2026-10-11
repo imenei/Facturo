@@ -12,10 +12,24 @@
 
 * { box-sizing: border-box; }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-inter);
   background: #f8fafc;
   color: #0f172a;
+}
+
+main {
+  min-width: 0;
+}
+
+main > * {
+  min-width: 0;
 }
 
 @layer components {
@@ -50,6 +64,10 @@ html[dir="rtl"] .sidebar {
   right: 0;
   left: auto;
 }
+html[dir="rtl"] .mobile-nav-toggle {
+  right: 1rem;
+  left: auto;
+}
 html[dir="rtl"] table th,
 html[dir="rtl"] table td {
   text-align: right;
@@ -68,4 +86,66 @@ html[dir="rtl"] .flex {
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
+}
+
+@media (max-width: 767px) {
+  .p-6,
+  .p-8 {
+    padding: 1rem;
+  }
+
+  .px-5 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .invoice-item-row {
+    grid-template-columns: minmax(0, 1fr) minmax(5rem, 0.55fr) auto;
+  }
+
+  .invoice-item-description {
+    grid-column: 1 / -1;
+  }
+
+  .invoice-item-quantity {
+    grid-column: 1;
+  }
+
+  .invoice-item-purchase {
+    grid-column: 2;
+  }
+
+  .invoice-item-price {
+    grid-column: 1 / 3;
+  }
+
+  .invoice-item-remove {
+    grid-column: 3;
+    grid-row: 2 / 5;
+  }
+}
+
+@media (max-width: 1023px) {
+  main table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 640px;
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 479px) {
+  .text-3xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .task-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .livreur-dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

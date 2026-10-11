@@ -217,8 +217,6 @@ export default function NewInvoicePage() {
     setShowProductPicker(null);
   };
 
-  const lineAmounts = items.map((item) => roundMoney(item.quantity * item.unitPrice));
-  const subtotal = roundMoney(lineAmounts.reduce((sum, amount) => sum + amount, 0));
   const adjustmentAmount = roundMoney(items.reduce((sum, item) => sum + lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)), 0));
   const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
@@ -474,15 +472,14 @@ export default function NewInvoicePage() {
             {items.map((item, i) => {
               const margin = (item.unitPrice - item.purchasePrice) * item.quantity;
               const marginPct = item.unitPrice > 0 ? (((item.unitPrice - item.purchasePrice) / item.unitPrice) * 100).toFixed(0) : '0';
-              const lineAdjustment = lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent));
               return (
                 <div key={i} className="bg-slate-50 rounded-lg p-2">
                   <div className={clsx(
-                    'grid gap-2 items-center',
+                    'invoice-item-row grid gap-2 items-center',
                     showInternalCosts ? 'grid-cols-13' : 'grid-cols-12',
                   )}>
                     {/* Description */}
-                    <div className={clsx('relative', showInternalCosts ? 'col-span-5' : 'col-span-6')}>
+                    <div className={clsx('invoice-item-description relative', showInternalCosts ? 'col-span-5' : 'col-span-6')}>
                       <input className="input bg-white pr-8" placeholder="Description de l'article"
                         value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} required />
                       {products.length > 0 && (
@@ -521,14 +518,14 @@ export default function NewInvoicePage() {
                     </div>
 
                     {/* Qty */}
-                    <div className="col-span-2">
+                    <div className="invoice-item-quantity col-span-2">
                       <input className="input bg-white text-center" type="number" min={1}
                         value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))} />
                     </div>
 
                     {/* MOD 7: Purchase price column (internal) */}
                     {showInternalCosts && (
-                      <div className="col-span-2">
+                      <div className="invoice-item-purchase col-span-2">
                         <div className="relative">
                           <input className="input bg-amber-50 border-amber-200 text-right pr-10 text-sm" type="number" min={0} step="0.01"
                             value={item.purchasePrice} onChange={(e) => updateItem(i, 'purchasePrice', Number(e.target.value))}
@@ -539,7 +536,7 @@ export default function NewInvoicePage() {
                     )}
 
                     {/* Sale price */}
-                    <div className="col-span-3">
+                    <div className="invoice-item-price col-span-3">
                       <div className="relative">
                         <input className="input bg-white text-right pr-12" type="number" min={0} step="0.01"
                           value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))} />
@@ -548,7 +545,7 @@ export default function NewInvoicePage() {
                     </div>
 
                     {/* Remove */}
-                    <div className="col-span-1 flex justify-center">
+                    <div className="invoice-item-remove col-span-1 flex justify-center">
                       {items.length > 1 && (
                         <button type="button" onClick={() => removeItem(i)}
                           className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
@@ -562,12 +559,7 @@ export default function NewInvoicePage() {
                   <div className="flex items-center justify-between mt-1 px-1">
                     {item.quantity > 0 && item.unitPrice > 0 && (
                       <span className="text-xs text-slate-400">
-                        = {formatMoneyDzd(roundMoney(item.quantity * item.unitPrice))}
-                      </span>
-                    )}
-                    {lineAdjustment > 0 && (
-                      <span className={clsx('text-xs', form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
-                        {form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} sur cette ligne : {form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(lineAdjustment)}
+                        = {formatMoneyDzd(roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity))}
                       </span>
                     )}
                     {/* MOD 7: show margin hint when internal costs visible */}
@@ -590,7 +582,7 @@ export default function NewInvoicePage() {
           <div className="mt-6 border-t pt-4 space-y-2">
             <div className="flex justify-between text-sm text-slate-600">
               <span>{t('subtotal_excl_tax')}</span>
-              <span className="font-medium">{formatMoneyDzd(subtotal)}</span>
+              <span className="font-medium">{formatMoneyDzd(adjustedSubtotal)}</span>
             </div>
 
             {/* TVA toggle */}
@@ -608,13 +600,6 @@ export default function NewInvoicePage() {
                 </div>
               )}
             </div>
-
-            {Number(form.adjustmentPercent) > 0 && (
-              <div className={clsx('flex justify-between text-sm', form.adjustmentType === 'addition' ? 'text-amber-700' : 'text-emerald-600')}>
-                <span>{form.adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({form.adjustmentPercent}%)</span>
-                <span className="font-medium">{form.adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</span>
-              </div>
-            )}
 
             {otherChargeTotal > 0 && (
               <div className="flex justify-between text-sm text-slate-600">
