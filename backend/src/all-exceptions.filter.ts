@@ -1,4 +1,11 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,25 +18,47 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse();
     const request = ctx.getRequest();
 
-    const status = exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    const stack = exception instanceof Error ? exception.stack : JSON.stringify(exception);
+    const isHttp = exception instanceof HttpException;
+    const status = isHttp
+      ? exception.getStatus()
+      : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    // Erreurs serveur : visibles directement dans `pm2 logs`
-    if (status >= 500) {
-      const msg = exception instanceof Error ? exception.message : String(exception);
-      this.logger.error(`${request.method} ${request.url} -> ${status}: ${msg}`, stack);
+    // message : toujours une chaîne, ou un tableau de chaînes (validation)
+    let message: string | string[] = 'Internal server error';
+    let error: string | undefined;
+
+    if (isHttp) {
+      const res = exception.getResponse();
+      if (typeof res === 'string') {
+        message = res;
+      } else if (res && typeof res === 'object') {
+        const r = res as Record<string, any>;
+        message = r.message ?? exception.message;
+        error = typeof r.error === 'string' ? r.error : undefined;
+      } else {
+        message = exception.message;
+      }
     }
 
-    const logLine = `[${new Date().toISOString()}] ${request.method} ${request.url}\n${stack}\n\n`;
-    try {
-      fs.appendFileSync(path.join(process.cwd(), 'error-debug.log'), logLine);
-    } catch (e) {
-      // ignore write errors
+    // Erreurs serveur : visibles dans `pm2 logs` et dans error-debug.log
+    if (status >= 500) {
+      const stack =
+        exception instanceof Error ? exception.stack : JSON.stringify(exception);
+      const msg = exception instanceof Error ? exception.message : String(exception);
+      this.logger.error(`${request.method} ${request.url} -> ${status}: ${msg}`, stack);
+
+      const logLine = `[${new Date().toISOString()}] ${request.method} ${request.url}\n${stack}\n\n`;
+      try {
+        fs.appendFileSync(path.join(process.cwd(), 'error-debug.log'), logLine);
+      } catch (e) {
+        // ignore write errors
+      }
     }
 
     response.status(status).json({
       statusCode: status,
-      message: exception instanceof HttpException ? exception.getResponse() : 'Internal server error',
+      message,
+      ...(error ? { error } : {}),
     });
   }
 }
