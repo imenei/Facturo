@@ -75,6 +75,8 @@ function printBonDeLivraison(w: Window, note: any, companyName: string) {
   const items = (note.items || []).map((item: any, index: number) => `
     <tr><td>${index + 1}</td><td>${escapeHtml(item.description)}</td>
     <td>${escapeHtml(item.quantity)}</td><td>☐</td></tr>`).join('');
+  // Efface le texte provisoire « Chargement… » avant d'écrire le vrai bon
+  w.document.open();
   w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
   <title>Bon de livraison ${escapeHtml(note.number)}</title>
   <style>
