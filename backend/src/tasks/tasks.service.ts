@@ -73,6 +73,20 @@ export class TasksService {
     return this.sanitizeLivreurTask(task);
   }
 
+  async assertTaskCanReceiveDeliveryNote(taskId: string, deliveryPersonId: string): Promise<void> {
+    const task = await this.tasksRepository.findOne({
+      where: { id: taskId },
+      relations: { invoice: true },
+    });
+    if (!task) throw new NotFoundException('Tâche de livraison introuvable.');
+    if (task.invoice?.type === InvoiceType.BON_LIVRAISON) {
+      throw new BadRequestException('Un bon de livraison est déjà associé à cette tâche.');
+    }
+    if (String(this.getAssigneeId(task)) !== String(deliveryPersonId)) {
+      throw new BadRequestException('Le livreur choisi doit être celui qui est assigné à cette tâche.');
+    }
+  }
+
   private isMissingInvoiceLinkColumn(error: any): boolean {
     const driverError = error?.driverError || error;
     return driverError?.code === '42703' && /invoiceId/i.test(String(driverError?.message || ''));
@@ -110,7 +124,7 @@ export class TasksService {
     return this.tasksRepository.save(task);
   }
 
-  async syncInvoiceTask(invoice: Invoice, creatorId: string): Promise<Task | null> {
+  async syncInvoiceTask(invoice: Invoice, creatorId: string, taskId?: string): Promise<Task | null> {
     if (![InvoiceType.FACTURE, InvoiceType.BON_LIVRAISON].includes(invoice.type) || !invoice.deliveryPersonId) return null;
 
     const livreur = await this.usersRepository.findOne({ where: { id: invoice.deliveryPersonId } });
@@ -118,9 +132,10 @@ export class TasksService {
       throw new BadRequestException('Livreur invalide ou introuvable');
     }
 
-    const existingTask = await this.tasksRepository.findOne({
-      where: { invoice: { id: invoice.id } },
-    });
+    const existingTask = taskId
+      ? await this.tasksRepository.findOne({ where: { id: taskId }, relations: { invoice: true } })
+      : await this.tasksRepository.findOne({ where: { invoice: { id: invoice.id } } });
+    if (taskId && !existingTask) throw new NotFoundException('Tâche de livraison introuvable.');
     const price = Number(invoice.total || 0);
     const task = existingTask || this.tasksRepository.create({
       status: TaskStatus.EN_ATTENTE,
@@ -132,8 +147,10 @@ export class TasksService {
     task.description = (invoice.items || [])
       .map((item) => `${item.quantity} x ${item.description}`)
       .join('\n');
-    task.price = price;
-    task.finalPrice = price + Number(task.extraFees || 0);
+    if (!taskId) {
+      task.price = price;
+      task.finalPrice = price + Number(task.extraFees || 0);
+    }
     task.dueDate = null;
     task.deliveryDate = invoice.deliveryDate || null;
     task.clientName = invoice.clientName || null;

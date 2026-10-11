@@ -114,6 +114,7 @@ export default function NewInvoicePage() {
   const [form, setForm] = useState({
     type: params.get('type') || 'facture',
     sourceInvoiceId: params.get('sourceInvoiceId') || '',
+    taskId: params.get('taskId') || '',
     clientName: '', clientEmail: '', clientPhone: '',
     clientAddress: '', clientNif: '', clientNis: '',
     clientLogoUrl: '', hasTva: false, tvaRate: 19,
@@ -129,19 +130,26 @@ export default function NewInvoicePage() {
 
   useEffect(() => {
     const sourceInvoiceId = params.get('sourceInvoiceId');
+    const taskId = params.get('taskId');
     Promise.all([
       api.get('/templates').catch(() => ({ data: [] })),
       api.get('/products').catch(() => ({ data: [] })),
       api.get('/clients').catch(() => ({ data: [] })),
       api.get('/users/livreurs').catch(() => ({ data: [] })),
       sourceInvoiceId ? api.get(`/invoices/${sourceInvoiceId}`).catch(() => null) : Promise.resolve(null),
-    ]).then(([tmpl, prod, clients, deliveryUsers, sourceInvoice]) => {
+      taskId ? api.get(`/tasks/${taskId}`).catch(() => null) : Promise.resolve(null),
+    ]).then(([tmpl, prod, clients, deliveryUsers, sourceInvoice, deliveryTask]) => {
       setTemplates(tmpl.data);
       setProducts(prod.data);
       setExistingClients(clients.data);
       setDeliveryPeople(deliveryUsers.data);
       const def = tmpl.data.find((t: any) => t.isDefault);
       if (def) setForm((p) => ({ ...p, templateType: def.type }));
+
+      if (taskId && !deliveryTask?.data) {
+        toast.error('Impossible de charger la tâche de livraison.');
+        return;
+      }
 
       if (sourceInvoice?.data) {
         const invoice = sourceInvoice.data;
@@ -175,6 +183,30 @@ export default function NewInvoicePage() {
           purchasePrice: Number(item.purchasePrice || 0),
         })));
         setOtherCharges([]);
+      }
+
+      if (deliveryTask?.data) {
+        const task = deliveryTask.data;
+        setForm((current) => ({
+          ...current,
+          type: 'bon_livraison',
+          taskId: taskId || '',
+          clientName: current.clientName || task.clientName || '',
+          clientEmail: current.clientEmail || task.clientEmail || '',
+          clientPhone: current.clientPhone || task.clientPhone || '',
+          clientAddress: current.clientAddress || task.clientAddress || '',
+          clientLogoUrl: current.clientLogoUrl || task.clientLogoUrl || '',
+          deliveryDate: current.deliveryDate || (task.deliveryDate ? new Date(task.deliveryDate).toISOString().slice(0, 10) : ''),
+          deliveryPersonId: task.assignedTo?.id || '',
+        }));
+        if (!sourceInvoice?.data) {
+          setItems([{
+            description: task.description || task.name || '',
+            quantity: 1,
+            unitPrice: 0,
+            purchasePrice: 0,
+          }]);
+        }
       }
     });
   }, [params]);
@@ -251,6 +283,7 @@ export default function NewInvoicePage() {
       const payload: Record<string, any> = {
         type: form.type,
         sourceInvoiceId: form.sourceInvoiceId || undefined,
+        taskId: form.taskId || undefined,
         clientName: form.clientName.trim(),
         adjustmentType: form.adjustmentType,
         adjustmentPercent: Number(form.adjustmentPercent) || 0,

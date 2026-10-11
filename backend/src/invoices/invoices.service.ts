@@ -109,6 +109,15 @@ export class InvoicesService {
       if (dto.sourceInvoiceId && (!sourceInvoice || sourceInvoice.type !== InvoiceType.FACTURE)) {
         throw new BadRequestException('Un bon de livraison ne peut provenir que d’une facture définitive active.');
       }
+      if (dto.taskId) {
+        if (dto.type !== InvoiceType.BON_LIVRAISON) {
+          throw new BadRequestException('Une tâche ne peut être liée qu’à un bon de livraison.');
+        }
+        if (!dto.deliveryPersonId) {
+          throw new BadRequestException('Un livreur doit être choisi pour cette tâche.');
+        }
+        await this.tasksService.assertTaskCanReceiveDeliveryNote(dto.taskId, dto.deliveryPersonId);
+      }
 
       const resolvedClientName = dto.clientName || sourceInvoice?.clientName || 'Client';
       const resolvedClientPhone = dto.clientPhone || sourceInvoice?.clientPhone || undefined;
@@ -201,7 +210,7 @@ export class InvoicesService {
       });
 
       const savedInvoice = await this.invoicesRepository.save(invoice);
-      const task = await this.tasksService.syncInvoiceTask(savedInvoice, userId);
+      const task = await this.tasksService.syncInvoiceTask(savedInvoice, userId, dto.taskId);
       if (task && savedInvoice.type === InvoiceType.BON_LIVRAISON && savedInvoice.deliveryPersonId) {
         this.deliveryGateway.emitTaskAssigned(
           savedInvoice.deliveryPersonId,

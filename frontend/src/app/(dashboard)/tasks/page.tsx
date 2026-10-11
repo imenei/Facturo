@@ -382,8 +382,16 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
             {task.invoice && (
               <p className="text-xs text-brand-600 mt-1 flex items-center gap-1">
                 <FileText size={11} />
-                {canManage ? <Link href={`/invoices/${task.invoice.id}`} className="hover:underline">Facture {task.invoice.number}</Link> : `Facture ${task.invoice.number}`}
+                {canManage ? <Link href={`/invoices/${task.invoice.id}`} className="hover:underline">{task.invoice.type === 'bon_livraison' ? 'Bon de livraison' : 'Facture'} {task.invoice.number}</Link> : `Facture ${task.invoice.number}`}
               </p>
+            )}
+            {canManage && task.invoice?.type !== 'bon_livraison' && (
+              <Link
+                href={`/invoices/new?type=bon_livraison&taskId=${encodeURIComponent(task.id)}${task.invoice?.type === 'facture' ? `&sourceInvoiceId=${encodeURIComponent(task.invoice.id)}` : ''}`}
+                className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 hover:underline mt-1"
+              >
+                <FileText size={11} /> Créer le bon de livraison pour cette tâche
+              </Link>
             )}
             {!isLivreur && task.assignedTo && <p className="text-xs text-slate-400 mt-0.5">👤 {task.assignedTo.name}</p>}
             {/* MOD 3: created by */}

@@ -68,6 +68,11 @@ export class CreateInvoiceDto {
   @IsString()
   sourceInvoiceId?: string;
 
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  taskId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => InvoiceItemDto)
