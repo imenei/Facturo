@@ -79,6 +79,7 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
   const urlRef = useRef('');
   const frameRef = useRef<HTMLIFrameElement>(null);
 
+<<<<<<< HEAD
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -159,6 +160,59 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
       </div>
     </div>
   );
+=======
+function printBonDeLivraison(w: Window, note: any, companyName: string) {
+  const items = (note.items || []).map((item: any, index: number) => `
+    <tr><td>${index + 1}</td><td>${escapeHtml(item.description)}</td>
+    <td>${escapeHtml(item.quantity)}</td><td>☐</td></tr>`).join('');
+  // Efface le texte provisoire « Chargement… » avant d'écrire le vrai bon
+  w.document.open();
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>Bon de livraison ${escapeHtml(note.number)}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 28px; color: #1e293b; max-width: 760px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1a54ff; padding-bottom: 16px; margin-bottom: 24px; }
+    .company { font-size: 20px; font-weight: bold; color: #1a54ff; }
+    .title { text-align: right; color: #64748b; font-size: 13px; font-weight: bold; }
+    .number { font-size: 22px; color: #1e293b; margin-top: 4px; }
+    h3 { color: #64748b; font-size: 11px; text-transform: uppercase; margin: 0 0 8px; }
+    .info { background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .meta { margin: 6px 0; color: #475569; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #cbd5e1; padding: 9px; text-align: left; }
+    th { background: #f1f5f9; }
+    .signature { display: flex; gap: 24px; margin-top: 48px; }
+    .sigbox { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; min-height: 72px; }
+    .footer { margin-top: 28px; text-align: center; font-size: 11px; color: #94a3b8; }
+    @media (max-width: 520px) { body { padding: 14px; } .signature { gap: 10px; } }
+    @media print { body { padding: 12px; } }
+  </style></head><body>
+  <div class="header">
+    <div><div class="company">${escapeHtml(companyName)}</div><div class="meta">Bon de livraison</div></div>
+    <div class="title"><div>BON DE LIVRAISON</div><div class="number">N° ${escapeHtml(note.number)}</div></div>
+  </div>
+  <div class="info">
+    <h3>Client</h3>
+    <strong>${escapeHtml(note.clientName || '—')}</strong>
+    ${note.clientAddress ? `<div class="meta">Adresse : ${escapeHtml(note.clientAddress)}</div>` : ''}
+    ${note.clientPhone ? `<div class="meta">Téléphone : ${escapeHtml(note.clientPhone)}</div>` : ''}
+    ${note.clientEmail ? `<div class="meta">Email : ${escapeHtml(note.clientEmail)}</div>` : ''}
+  </div>
+  <div class="meta">Date d’émission : ${note.createdAt ? new Date(note.createdAt).toLocaleDateString('fr-FR') : '—'}</div>
+  <div class="meta">Date de livraison prévue : ${note.deliveryDate ? new Date(note.deliveryDate).toLocaleDateString('fr-FR') : '—'}</div>
+  <table>
+    <thead><tr><th>#</th><th>Désignation</th><th>Quantité</th><th>Reçu</th></tr></thead>
+    <tbody>${items}</tbody>
+  </table>
+  <div class="signature">
+    <div class="sigbox"><h3>Signature expéditeur</h3></div>
+    <div class="sigbox"><h3>Signature client</h3></div>
+  </div>
+  <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')} — ${escapeHtml(companyName)}</div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+>>>>>>> c70179938b915044a088c8872b246c10911f5d1a
 }
 
 // MOD 8a: Print tasks summary for admin (by livreur + period)

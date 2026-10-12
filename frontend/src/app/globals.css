@@ -33,14 +33,15 @@ main > * {
 }
 
 @layer components {
+  /* justify-center : le contenu reste centré quand le bouton passe en pleine largeur (w-full) sur mobile */
   .btn-primary {
-    @apply bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2;
+    @apply bg-brand-600 hover:bg-brand-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2;
   }
   .btn-secondary {
-    @apply bg-white hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-lg border border-slate-200 transition-all duration-150 flex items-center gap-2;
+    @apply bg-white hover:bg-slate-50 text-slate-700 font-medium px-4 py-2 rounded-lg border border-slate-200 transition-all duration-150 flex items-center justify-center gap-2;
   }
   .btn-danger {
-    @apply bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-150 flex items-center gap-2;
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-all duration-150 flex items-center justify-center gap-2;
   }
   .card {
     @apply bg-white rounded-xl border border-slate-100 shadow-sm;
@@ -55,11 +56,14 @@ main > * {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
   }
   .page-title {
-    @apply text-2xl font-display font-700 text-slate-900;
+    @apply text-2xl sm:text-3xl font-display font-bold text-slate-900;
   }
 }
 
 /* RTL support (modification #8 — Arabic) */
+/* NB : la règle "html[dir=rtl] .flex { direction: rtl }" a été retirée :
+   la direction est déjà héritée de <html dir="rtl">, et la forcer sur chaque .flex
+   peut inverser des blocs qui ne devraient pas l'être. */
 html[dir="rtl"] .sidebar {
   right: 0;
   left: auto;
@@ -71,9 +75,6 @@ html[dir="rtl"] .mobile-nav-toggle {
 html[dir="rtl"] table th,
 html[dir="rtl"] table td {
   text-align: right;
-}
-html[dir="rtl"] .flex {
-  direction: rtl;
 }
 
 /* Scrollbar */
@@ -89,6 +90,21 @@ html[dir="rtl"] .flex {
 }
 
 @media (max-width: 767px) {
+  /* iOS Safari zoome automatiquement sur les champs dont la police est < 16px */
+  .input,
+  select.input,
+  textarea.input {
+    font-size: 16px;
+  }
+
+  /* Zone tactile confortable (~44px) */
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    min-height: 2.75rem;
+  }
+
+  /* Rustine temporaire : à supprimer quand chaque page utilise p-4 sm:p-6 md:p-8 */
   .p-6,
   .p-8 {
     padding: 1rem;
@@ -125,6 +141,8 @@ html[dir="rtl"] .flex {
   }
 }
 
+/* Rustine temporaire : les tableaux des pages pas encore adaptées défilent horizontalement.
+   Solution propre : passer ces pages en cartes (lg:hidden / hidden lg:block) comme la page factures. */
 @media (max-width: 1023px) {
   main table {
     display: block;
