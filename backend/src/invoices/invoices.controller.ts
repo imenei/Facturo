@@ -105,7 +105,7 @@ export class InvoicesController {
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   findOne(@Param('id') id: string, @Request() req) {
-    return this.invoicesService.findOne(id, req.user);
+    return this.invoicesService.findOneDetailed(id, req.user);
   }
 
   @Put(':id')
@@ -116,8 +116,11 @@ export class InvoicesController {
 
   @Patch(':id/delivery-status')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
-  updateDelivery(@Param('id') id: string, @Body('status') status: DeliveryStatus) {
-    return this.invoicesService.updateDeliveryStatus(id, status);
+  updateDelivery(@Param('id') id: string, @Body('status') status: DeliveryStatus, @Request() req) {
+    if (!Object.values(DeliveryStatus).includes(status)) {
+      throw new BadRequestException('Statut de livraison invalide.');
+    }
+    return this.invoicesService.updateDeliveryStatus(id, status, req.user.id);
   }
 
   @Patch(':id/payment-status')

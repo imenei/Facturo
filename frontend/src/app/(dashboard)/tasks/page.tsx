@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useI18nStore } from '@/store/i18nStore';
@@ -9,11 +9,12 @@ import {
   Plus, CheckCircle, XCircle, Clock, Loader2, Edit2, Save, X, Trash2,
   MapPin, Calendar, Play, Square, Printer, DollarSign, AlertTriangle,
   Timer, Phone, Mail, User,
-  FileText,
+  FileText, Download, RotateCcw, Truck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { isManager } from '@/lib/roles';
 import { formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
+import { DELIVERY_UPDATED_EVENT } from '@/hooks/useRealtimeDelivery';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
@@ -30,15 +31,24 @@ function roleLabel(role: string): string {
   return labels[role] || role;
 }
 
+type TaskStatusKey = 'en_attente' | 'terminee' | 'non_terminee';
+
 function getStatusConfig(t: (key: string) => string) {
   return {
     en_attente: { label: t('task_status_pending'), color: 'bg-amber-100 text-amber-700', icon: Clock },
+    en_cours: { label: 'En cours', color: 'bg-blue-100 text-blue-700', icon: Timer },
     terminee: { label: t('task_status_completed'), color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
     non_terminee: { label: t('task_status_not_completed'), color: 'bg-red-100 text-red-600', icon: XCircle },
   } as const;
 }
 
 type StatusKey = keyof ReturnType<typeof getStatusConfig>;
+
+/** État affiché d'une livraison : « en cours » = démarrée et non terminée. */
+function getDeliveryState(task: any): StatusKey {
+  if (task.status === 'terminee' || task.status === 'non_terminee') return task.status;
+  return task.startedDeliveryAt && !task.finishedDeliveryAt ? 'en_cours' : 'en_attente';
+}
 
 function ClientLogo({ name, logoUrl, size = 'md' }: { name?: string; logoUrl?: string | null; size?: 'sm' | 'md' | 'lg' }) {
   const src = logoSrc(logoUrl);
@@ -60,66 +70,95 @@ function ClientLogo({ name, logoUrl, size = 'md' }: { name?: string; logoUrl?: s
   );
 }
 
-function escapeHtml(value: unknown): string {
-  const entities: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  };
-  return String(value ?? '').replace(/[&<>"']/g, (character) => entities[character] || character);
-}
+// Bon de livraison du livreur : c'est le MÊME document PDF que celui créé par l'administrateur
+// ou le commercial (même générateur, mêmes désignations / quantités), sans prix ni facture.
+function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any; onClose: () => void }) {
+  const [note, setNote] = useState<any>(null);
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [error, setError] = useState('');
+  const urlRef = useRef('');
+  const frameRef = useRef<HTMLIFrameElement>(null);
 
-function printBonDeLivraison(w: Window, note: any, companyName: string) {
-  const items = (note.items || []).map((item: any, index: number) => `
-    <tr><td>${index + 1}</td><td>${escapeHtml(item.description)}</td>
-    <td>${escapeHtml(item.quantity)}</td><td>☐</td></tr>`).join('');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
-  <title>Bon de livraison ${escapeHtml(note.number)}</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 28px; color: #1e293b; max-width: 760px; margin: 0 auto; }
-    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #1a54ff; padding-bottom: 16px; margin-bottom: 24px; }
-    .company { font-size: 20px; font-weight: bold; color: #1a54ff; }
-    .title { text-align: right; color: #64748b; font-size: 13px; font-weight: bold; }
-    .number { font-size: 22px; color: #1e293b; margin-top: 4px; }
-    h3 { color: #64748b; font-size: 11px; text-transform: uppercase; margin: 0 0 8px; }
-    .info { background: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .meta { margin: 6px 0; color: #475569; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    th, td { border: 1px solid #cbd5e1; padding: 9px; text-align: left; }
-    th { background: #f1f5f9; }
-    .signature { display: flex; gap: 24px; margin-top: 48px; }
-    .sigbox { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; min-height: 72px; }
-    .footer { margin-top: 28px; text-align: center; font-size: 11px; color: #94a3b8; }
-    @media (max-width: 520px) { body { padding: 14px; } .signature { gap: 10px; } }
-    @media print { body { padding: 12px; } }
-  </style></head><body>
-  <div class="header">
-    <div><div class="company">${escapeHtml(companyName)}</div><div class="meta">Bon de livraison</div></div>
-    <div class="title"><div>BON DE LIVRAISON</div><div class="number">N° ${escapeHtml(note.number)}</div></div>
-  </div>
-  <div class="info">
-    <h3>Client</h3>
-    <strong>${escapeHtml(note.clientName || '—')}</strong>
-    ${note.clientAddress ? `<div class="meta">Adresse : ${escapeHtml(note.clientAddress)}</div>` : ''}
-    ${note.clientPhone ? `<div class="meta">Téléphone : ${escapeHtml(note.clientPhone)}</div>` : ''}
-    ${note.clientEmail ? `<div class="meta">Email : ${escapeHtml(note.clientEmail)}</div>` : ''}
-  </div>
-  <div class="meta">Date d’émission : ${note.createdAt ? new Date(note.createdAt).toLocaleDateString('fr-FR') : '—'}</div>
-  <div class="meta">Date de livraison prévue : ${note.deliveryDate ? new Date(note.deliveryDate).toLocaleDateString('fr-FR') : '—'}</div>
-  <table>
-    <thead><tr><th>#</th><th>Désignation</th><th>Quantité</th><th>Reçu</th></tr></thead>
-    <tbody>${items}</tbody>
-  </table>
-  <div class="signature">
-    <div class="sigbox"><h3>Signature expéditeur</h3></div>
-    <div class="sigbox"><h3>Signature client</h3></div>
-  </div>
-  <div class="footer">Document généré le ${new Date().toLocaleDateString('fr-FR')} — ${escapeHtml(companyName)}</div>
-  </body></html>`);
-  w.document.close();
-  setTimeout(() => w.print(), 500);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/tasks/${task.id}/delivery-note`);
+        const { generateInvoicePDFDoc, prepareCompanyForPdf } = await import('@/lib/pdfGenerator');
+        const prepared = await prepareCompanyForPdf(company);
+        const doc = generateInvoicePDFDoc({ ...data, type: 'bon_livraison' }, prepared);
+        const blobUrl = URL.createObjectURL(doc.output('blob'));
+        if (cancelled) { URL.revokeObjectURL(blobUrl); return; }
+        urlRef.current = blobUrl;
+        setNote(data);
+        setPdfUrl(blobUrl);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.response?.data?.message || 'Impossible de charger le bon de livraison.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+    };
+  }, [task.id]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const printNote = () => {
+    const frameWindow = frameRef.current?.contentWindow;
+    if (frameWindow) {
+      frameWindow.focus();
+      frameWindow.print();
+    } else if (pdfUrl) {
+      window.open(pdfUrl, '_blank');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl h-[92vh] flex flex-col overflow-hidden animate-slide-up">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 shrink-0 flex-wrap">
+          <div className="min-w-0">
+            <h2 className="font-display font-700 text-slate-900">Bon de livraison {note?.number || task.deliveryNoteNumber || ''}</h2>
+            {note && (
+              <p className="text-xs text-slate-500">
+                Prix de livraison : <strong className="text-slate-700">{formatMoneyDzd(note.deliveryPrice)}</strong>
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {pdfUrl && (
+              <>
+                <a href={pdfUrl} download={`${note?.number || 'bon-de-livraison'}.pdf`} className="btn-secondary text-sm">
+                  <Download size={15} /> Télécharger
+                </a>
+                <button type="button" onClick={printNote} className="btn-primary text-sm">
+                  <Printer size={15} /> Imprimer
+                </button>
+              </>
+            )}
+            <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600" aria-label="Fermer">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="flex-1 min-h-0 bg-slate-200 relative">
+          {!pdfUrl && !error && (
+            <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-slate-600">
+              <Loader2 size={22} className="animate-spin text-brand-500" /> Chargement du bon de livraison…
+            </div>
+          )}
+          {error && <div className="absolute inset-0 flex items-center justify-center p-6 text-sm text-red-600 text-center">{error}</div>}
+          {pdfUrl && <iframe ref={frameRef} src={pdfUrl} title="Bon de livraison" className="w-full h-full border-0 bg-white" />}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // MOD 8a: Print tasks summary for admin (by livreur + period)
@@ -228,24 +267,23 @@ function DeliveryTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyName }: {
-  task: any; onUpdate: () => void; onDelete: (id: string) => void;
-  isLivreur: boolean; canManage: boolean; t: (k: string) => string; companyName: string;
+function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, t }: {
+  task: any; onUpdate: () => void; onDelete: (id: string) => void; onOpenNote: (task: any) => void;
+  isLivreur: boolean; canManage: boolean; t: (k: string) => string;
 }) {
   const [editing, setEditing] = useState(false);
   const [remarks, setRemarks] = useState(task.remarks || '');
   const [saving, setSaving] = useState(false);
-  const [loadingDeliveryNote, setLoadingDeliveryNote] = useState(false);
   // MOD 6: extra fees modal for admin
   const [showExtraFees, setShowExtraFees] = useState(false);
   const [extraFees, setExtraFees] = useState(String(task.extraFees || 0));
   const [extraFeesNote, setExtraFeesNote] = useState(task.extraFeesNote || '');
   const statusConfig = getStatusConfig(t);
-  const statusKey: StatusKey = task.status === 'terminee' || task.status === 'non_terminee' ? task.status : 'en_attente';
+  const statusKey: StatusKey = getDeliveryState(task);
   const { icon: StatusIcon, color, label } = statusConfig[statusKey];
   const hasClient = !!(task.clientName || task.clientLogoUrl);
 
-  const updateStatus = async (status: StatusKey) => {
+  const updateStatus = async (status: TaskStatusKey) => {
     setSaving(true);
     try {
       await api.put(`/tasks/${task.id}`, { status });
@@ -286,22 +324,16 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
     setSaving(false);
   };
 
-  const openDeliveryNote = async () => {
-    const documentWindow = window.open('', '_blank');
-    if (!documentWindow) {
-      toast.error('Autorisez les fenêtres pop-up pour consulter le bon de livraison.');
-      return;
-    }
-    documentWindow.document.write('<!DOCTYPE html><html><body>Chargement du bon de livraison…</body></html>');
-    setLoadingDeliveryNote(true);
+  // Rouvrir une livraison terminée par erreur : retour « en cours », statut et compteurs recalculés.
+  const reopenDelivery = async () => {
+    if (!confirm('Rouvrir cette livraison ? Elle repassera « en cours ».')) return;
+    setSaving(true);
     try {
-      const { data } = await api.get(`/tasks/${task.id}/delivery-note`);
-      printBonDeLivraison(documentWindow, data, companyName);
-    } catch (error: any) {
-      documentWindow.close();
-      toast.error(error?.response?.data?.message || 'Impossible de charger le bon de livraison.');
-    }
-    setLoadingDeliveryNote(false);
+      await api.patch(`/tasks/${task.id}/reopen-delivery`);
+      onUpdate();
+      toast.success('Livraison rouverte');
+    } catch (e: any) { toast.error(e?.response?.data?.message || 'Impossible de rouvrir la livraison'); }
+    setSaving(false);
   };
 
   // MOD 6: admin saves extra fees
@@ -383,6 +415,11 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
               <p className="text-xs text-brand-600 mt-1 flex items-center gap-1">
                 <FileText size={11} />
                 {canManage ? <Link href={`/invoices/${task.invoice.id}`} className="hover:underline">{task.invoice.type === 'bon_livraison' ? 'Bon de livraison' : 'Facture'} {task.invoice.number}</Link> : `Facture ${task.invoice.number}`}
+              </p>
+            )}
+            {isLivreur && task.hasDeliveryNote && (
+              <p className="text-xs text-brand-600 mt-1 flex items-center gap-1">
+                <FileText size={11} /> Bon de livraison {task.deliveryNoteNumber}
               </p>
             )}
             {canManage && task.invoice?.type !== 'bon_livraison' && (
@@ -473,11 +510,23 @@ function TaskCard({ task, onUpdate, onDelete, isLivreur, canManage, t, companyNa
         )}
 
         {isLivreur && task.hasDeliveryNote && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button onClick={() => onOpenNote(task)}
+              className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium transition-all">
+              <FileText size={14} /> Consulter / télécharger / imprimer le bon
+            </button>
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold">
+              <Truck size={14} /> Prix de livraison : {formatMoneyDzd(task.deliveryPrice || 0)}
+            </span>
+          </div>
+        )}
+
+        {/* Livraison terminée par erreur : le livreur (ou le gestionnaire) peut la rouvrir */}
+        {(isLivreur || canManage) && (task.status === 'terminee' || task.status === 'non_terminee') && (
           <div className="mb-3">
-            <button onClick={() => void openDeliveryNote()} disabled={loadingDeliveryNote}
-              className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium transition-all disabled:opacity-50">
-              {loadingDeliveryNote ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}
-              Consulter / télécharger le bon
+            <button onClick={reopenDelivery} disabled={saving}
+              className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-medium transition-all disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Rouvrir la livraison
             </button>
           </div>
         )}
@@ -598,7 +647,9 @@ export default function TasksPage() {
 
   const isLivreur = user?.role === 'livreur';
   const canManage = isManager(user?.role);
-  const [companyName, setCompanyName] = useState('Mon Entreprise');
+  const [company, setCompany] = useState<any>(null);
+  const [noteTask, setNoteTask] = useState<any>(null);
+  const reloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusConfig = getStatusConfig(t);
 
   const loadLivreurs = async () => {
@@ -621,9 +672,9 @@ export default function TasksPage() {
     return list;
   };
 
-  const load = async () => {
+  const load = async (silent = false) => {
     if (!user) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     const tasksUrl = user.role === 'livreur' ? '/tasks/my-tasks' : '/tasks';
     try {
       const tRes = await api.get(tasksUrl);
@@ -635,7 +686,7 @@ export default function TasksPage() {
 
     try {
       const { data: companyData } = await api.get('/company');
-      if (companyData?.name) setCompanyName(companyData.name);
+      if (companyData) setCompany(companyData);
     } catch {}
 
     if (user.role === 'livreur') {
@@ -646,12 +697,8 @@ export default function TasksPage() {
     } else if (canManage) {
       await loadLivreurs();
       try {
-        const [{ data: clientsData }, { data: companyData }] = await Promise.all([
-          api.get('/clients'),
-          api.get('/company'),
-        ]);
+        const { data: clientsData } = await api.get('/clients');
         setClients(Array.isArray(clientsData) ? clientsData : []);
-        if (companyData?.name) setCompanyName(companyData.name);
       } catch {
         setClients([]);
       }
@@ -660,6 +707,21 @@ export default function TasksPage() {
   };
 
   useEffect(() => { load(); }, [user?.id, user?.role]);
+
+  // Synchronisation temps réel : un changement fait côté administrateur / commercial (ou ailleurs)
+  // rafraîchit la liste et les compteurs sans recharger la page.
+  useEffect(() => {
+    if (!user) return;
+    const refresh = () => {
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+      reloadTimer.current = setTimeout(() => { void load(true); }, 300);
+    };
+    window.addEventListener(DELIVERY_UPDATED_EVENT, refresh);
+    return () => {
+      window.removeEventListener(DELIVERY_UPDATED_EVENT, refresh);
+      if (reloadTimer.current) clearTimeout(reloadTimer.current);
+    };
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     if (user?.role !== 'livreur') return;
@@ -712,12 +774,13 @@ export default function TasksPage() {
     setSaving(false);
   };
 
-  const filtered = tasks.filter((t) => !filterStatus || t.status === filterStatus);
+  const filtered = tasks.filter((task) => !filterStatus || getDeliveryState(task) === filterStatus);
 
   return (
     <div className="p-6 md:p-8 max-w-4xl mx-auto animate-fade-in">
       {/* MOD 8a: print recap modal */}
       {showPrintRecap && <PrintRecapModal users={users} onClose={() => setShowPrintRecap(false)} />}
+      {noteTask && <DeliveryNoteModal task={noteTask} company={company} onClose={() => setNoteTask(null)} />}
 
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
@@ -747,10 +810,12 @@ export default function TasksPage() {
 
       {/* Livreur stats */}
       {isLivreur && stats && (
-        <div className="task-stats grid grid-cols-3 gap-4 mb-6">
+        <div className="task-stats grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-slate-900">{stats.total}</div><div className="text-xs text-slate-500 mt-1">{t('total')}</div></div>
-          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-emerald-600">{stats.completed}</div><div className="text-xs text-slate-500 mt-1">{t('completed_tasks')}</div></div>
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-amber-600">{stats.pending}</div><div className="text-xs text-slate-500 mt-1">En attente</div></div>
+          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-blue-600">{stats.inProgress ?? 0}</div><div className="text-xs text-slate-500 mt-1">En cours</div></div>
+          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-emerald-600">{stats.completed}</div><div className="text-xs text-slate-500 mt-1">{t('completed_tasks')}</div></div>
+          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-red-600">{stats.notCompleted ?? 0}</div><div className="text-xs text-slate-500 mt-1">{t('task_status_not_completed')}</div></div>
         </div>
       )}
 
@@ -869,7 +934,7 @@ export default function TasksPage() {
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-5 flex-wrap">
-        {(['', 'en_attente', 'terminee', 'non_terminee'] as const).map((s) => (
+        {(['', 'en_attente', 'en_cours', 'terminee', 'non_terminee'] as const).map((s) => (
           <button key={s} onClick={() => setFilterStatus(s)}
             className={clsx('px-3 py-1.5 rounded-lg text-sm font-medium transition-all',
               filterStatus === s ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300')}>
@@ -884,7 +949,7 @@ export default function TasksPage() {
         <div className="space-y-4">
           {filtered.length === 0 && <div className="card p-12 text-center text-slate-400">{t('no_tasks')}</div>}
           {filtered.map((task) => (
-            <TaskCard key={task.id} task={task} onUpdate={load} onDelete={handleDeleteTask} isLivreur={isLivreur} canManage={canManage} t={t} companyName={companyName} />
+            <TaskCard key={task.id} task={task} onUpdate={() => load(true)} onDelete={handleDeleteTask} onOpenNote={setNoteTask} isLivreur={isLivreur} canManage={canManage} t={t} />
           ))}
         </div>
       )}

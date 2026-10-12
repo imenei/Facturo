@@ -42,15 +42,16 @@ export class DeliveryGateway implements OnGatewayConnection, OnGatewayDisconnect
     return { event: 'joined', data: taskId };
   }
 
-  // Emit delivery status update to all admins and commercials
+  // Emit delivery status update to all admins and commercials, to the task room
+  // and to the livreur concerned (payload.livreurId) so that both interfaces stay in sync.
+  // Chaining .to() delivers the event once per socket even if it belongs to several rooms.
   emitDeliveryStatusUpdated(taskId: string, payload: any) {
-    this.server.to('role:admin').to('role:commercial').emit('delivery:status-updated', {
-      taskId,
-      ...payload,
-      timestamp: new Date().toISOString(),
-    });
-    // Also emit to the specific task room
-    this.server.to(`task:${taskId}`).emit('delivery:status-updated', {
+    let target = this.server
+      .to('role:admin')
+      .to('role:commercial')
+      .to(`task:${taskId}`);
+    if (payload?.livreurId) target = target.to(`user:${payload.livreurId}`);
+    target.emit('delivery:status-updated', {
       taskId,
       ...payload,
       timestamp: new Date().toISOString(),

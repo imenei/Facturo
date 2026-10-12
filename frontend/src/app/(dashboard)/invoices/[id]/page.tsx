@@ -15,8 +15,10 @@ import {
   XCircle, Loader2, Bell, ChevronRight, Mail,
   AlertTriangle, Eye, Trash2,
   ShieldCheck, Briefcase, Lock, TrendingUp, Settings, History, Save,
+  Clock, Timer, RotateCcw, Truck, Link2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { DELIVERY_UPDATED_EVENT } from '@/hooks/useRealtimeDelivery';
 import Link from 'next/link';
 import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, lineGrossMargin, resolveInvoiceAdjustment, roundMoney } from '@/lib/formatMoney';
 
@@ -33,8 +35,15 @@ const STATUS_COLORS: Record<string, string> = {
 };
 const DELIVERY_COLORS: Record<string, string> = {
   en_attente: 'bg-amber-100 text-amber-700',
+  en_cours: 'bg-blue-100 text-blue-700',
   livree: 'bg-emerald-100 text-emerald-700',
   non_livree: 'bg-red-100 text-red-600',
+};
+const DELIVERY_LABELS: Record<string, string> = {
+  en_attente: 'En attente',
+  en_cours: 'En cours',
+  livree: 'Livrée',
+  non_livree: 'Non livrée',
 };
 const WORKFLOW_STEPS = ['commande', 'livraison', 'facturation', 'recouvrement'];
 const WORKFLOW_LABELS: Record<string, string> = {
@@ -82,6 +91,84 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// Workflow du bon de livraison — même présentation que celui des factures.
+// Il ne concerne QUE la livraison : le paiement de la facture liée reste indépendant.
+function DeliveryWorkflow({ invoice, canEdit, busy, onChange }: {
+  invoice: any; canEdit: boolean; busy: boolean; onChange: (status: string) => void;
+}) {
+  const current: string = invoice.deliveryStatus || 'en_attente';
+  const finished = current === 'livree' || current === 'non_livree';
+  const task = invoice.deliveryTask;
+  const steps = [
+    { key: 'en_attente', label: DELIVERY_LABELS.en_attente, Icon: Clock },
+    { key: 'en_cours', label: DELIVERY_LABELS.en_cours, Icon: Timer },
+    finished && current === 'non_livree'
+      ? { key: 'non_livree', label: DELIVERY_LABELS.non_livree, Icon: XCircle }
+      : { key: 'livree', label: DELIVERY_LABELS.livree, Icon: CheckCircle },
+  ];
+  const currentIdx = finished ? 2 : current === 'en_cours' ? 1 : 0;
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 flex-wrap">
+        {steps.map((step, i) => {
+          const done = i <= currentIdx;
+          const isNext = i === currentIdx + 1;
+          const failed = step.key === 'non_livree';
+          return (
+            <div key={step.key} className="flex items-center">
+              <button
+                type="button"
+                onClick={() => onChange(step.key)}
+                disabled={!canEdit || busy || i > currentIdx + 1 || i === currentIdx}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                  done ? (failed ? 'bg-red-600 text-white' : 'bg-brand-600 text-white') : 'bg-slate-100 text-slate-500',
+                  isNext && canEdit && 'ring-2 ring-brand-300 ring-offset-1 cursor-pointer hover:bg-brand-50',
+                  !canEdit || i > currentIdx + 1 || i === currentIdx ? 'cursor-default' : 'cursor-pointer',
+                )}>
+                {done ? <step.Icon size={11} /> : <div className="w-2 h-2 rounded-full bg-current opacity-40" />}
+                {step.label}
+              </button>
+              {i < steps.length - 1 && (
+                <ChevronRight size={14} className={clsx('mx-0.5', done && i < currentIdx ? 'text-brand-400' : 'text-slate-300')} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {canEdit && current === 'en_cours' && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => onChange('non_livree')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50">
+            <XCircle size={12} /> Marquer non livrée
+          </button>
+        </div>
+      )}
+      {canEdit && finished && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => onChange('en_cours')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50">
+            <RotateCcw size={12} /> Rouvrir la livraison
+          </button>
+          <button type="button" disabled={busy} onClick={() => onChange('en_attente')}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            Remettre en attente
+          </button>
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+        {invoice.deliveryPersonName && <span className="flex items-center gap-1"><Truck size={11} /> Livreur : <strong className="text-slate-700">{invoice.deliveryPersonName}</strong></span>}
+        <span>Prix de livraison : <strong className="text-slate-700">{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
+        {task?.startedDeliveryAt && <span>Démarrée le {new Date(task.startedDeliveryAt).toLocaleString('fr-FR')}</span>}
+        {task?.finishedDeliveryAt && <span>Terminée le {new Date(task.finishedDeliveryAt).toLocaleString('fr-FR')}{task.deliveryDurationMinutes != null ? ` (${task.deliveryDurationMinutes} min)` : ''}</span>}
+      </div>
     </div>
   );
 }
@@ -376,22 +463,35 @@ export default function InvoiceDetailPage() {
   const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [updatingDelivery, setUpdatingDelivery] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
   const { user } = useAuthStore();
 
-  const load = async () => {
+  const load = async (silent = false) => {
     try {
       const [inv, comp] = await Promise.all([api.get(`/invoices/${id}`), api.get('/company')]);
       setInvoice(inv.data);
       setCompany(comp.data);
-    } catch { toast.error(t('error_loading_invoice')); }
+    } catch { if (!silent) toast.error(t('error_loading_invoice')); }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [id]);
+
+  // Synchronisation avec l'interface livreur : dès que le statut de livraison change
+  // (livreur, administrateur ou commercial), la page se met à jour sans rechargement.
+  useEffect(() => {
+    const onDeliveryUpdated = (event: Event) => {
+      const detail = (event as CustomEvent).detail || {};
+      const ids: string[] = [detail.invoiceId, ...(detail.linkedInvoiceIds || [])].filter(Boolean);
+      if (ids.length === 0 || ids.includes(String(id))) void load(true);
+    };
+    window.addEventListener(DELIVERY_UPDATED_EVENT, onDeliveryUpdated);
+    return () => window.removeEventListener(DELIVERY_UPDATED_EVENT, onDeliveryUpdated);
+  }, [id]);
 
   const togglePayment = async () => {
     const next = invoice.paymentStatus === 'paid' ? 'unpaid' : 'paid';
@@ -413,11 +513,14 @@ export default function InvoiceDetailPage() {
   };
 
   const updateDelivery = async (status: string) => {
+    setUpdatingDelivery(true);
     try {
       await api.patch(`/invoices/${id}/delivery-status`, { status });
-      setInvoice((p: any) => ({ ...p, deliveryStatus: status }));
+      // Rechargement : le statut est partagé avec la facture / le bon liés et la tâche du livreur.
+      await load(true);
       toast.success(t('delivery_updated'));
-    } catch { toast.error(t('error_updating_delivery')); }
+    } catch (e: any) { toast.error(e?.response?.data?.message || t('error_updating_delivery')); }
+    setUpdatingDelivery(false);
   };
 
   const handleTemplateChange = async (templateType: string) => {
@@ -473,10 +576,15 @@ export default function InvoiceDetailPage() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-2xl font-display font-700 text-slate-900">{invoice.number}</h1>
-              <span className={clsx('badge', STATUS_COLORS[invoice.status])}>{t(invoice.status)}</span>
+              {invoice.type !== 'bon_livraison' && (
+                <span className={clsx('badge', STATUS_COLORS[invoice.status])}>{t(invoice.status)}</span>
+              )}
+              {invoice.type === 'bon_livraison' && (
+                <span className="badge bg-amber-100 text-amber-700">Bon de livraison</span>
+              )}
               {invoice.type !== 'proforma' && (
                 <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryStatus])}>
-                  {t(invoice.deliveryStatus?.replace('_', ' '))}
+                  {DELIVERY_LABELS[invoice.deliveryStatus] || t(invoice.deliveryStatus?.replace('_', ' '))}
                 </span>
               )}
               {invoice.type === 'facture' && (
@@ -524,9 +632,14 @@ export default function InvoiceDetailPage() {
           <button onClick={() => setShowPreview(true)} className="btn-primary text-sm">
             <Eye size={15} /> {t('preview_pdf')}
           </button>
-          {invoice.type === 'facture' && (
+          {invoice.type === 'facture' && !invoice.deliveryNote && (
             <Link href={`/invoices/new?type=bon_livraison&sourceInvoiceId=${invoice.id}`} className="btn-secondary text-sm">
               <FileText size={15} /> Créer un bon de livraison
+            </Link>
+          )}
+          {invoice.type === 'facture' && invoice.deliveryNote && (
+            <Link href={`/invoices/${invoice.deliveryNote.id}`} className="btn-secondary text-sm">
+              <Truck size={15} /> Bon de livraison {invoice.deliveryNote.number}
             </Link>
           )}
           <button onClick={() => generateInvoiceWord(invoice, company)} className="btn-secondary text-sm">
@@ -544,7 +657,42 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {invoice.type !== 'proforma' && invoice.workflowStep && (
+      {invoice.type === 'bon_livraison' && (
+        <div className="card p-5 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 className="text-sm font-600 text-slate-500">Progression de la livraison</h3>
+            {invoice.sourceInvoice && (
+              <Link href={`/invoices/${invoice.sourceInvoice.id}`} className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:underline">
+                <Link2 size={12} /> Facture liée : <strong>{invoice.sourceInvoice.number}</strong>
+                <span className={clsx('badge ml-1', invoice.sourceInvoice.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600')}>
+                  {invoice.sourceInvoice.paymentStatus === 'paid' ? t('paid_status') : t('unpaid_status')}
+                </span>
+              </Link>
+            )}
+          </div>
+          <DeliveryWorkflow invoice={invoice} canEdit={canManage} busy={updatingDelivery} onChange={updateDelivery} />
+          <p className="mt-3 text-xs text-slate-400">
+            Le statut de livraison est synchronisé avec l’interface du livreur et la facture liée. Il n’a aucun effet sur le paiement de la facture.
+          </p>
+        </div>
+      )}
+
+      {invoice.type === 'facture' && invoice.deliveryNote && (
+        <div className="card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <Truck size={16} className="text-brand-500" />
+            <span>Bon de livraison lié :</span>
+            <Link href={`/invoices/${invoice.deliveryNote.id}`} className="font-mono font-semibold text-brand-600 hover:underline">{invoice.deliveryNote.number}</Link>
+            <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryNote.deliveryStatus])}>{DELIVERY_LABELS[invoice.deliveryNote.deliveryStatus] || invoice.deliveryNote.deliveryStatus}</span>
+          </div>
+          <div className="text-xs text-slate-500">
+            {invoice.deliveryNote.deliveryPersonName && <>Livreur : <strong className="text-slate-700">{invoice.deliveryNote.deliveryPersonName}</strong> · </>}
+            Prix de livraison : <strong className="text-slate-700">{formatMoneyDzd(invoice.deliveryNote.deliveryPrice || 0)}</strong>
+          </div>
+        </div>
+      )}
+
+      {invoice.type === 'facture' && invoice.workflowStep && (
         <div className="card p-5 mb-6">
           <h3 className="text-sm font-600 text-slate-500 mb-3">{t('workflow_progress')}</h3>
           <WorkflowStepper current={invoice.workflowStep} invoiceId={invoice.id} onUpdate={load} canEdit={canManage} t={t} />
@@ -570,6 +718,7 @@ export default function InvoiceDetailPage() {
         </div>
         {canManage ? (
           <div className="card p-5 space-y-4">
+            {invoice.type !== 'bon_livraison' && (
             <div>
               <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('document_status')}</p>
               <div className="flex flex-wrap gap-1.5">
@@ -582,18 +731,28 @@ export default function InvoiceDetailPage() {
                 ))}
               </div>
             </div>
-            {invoice.type !== 'proforma' && (
+            )}
+            {invoice.type === 'facture' && (
               <div>
                 <p className="text-xs text-slate-500 mb-2 font-medium uppercase tracking-wide">{t('delivery_status')}</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {['en_attente', 'livree', 'non_livree'].map((s) => (
-                    <button key={s} onClick={() => updateDelivery(s)}
+                  {['en_attente', 'en_cours', 'livree', 'non_livree'].map((s) => (
+                    <button key={s} onClick={() => updateDelivery(s)} disabled={updatingDelivery}
                       className={clsx(
-                        'text-xs px-3 py-1.5 rounded-lg border transition-all',
+                        'text-xs px-3 py-1.5 rounded-lg border transition-all disabled:opacity-50',
                         invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
-                      )}>{t(s.replace('_', ' '))}</button>
+                      )}>{DELIVERY_LABELS[s]}</button>
                   ))}
                 </div>
+                <p className="mt-2 text-xs text-slate-400">Indépendant du paiement{invoice.deliveryNote ? ' · partagé avec le bon de livraison lié' : ''}.</p>
+              </div>
+            )}
+            {invoice.type === 'bon_livraison' && (
+              <div className="text-sm text-slate-600 space-y-1">
+                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Livraison</p>
+                <p>Livreur : <strong>{invoice.deliveryPersonName || '—'}</strong></p>
+                <p>Prix de livraison : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></p>
+                {invoice.deliveryDate && <p>Date prévue : <strong>{new Date(invoice.deliveryDate).toLocaleDateString('fr-FR')}</strong></p>}
               </div>
             )}
           </div>

@@ -26,6 +26,7 @@ export enum PaymentStatus {
 
 export enum DeliveryStatus {
   EN_ATTENTE = 'en_attente',
+  EN_COURS = 'en_cours',
   LIVREE = 'livree',
   NON_LIVREE = 'non_livree',
 }

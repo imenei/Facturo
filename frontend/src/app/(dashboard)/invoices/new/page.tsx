@@ -151,6 +151,13 @@ export default function NewInvoicePage() {
         return;
       }
 
+      // Évite les doublons : cette facture a déjà son bon de livraison -> on y renvoie.
+      if (sourceInvoice?.data?.deliveryNote) {
+        toast.error(`Cette facture a déjà un bon de livraison (${sourceInvoice.data.deliveryNote.number}).`);
+        router.replace(`/invoices/${sourceInvoice.data.deliveryNote.id}`);
+        return;
+      }
+
       if (sourceInvoice?.data) {
         const invoice = sourceInvoice.data;
         setForm((p) => ({
@@ -684,8 +691,8 @@ export default function NewInvoicePage() {
           <h2 className="font-display font-600 text-slate-900 mb-4">Livraison et autres charges</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label" htmlFor="deliveryPersonId">Livreur</label>
-              <select id="deliveryPersonId" className="input" value={form.deliveryPersonId}
+              <label className="label" htmlFor="deliveryPersonId">Livreur {form.type === 'bon_livraison' && <span className="text-red-500">*</span>}</label>
+              <select id="deliveryPersonId" className="input" required={form.type === 'bon_livraison'} value={form.deliveryPersonId}
                 onChange={(e) => setForm({ ...form, deliveryPersonId: e.target.value })}>
                 <option value="">Non assigné</option>
                 {deliveryPeople.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}

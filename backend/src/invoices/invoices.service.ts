@@ -24,6 +24,10 @@ export class InvoicesService {
     private dataSource: DataSource,
   ) {}
 
+  // Verrou mémoire : empêche deux créations simultanées (double clic) d'un bon de livraison
+  // pour la même facture.
+  private readonly deliveryNotesBeingCreated = new Set<string>();
+
   private async generateNumber(type: InvoiceType): Promise<string> {
     const prefix = type === InvoiceType.FACTURE ? 'FAC' : type === InvoiceType.PROFORMA ? 'PRO' : 'BL';
     const year = new Date().getFullYear();
@@ -102,6 +106,21 @@ export class InvoicesService {
   }
 
   async create(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
+    const lockKey = dto.type === InvoiceType.BON_LIVRAISON && dto.sourceInvoiceId ? dto.sourceInvoiceId : null;
+    if (lockKey) {
+      if (this.deliveryNotesBeingCreated.has(lockKey)) {
+        throw new BadRequestException('La création du bon de livraison de cette facture est déjà en cours.');
+      }
+      this.deliveryNotesBeingCreated.add(lockKey);
+    }
+    try {
+      return await this.createInternal(dto, userId);
+    } finally {
+      if (lockKey) this.deliveryNotesBeingCreated.delete(lockKey);
+    }
+  }
+
+  private async createInternal(dto: CreateInvoiceDto, userId: string): Promise<Invoice> {
     try {
       const sourceInvoice = dto.sourceInvoiceId
         ? await this.invoicesRepository.findOne({ where: { id: dto.sourceInvoiceId, isDeleted: false } })
@@ -109,14 +128,37 @@ export class InvoicesService {
       if (dto.sourceInvoiceId && (!sourceInvoice || sourceInvoice.type !== InvoiceType.FACTURE)) {
         throw new BadRequestException('Un bon de livraison ne peut provenir que d’une facture définitive active.');
       }
+      // Un bon de livraison créé depuis une facture reprend son livreur si aucun n'est précisé.
+      const deliveryPersonId = dto.deliveryPersonId
+        || (dto.type === InvoiceType.BON_LIVRAISON ? sourceInvoice?.deliveryPersonId : undefined)
+        || undefined;
+      if (dto.type === InvoiceType.BON_LIVRAISON) {
+        if (!deliveryPersonId) {
+          throw new BadRequestException('Un livreur doit être choisi pour le bon de livraison.');
+        }
+        if (dto.sourceInvoiceId) {
+          const existingBl = await this.invoicesRepository.findOne({
+            where: {
+              sourceInvoiceId: dto.sourceInvoiceId,
+              type: InvoiceType.BON_LIVRAISON,
+              isDeleted: false,
+            },
+          });
+          if (existingBl) {
+            throw new BadRequestException('Un bon de livraison existe déjà pour cette facture.');
+          }
+        }
+      }
+      // Le livreur est vérifié AVANT l'enregistrement : on évite ainsi un document créé
+      // sans tâche (livreur invalide / désactivé) qui serait ensuite recréé en doublon.
+      if (deliveryPersonId) {
+        await this.tasksService.assertAssignableLivreur(deliveryPersonId);
+      }
       if (dto.taskId) {
         if (dto.type !== InvoiceType.BON_LIVRAISON) {
           throw new BadRequestException('Une tâche ne peut être liée qu’à un bon de livraison.');
         }
-        if (!dto.deliveryPersonId) {
-          throw new BadRequestException('Un livreur doit être choisi pour cette tâche.');
-        }
-        await this.tasksService.assertTaskCanReceiveDeliveryNote(dto.taskId, dto.deliveryPersonId);
+        await this.tasksService.assertTaskCanReceiveDeliveryNote(dto.taskId, deliveryPersonId as string);
       }
 
       const resolvedClientName = dto.clientName || sourceInvoice?.clientName || 'Client';
@@ -164,8 +206,14 @@ export class InvoicesService {
 
       const totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
       const otherCharge = roundMoney(dto.otherCharge ?? 0);
-      const deliveryPrice = roundMoney(dto.deliveryPrice ?? 0);
-      const delivery = await this.resolveDeliveryPerson(dto.deliveryPersonId);
+      const deliveryPrice = roundMoney(
+        dto.deliveryPrice ?? (dto.type === InvoiceType.BON_LIVRAISON ? sourceInvoice?.deliveryPrice : 0) ?? 0,
+      );
+      const delivery = await this.resolveDeliveryPerson(deliveryPersonId);
+      // Un bon de livraison hérite du statut de livraison de sa facture.
+      const inheritedDeliveryStatus = dto.type === InvoiceType.BON_LIVRAISON && sourceInvoice
+        ? sourceInvoice.deliveryStatus
+        : DeliveryStatus.EN_ATTENTE;
       const clientId = this.buildClientId(resolvedClientName, resolvedClientPhone || undefined);
 
       const invoice = this.invoicesRepository.create({
@@ -193,6 +241,8 @@ export class InvoicesService {
         deliveryPrice,
         deliveryPersonId: delivery.id,
         deliveryPersonName: delivery.name,
+        deliveryStatus: inheritedDeliveryStatus,
+        workflowStep: inheritedDeliveryStatus === DeliveryStatus.EN_ATTENTE ? WorkflowStep.COMMANDE : WorkflowStep.LIVRAISON,
         netProfit: computeNetProfit(
           totalMargin + additionalCharges + (adjustmentType === InvoiceAdjustmentType.ADDITION ? totals.adjustmentAmount : -totals.adjustmentAmount),
           otherCharge,
@@ -210,12 +260,19 @@ export class InvoicesService {
       });
 
       const savedInvoice = await this.invoicesRepository.save(invoice);
-      const task = await this.tasksService.syncInvoiceTask(savedInvoice, userId, dto.taskId);
+      const task = await this.tasksService.syncInvoiceTask(
+        savedInvoice, userId, dto.taskId, sourceInvoice?.id, savedInvoice.deliveryStatus,
+      );
       if (task && savedInvoice.type === InvoiceType.BON_LIVRAISON && savedInvoice.deliveryPersonId) {
         this.deliveryGateway.emitTaskAssigned(
           savedInvoice.deliveryPersonId,
           this.tasksService.presentForLivreur(task),
         );
+      }
+      // Le bon de livraison est lié à sa facture : prix de livraison et livreur sont reportés
+      // sur la facture (la marge / bénéfice net n'est calculée que sur les factures).
+      if (savedInvoice.type === InvoiceType.BON_LIVRAISON && sourceInvoice) {
+        await this.mirrorDeliveryFields(savedInvoice, userId, { price: true, person: true });
       }
       return savedInvoice;
     } catch (error) {
@@ -337,9 +394,123 @@ export class InvoicesService {
     }
   }
 
+  /**
+   * Détail d'un document avec ses liens :
+   *  - bon de livraison -> facture d'origine (`sourceInvoice`) + tâche de livraison (`deliveryTask`)
+   *  - facture          -> bon de livraison lié (`deliveryNote`)
+   */
+  async findOneDetailed(id: string, user: { id: string; role: UserRole }): Promise<any> {
+    const invoice = await this.findOne(id, user);
+    const result: any = { ...invoice };
+
+    if (invoice.type === InvoiceType.BON_LIVRAISON) {
+      if (invoice.sourceInvoiceId) {
+        const source = await this.invoicesRepository.findOne({ where: { id: invoice.sourceInvoiceId } });
+        result.sourceInvoice = source
+          ? {
+              id: source.id,
+              number: source.number,
+              status: source.status,
+              paymentStatus: source.paymentStatus,
+              isDeleted: source.isDeleted,
+            }
+          : null;
+      }
+      const task = await this.tasksService.findTaskByInvoiceId(invoice.id);
+      result.deliveryTask = task
+        ? {
+            id: task.id,
+            status: task.status,
+            startedDeliveryAt: task.startedDeliveryAt,
+            finishedDeliveryAt: task.finishedDeliveryAt,
+            deliveryDurationMinutes: task.deliveryDurationMinutes,
+            remarks: task.remarks,
+          }
+        : null;
+    }
+
+    if (invoice.type === InvoiceType.FACTURE) {
+      const note = await this.invoicesRepository.findOne({
+        where: { sourceInvoiceId: invoice.id, type: InvoiceType.BON_LIVRAISON, isDeleted: false },
+        order: { createdAt: 'DESC' },
+      });
+      result.deliveryNote = note
+        ? {
+            id: note.id,
+            number: note.number,
+            deliveryStatus: note.deliveryStatus,
+            deliveryPersonName: note.deliveryPersonName,
+            deliveryPrice: note.deliveryPrice,
+          }
+        : null;
+    }
+    return result;
+  }
+
+  private recomputeNetProfit(invoice: Invoice): number {
+    const billedCharges = (invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
+    const adjustmentImpact = invoice.adjustmentType === InvoiceAdjustmentType.ADDITION
+      ? Number(invoice.adjustmentAmount || 0)
+      : -Number(invoice.adjustmentAmount || 0);
+    return computeNetProfit(
+      Number(invoice.totalMargin || 0) + billedCharges + adjustmentImpact,
+      Number(invoice.otherCharge || 0),
+      Number(invoice.deliveryPrice || 0),
+    );
+  }
+
+  /**
+   * Garde la facture et son bon de livraison cohérents sur les champs de livraison
+   * (prix de livraison, livreur). Seuls les champs réellement modifiés sont reportés,
+   * et un bon de livraison ne perd jamais son livreur.
+   */
+  private async mirrorDeliveryFields(
+    source: Invoice,
+    userId: string,
+    fields: { price?: boolean; person?: boolean },
+  ): Promise<void> {
+    let counterpart: Invoice | null = null;
+    if (source.type === InvoiceType.BON_LIVRAISON && source.sourceInvoiceId) {
+      counterpart = await this.invoicesRepository.findOne({
+        where: { id: source.sourceInvoiceId, type: InvoiceType.FACTURE, isDeleted: false },
+      });
+    } else if (source.type === InvoiceType.FACTURE) {
+      counterpart = await this.invoicesRepository.findOne({
+        where: { sourceInvoiceId: source.id, type: InvoiceType.BON_LIVRAISON, isDeleted: false },
+      });
+    }
+    if (!counterpart) return;
+
+    let changed = false;
+    if (fields.price && roundMoney(counterpart.deliveryPrice) !== roundMoney(source.deliveryPrice)) {
+      counterpart.deliveryPrice = roundMoney(source.deliveryPrice);
+      changed = true;
+    }
+    if (fields.person && source.deliveryPersonId && counterpart.deliveryPersonId !== source.deliveryPersonId) {
+      counterpart.deliveryPersonId = source.deliveryPersonId;
+      counterpart.deliveryPersonName = source.deliveryPersonName;
+      changed = true;
+    }
+    if (!changed) return;
+
+    counterpart.netProfit = this.recomputeNetProfit(counterpart);
+    const saved = await this.invoicesRepository.save(counterpart);
+
+    if (saved.type === InvoiceType.BON_LIVRAISON) {
+      const task = await this.tasksService.syncInvoiceTask(saved, userId, undefined, saved.sourceInvoiceId);
+      if (task && saved.deliveryPersonId) {
+        this.deliveryGateway.emitTaskAssigned(saved.deliveryPersonId, this.tasksService.presentForLivreur(task));
+      }
+    }
+  }
+
   async update(id: string, dto: UpdateInvoiceDto, user: { id: string; role: UserRole }): Promise<Invoice> {
     const invoice = await this.findOne(id, user);
     invoice.lastModifiedBy = { id: user.id } as any;
+    // Valeurs de livraison avant modification : on ne reporte sur le document lié que ce qui change
+    // réellement (le formulaire d'édition renvoie toujours ces champs, même inchangés).
+    const previousDeliveryPrice = roundMoney(invoice.deliveryPrice);
+    const previousDeliveryPersonId = invoice.deliveryPersonId || null;
 
     const effectiveReferenceDate = invoice.createdAt ?? new Date();
     this.validateDeliveryDate(effectiveReferenceDate, dto.deliveryDate ?? invoice.deliveryDate ?? null);
@@ -389,6 +560,12 @@ export class InvoicesService {
     }
     if (dto.deliveryPrice !== undefined) invoice.deliveryPrice = roundMoney(dto.deliveryPrice);
     if (dto.deliveryPersonId !== undefined) {
+      if (invoice.type === InvoiceType.BON_LIVRAISON && !dto.deliveryPersonId) {
+        throw new BadRequestException('Un livreur doit rester affecté au bon de livraison.');
+      }
+      if (dto.deliveryPersonId && dto.deliveryPersonId !== invoice.deliveryPersonId) {
+        await this.tasksService.assertAssignableLivreur(dto.deliveryPersonId);
+      }
       const delivery = await this.resolveDeliveryPerson(dto.deliveryPersonId);
       invoice.deliveryPersonId = delivery.id;
       invoice.deliveryPersonName = delivery.name;
@@ -454,12 +631,19 @@ export class InvoicesService {
     );
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
-    const task = await this.tasksService.syncInvoiceTask(savedInvoice, user.id);
+    const task = await this.tasksService.syncInvoiceTask(savedInvoice, user.id, undefined, savedInvoice.sourceInvoiceId);
     if (task && savedInvoice.type === InvoiceType.BON_LIVRAISON && savedInvoice.deliveryPersonId) {
       this.deliveryGateway.emitTaskAssigned(
         savedInvoice.deliveryPersonId,
         this.tasksService.presentForLivreur(task),
       );
+    }
+    // Facture <-> bon de livraison : on ne reporte que ce qui vient d'être modifié.
+    const priceChanged = dto.deliveryPrice !== undefined && roundMoney(dto.deliveryPrice) !== previousDeliveryPrice;
+    const personChanged = dto.deliveryPersonId !== undefined
+      && (dto.deliveryPersonId || null) !== previousDeliveryPersonId;
+    if (priceChanged || personChanged) {
+      await this.mirrorDeliveryFields(savedInvoice, user.id, { price: priceChanged, person: personChanged });
     }
     return savedInvoice;
   }
@@ -476,21 +660,16 @@ export class InvoicesService {
     return { success: true, deletedId: requestId };
   }
 
-  async updateDeliveryStatus(id: string, status: DeliveryStatus): Promise<Invoice> {
+  async updateDeliveryStatus(id: string, status: DeliveryStatus, actorId?: string): Promise<Invoice> {
+    if (!Object.values(DeliveryStatus).includes(status)) {
+      throw new BadRequestException('Statut de livraison invalide.');
+    }
+    // Le statut de livraison est synchronisé entre la facture, son bon de livraison et la tâche
+    // du livreur (et diffusé en temps réel). Le statut de paiement n'est jamais modifié ici.
+    await this.tasksService.applyInvoiceDeliveryStatus(id, status, actorId);
     const invoice = await this.invoicesRepository.findOne({ where: { id } });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
-    if (invoice.type === InvoiceType.PROFORMA) {
-      throw new BadRequestException('Une proforma ne peut pas recevoir de statut de livraison.');
-    }
-    invoice.deliveryStatus = status;
-    const saved = await this.invoicesRepository.save(invoice);
-    // Lien livreur → commercial : le commercial est notifié en temps réel
-    this.deliveryGateway.emitDeliveryUpdatedByLivreur(saved.id, {
-      number: saved.number,
-      clientName: saved.clientName,
-      status: saved.deliveryStatus,
-    });
-    return saved;
+    return invoice;
   }
 
   async updatePaymentStatus(id: string, paymentStatus: PaymentStatus): Promise<Invoice> {

@@ -88,5 +88,14 @@ CREATE TABLE IF NOT EXISTS notification_settings (
   "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
--- 10. Vérification : lister les colonnes de la table invoices
+-- 10. Statut de livraison « en cours »
+DO $$
+BEGIN
+  ALTER TYPE invoices_deliverystatus_enum ADD VALUE IF NOT EXISTS 'en_cours';
+EXCEPTION
+  WHEN undefined_object THEN NULL;
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+-- 11. Vérification : lister les colonnes de la table invoices
 -- \d invoices

@@ -17,6 +17,7 @@ export class TasksController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL, UserRole.LIVREUR)
   findAll(@Request() req) {
     return this.tasksService.findAll(req.user);
   }
@@ -51,6 +52,7 @@ export class TasksController {
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL, UserRole.LIVREUR)
   async findOne(@Param('id') id: string, @Request() req) {
     const task = await this.tasksService.findOne(id, req.user);
     return req.user.role === UserRole.LIVREUR
@@ -59,6 +61,7 @@ export class TasksController {
   }
 
   @Put(':id')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL, UserRole.LIVREUR)
   update(@Param('id') id: string, @Body() dto: any, @Request() req) {
     return this.tasksService.update(id, dto, req.user);
   }
@@ -75,6 +78,12 @@ export class TasksController {
   @Roles(UserRole.LIVREUR, UserRole.ADMIN, UserRole.COMMERCIAL)
   finishDelivery(@Param('id') id: string, @Request() req) {
     return this.tasksService.finishDelivery(id, req.user);
+  }
+
+  @Patch(':id/reopen-delivery')
+  @Roles(UserRole.LIVREUR, UserRole.ADMIN, UserRole.COMMERCIAL)
+  reopenDelivery(@Param('id') id: string, @Request() req) {
+    return this.tasksService.reopenDelivery(id, req.user);
   }
 
   // MOD 6: admin adds unexpected extra fees
