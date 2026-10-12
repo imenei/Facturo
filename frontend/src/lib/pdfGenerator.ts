@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { adjustedUnitPrice, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, roundMoney } from './formatMoney';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
@@ -61,6 +61,23 @@ function companyNameSize(invoice: any): number {
   const n = Number(invoice?.issuerNameSize);
   if (!Number.isFinite(n)) return 16;
   return Math.min(24, Math.max(12, n));
+}
+
+// ─── Prix de vente ───────────────────────────────────────────────────────────
+// La remise / l'ajout saisi à la création s'applique désormais au PRIX D'ACHAT (interne) :
+// le prix de vente affiché au client n'est donc jamais modifié.
+// Compatibilité : les anciennes factures (créées avant ce changement) portent une remise
+// sur le prix de vente, repérable par discountPercent > 0 -> on garde l'ancien affichage pour elles.
+function legacyDiscountPercent(invoice: any): number {
+  if (invoice?.type === 'bon_livraison') return 0;
+  return Number(invoice?.discountPercent) > 0 ? Number(invoice.discountPercent) : 0;
+}
+
+function salePrice(invoice: any, rawUnitPrice: any): number {
+  const legacy = legacyDiscountPercent(invoice);
+  return legacy > 0
+    ? adjustedUnitPrice(Number(rawUnitPrice), 'discount' as any, legacy)
+    : roundMoney(Number(rawUnitPrice) || 0);
 }
 
 // ─── Nombre en lettres (DZD) ────────────────────────────────────────────────
@@ -191,11 +208,8 @@ function clientBlock(doc: jsPDF, invoice: any, x: number, y: number, label = 'FA
 
 // Items table helper
 function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[], headText: number[]) {
-  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const body = (invoice.items || []).map((item: any) => {
-    const unitPrice = invoice.type === 'bon_livraison'
-      ? roundMoney(item.unitPrice)
-      : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
+    const unitPrice = salePrice(invoice, item.unitPrice);
     return [
       item.description,
       { content: String(item.quantity), styles: { halign: 'center' } },
@@ -231,11 +245,9 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   let ty = y + 8;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
+  const legacyDiscount = legacyDiscountPercent(invoice);
   const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
-    const unitPrice = invoice.type === 'bon_livraison'
-      ? roundMoney(item.unitPrice)
-      : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
+    const unitPrice = salePrice(invoice, item.unitPrice);
     return sum + roundMoney(unitPrice * Number(item.quantity || 0));
   }, 0));
 
@@ -283,10 +295,13 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const wrapped = doc.splitTextToSize(words, W - 28);
   doc.text(wrapped, 14, ty + 6);
   ty += 6 + wrapped.length * 3.6;
-  if (adjustmentType === 'discount' && adjustmentPercent > 0) {
+
+  // Mention de remise : uniquement pour les anciennes factures (remise sur prix de vente).
+  // Les nouvelles remises portent sur le prix d'achat et ne doivent jamais apparaître au client.
+  if (legacyDiscount > 0) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
-    doc.text(`Remise appliquée : ${adjustmentPercent}% (incluse dans les prix unitaires)`, 14, ty + 4);
+    doc.text(`Remise appliquée : ${legacyDiscount}% (incluse dans les prix unitaires)`, 14, ty + 4);
     ty += 4;
   }
 
@@ -603,9 +618,8 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   if (invoice.dueDate) doc.text(`Échéance : ${fDate(invoice.dueDate)}`, W - 14, 65, { align: 'right' });
   if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 71, { align: 'right' });
 
-  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const body = invoice.items.map((i: any) => {
-    const unitPrice = adjustedUnitPrice(Number(i.unitPrice), adjustmentType, adjustmentPercent);
+    const unitPrice = salePrice(invoice, i.unitPrice);
     return [
       i.description,
       { content: String(i.quantity), styles: { halign: 'center' } },
