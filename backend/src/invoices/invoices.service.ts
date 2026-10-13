@@ -54,41 +54,84 @@ export class InvoicesService {
     return `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`;
   }
 
+  private clampPercent(value: number): number {
+    return Math.min(Math.max(Number(value) || 0, 0), 100);
+  }
+
+  /** Prix d'achat après remise (-) ou ajout (+). Le prix de vente n'est jamais touché. */
+  private adjustPurchasePrice(
+    purchasePrice: number,
+    adjustmentType: InvoiceAdjustmentType,
+    adjustmentPercent: number,
+  ): number {
+    const price = roundMoney(purchasePrice);
+    const delta = roundMoney((price * this.clampPercent(adjustmentPercent)) / 100);
+    return roundMoney(price + (adjustmentType === InvoiceAdjustmentType.ADDITION ? delta : -delta));
+  }
+
+  /**
+   * Construit les lignes : total = prix de vente × quantité (sans remise),
+   * marge = prix de vente − prix d'achat APRÈS remise.
+   * `purchasePrice` est stocké tel que saisi (non remisé) pour que le pourcentage reste modifiable.
+   */
+  private buildItems(
+    rawItems: Array<{ description: string; quantity: number; unitPrice: number; purchasePrice?: number }>,
+    adjustmentType: InvoiceAdjustmentType,
+    adjustmentPercent: number,
+    fallbackItems: any[] = [],
+  ) {
+    return rawItems.map((item, i) => {
+      const purchasePrice = roundMoney(item.purchasePrice ?? fallbackItems[i]?.purchasePrice ?? 0);
+      const unitPrice = roundMoney(item.unitPrice);
+      const quantity = Number(item.quantity) || 0;
+      const effectivePurchase = this.adjustPurchasePrice(purchasePrice, adjustmentType, adjustmentPercent);
+      const margin = roundMoney((unitPrice - effectivePurchase) * quantity);
+      return {
+        id: String(i + 1),
+        description: item.description,
+        quantity,
+        unitPrice,
+        purchasePrice,
+        margin,
+        total: roundMoney(quantity * unitPrice),
+      };
+    });
+  }
+
   private calculateInvoiceTotals(
-    items: Array<{ unitPrice: number; quantity: number }>,
+    items: Array<{ unitPrice: number; quantity: number; purchasePrice?: number }>,
     hasTva: boolean,
     tvaRate: number,
     adjustmentType: InvoiceAdjustmentType,
     adjustmentPercent: number,
     additionalCharges = 0,
   ) {
-    const normalizedPercent = Math.min(Math.max(Number(adjustmentPercent) || 0, 0), 100);
-    const adjustedItems = items.map((item) => {
-      const unitPrice = roundMoney(item.unitPrice);
-      const quantity = Number(item.quantity) || 0;
-      const unitAdjustment = roundMoney((unitPrice * normalizedPercent) / 100);
-      const adjustedUnitPrice = roundMoney(
-        unitPrice + (adjustmentType === InvoiceAdjustmentType.ADDITION ? unitAdjustment : -unitAdjustment),
-      );
-      const originalTotal = roundMoney(unitPrice * quantity);
-      const adjustedTotal = roundMoney(adjustedUnitPrice * quantity);
-      return { originalTotal, adjustedTotal };
-    });
-    const adjustmentAmount = roundMoney(adjustedItems.reduce(
-      (sum, item) => sum + Math.abs(item.adjustedTotal - item.originalTotal),
+    const normalizedPercent = this.clampPercent(adjustmentPercent);
+
+    // Montant de la remise / de l'ajout sur les prix d'achat (interne)
+    const adjustmentAmount = roundMoney(items.reduce((sum, item) => {
+      const purchase = roundMoney(Number(item.purchasePrice) || 0);
+      const adjusted = this.adjustPurchasePrice(purchase, adjustmentType, normalizedPercent);
+      return sum + Math.abs(adjusted - purchase) * (Number(item.quantity) || 0);
+    }, 0));
+
+    // Sous-total de vente : SANS remise
+    const subtotal = roundMoney(items.reduce(
+      (sum, item) => sum + roundMoney(roundMoney(item.unitPrice) * (Number(item.quantity) || 0)),
       0,
     ));
-    const adjustedSubtotal = roundMoney(adjustedItems.reduce((sum, item) => sum + item.adjustedTotal, 0));
-    const subtotalWithCharges = roundMoney(adjustedSubtotal + additionalCharges);
+    const subtotalWithCharges = roundMoney(subtotal + additionalCharges);
     const tvaAmount = hasTva ? roundMoney((subtotalWithCharges * (tvaRate || 19)) / 100) : 0;
     const total = roundMoney(subtotalWithCharges + tvaAmount);
 
     return {
-      discountPercent: adjustmentType === InvoiceAdjustmentType.DISCOUNT ? normalizedPercent : 0,
-      discountAmount: adjustmentType === InvoiceAdjustmentType.DISCOUNT ? adjustmentAmount : 0,
+      // Champs historiques "remise client" : toujours 0 maintenant, pour qu'aucune
+      // ligne "Remise" n'apparaisse sur les documents du client.
+      discountPercent: 0,
+      discountAmount: 0,
       adjustmentType,
       adjustmentPercent: normalizedPercent,
-      adjustmentAmount,
+      adjustmentAmount, // remise sur prix d'achat (interne)
       subtotal: subtotalWithCharges,
       tvaAmount,
       total,
@@ -183,26 +226,12 @@ export class InvoicesService {
       const additionalCharges = roundMoney(otherCharges.reduce((sum, charge) => sum + charge.amount, 0));
       const adjustmentType = dto.adjustmentType || InvoiceAdjustmentType.DISCOUNT;
       const adjustmentPercent = dto.adjustmentPercent ?? dto.discountPercent ?? 0;
-      const totals = this.calculateInvoiceTotals(resolvedItems, Boolean(dto.hasTva), Number(dto.tvaRate || 19), adjustmentType, adjustmentPercent, additionalCharges);
+      // Remise / ajout appliqué au PRIX D'ACHAT uniquement : le total client reste basé sur les prix de vente.
+      const items = this.buildItems(resolvedItems, adjustmentType, adjustmentPercent);
+      const totals = this.calculateInvoiceTotals(items, Boolean(dto.hasTva), Number(dto.tvaRate || 19), adjustmentType, adjustmentPercent, additionalCharges);
       this.validateDeliveryDate(sourceInvoice?.createdAt || new Date(), dto.deliveryDate);
       const tvaAmount = totals.tvaAmount;
       const total = totals.total;
-
-      const items = resolvedItems.map((item, i) => {
-        const purchasePrice = roundMoney((item as any).purchasePrice ?? 0);
-        const unitPrice = roundMoney(item.unitPrice);
-        const quantity = Number(item.quantity) || 0;
-        const margin = roundMoney((unitPrice - purchasePrice) * quantity);
-        return {
-          id: String(i + 1),
-          description: item.description,
-          quantity,
-          unitPrice,
-          purchasePrice,
-          margin,
-          total: roundMoney(quantity * unitPrice),
-        };
-      });
 
       const totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
       const otherCharge = roundMoney(dto.otherCharge ?? 0);
@@ -243,8 +272,9 @@ export class InvoicesService {
         deliveryPersonName: delivery.name,
         deliveryStatus: inheritedDeliveryStatus,
         workflowStep: inheritedDeliveryStatus === DeliveryStatus.EN_ATTENTE ? WorkflowStep.COMMANDE : WorkflowStep.LIVRAISON,
+        // La remise sur prix d'achat est déjà incluse dans totalMargin.
         netProfit: computeNetProfit(
-          totalMargin + additionalCharges + (adjustmentType === InvoiceAdjustmentType.ADDITION ? totals.adjustmentAmount : -totals.adjustmentAmount),
+          totalMargin + additionalCharges,
           otherCharge,
           deliveryPrice,
         ),
@@ -449,11 +479,9 @@ export class InvoicesService {
 
   private recomputeNetProfit(invoice: Invoice): number {
     const billedCharges = (invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
-    const adjustmentImpact = invoice.adjustmentType === InvoiceAdjustmentType.ADDITION
-      ? Number(invoice.adjustmentAmount || 0)
-      : -Number(invoice.adjustmentAmount || 0);
+    // La remise sur prix d'achat est déjà incluse dans totalMargin.
     return computeNetProfit(
-      Number(invoice.totalMargin || 0) + billedCharges + adjustmentImpact,
+      Number(invoice.totalMargin || 0) + billedCharges,
       Number(invoice.otherCharge || 0),
       Number(invoice.deliveryPrice || 0),
     );
@@ -532,18 +560,6 @@ export class InvoicesService {
       invoice.adjustmentType = InvoiceAdjustmentType.DISCOUNT;
       invoice.adjustmentPercent = roundMoney(dto.discountPercent);
     }
-    if (dto.adjustmentType !== undefined || dto.adjustmentPercent !== undefined || dto.discountPercent !== undefined) {
-      const additionalCharges = roundMoney((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0));
-      const totals = this.calculateInvoiceTotals(invoice.items, Boolean(invoice.hasTva), Number(invoice.tvaRate || 19), invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0), additionalCharges);
-      invoice.discountPercent = totals.discountPercent;
-      invoice.discountAmount = totals.discountAmount;
-      invoice.adjustmentType = totals.adjustmentType;
-      invoice.adjustmentPercent = totals.adjustmentPercent;
-      invoice.adjustmentAmount = totals.adjustmentAmount;
-      invoice.subtotal = totals.subtotal;
-      invoice.tvaAmount = totals.tvaAmount;
-      invoice.total = totals.total;
-    }
     if (dto.templateType !== undefined) invoice.templateType = dto.templateType || null;
     if (dto.issuerName !== undefined) invoice.issuerName = dto.issuerName || null;
     if (dto.issuerNameSize !== undefined) invoice.issuerNameSize = dto.issuerNameSize;
@@ -571,30 +587,30 @@ export class InvoicesService {
       invoice.deliveryPersonName = delivery.name;
     }
 
-    if (dto.items && dto.items.length > 0) {
+    // Recalcul unique : lignes, marges, totaux. La remise / l'ajout s'applique au PRIX D'ACHAT
+    // (marge interne) et jamais au prix de vente : le total client n'est pas affecté.
+    const needsRecalc =
+      (dto.items && dto.items.length > 0) ||
+      dto.hasTva !== undefined || dto.tvaRate !== undefined ||
+      dto.discountPercent !== undefined || dto.adjustmentType !== undefined ||
+      dto.adjustmentPercent !== undefined || dto.otherCharges !== undefined;
+
+    if (needsRecalc) {
       const hasTva = dto.hasTva ?? invoice.hasTva;
       const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
+      const adjType = invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT;
+      const adjPercent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0);
       const oldItems = Array.isArray(invoice.items) ? invoice.items : [];
-
-      const items = dto.items.map((item, i) => {
-        const purchasePrice = roundMoney(item.purchasePrice ?? (oldItems[i] as any)?.purchasePrice ?? 0);
-        const unitPrice = roundMoney(item.unitPrice);
-        const quantity = Number(item.quantity) || 0;
-        const margin = roundMoney((unitPrice - purchasePrice) * quantity);
-        return {
-          id: String(i + 1),
-          description: item.description,
-          quantity,
-          unitPrice,
-          purchasePrice,
-          margin,
-          total: roundMoney(quantity * unitPrice),
-        };
-      });
-
-      const subtotal = roundMoney(items.reduce((sum, item) => sum + item.total, 0));
-      const additionalCharges = roundMoney((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0));
-      const totals = this.calculateInvoiceTotals(items, hasTva, tvaRate, invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0), additionalCharges);
+      const items = this.buildItems(
+        dto.items && dto.items.length > 0 ? dto.items : (oldItems as any[]),
+        adjType,
+        adjPercent,
+        oldItems as any[],
+      );
+      const additionalCharges = roundMoney(
+        (invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0),
+      );
+      const totals = this.calculateInvoiceTotals(items, hasTva, tvaRate, adjType, adjPercent, additionalCharges);
       invoice.items = items;
       invoice.subtotal = totals.subtotal;
       invoice.discountPercent = totals.discountPercent;
@@ -605,30 +621,13 @@ export class InvoicesService {
       invoice.tvaAmount = totals.tvaAmount;
       invoice.total = totals.total;
       invoice.totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
-    } else if (dto.hasTva !== undefined || dto.tvaRate !== undefined || dto.discountPercent !== undefined || dto.adjustmentType !== undefined || dto.adjustmentPercent !== undefined || dto.otherCharges !== undefined) {
-      const hasTva = dto.hasTva ?? invoice.hasTva;
-      const tvaRate = dto.tvaRate ?? invoice.tvaRate ?? 19;
-      const additionalCharges = roundMoney((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0));
-      const totals = this.calculateInvoiceTotals(invoice.items, hasTva, tvaRate, invoice.adjustmentType || InvoiceAdjustmentType.DISCOUNT, Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0), additionalCharges);
-      invoice.subtotal = totals.subtotal;
-      invoice.discountPercent = totals.discountPercent;
-      invoice.discountAmount = totals.discountAmount;
-      invoice.adjustmentType = totals.adjustmentType;
-      invoice.adjustmentPercent = totals.adjustmentPercent;
-      invoice.adjustmentAmount = totals.adjustmentAmount;
-      invoice.tvaAmount = totals.tvaAmount;
-      invoice.total = totals.total;
     }
 
     if (dto.clientName) {
       invoice.clientId = this.buildClientId(dto.clientName, dto.clientPhone ?? invoice.clientPhone);
     }
 
-    invoice.netProfit = computeNetProfit(
-      Number(invoice.totalMargin || 0) + Number((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0)) + (invoice.adjustmentType === InvoiceAdjustmentType.ADDITION ? Number(invoice.adjustmentAmount || 0) : -Number(invoice.adjustmentAmount || 0)),
-      Number(invoice.otherCharge || 0),
-      Number(invoice.deliveryPrice || 0),
-    );
+    invoice.netProfit = this.recomputeNetProfit(invoice);
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
     const task = await this.tasksService.syncInvoiceTask(savedInvoice, user.id, undefined, savedInvoice.sourceInvoiceId);
