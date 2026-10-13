@@ -145,10 +145,6 @@ export async function loadTranslationsSSR(locale: Locale, ctx?: GetServerSidePro
   return loadTranslationsFromPublic(locale);
 }
 
-function getNestedValue(obj: Record<string, any>, key: string): any {
-  return key.split('.').reduce((acc, k) => acc?.[k], obj) ?? key;
-}
-
 export const useI18nStore = create<I18nState>()(
   persist(
     (set, get) => ({
@@ -163,7 +159,18 @@ export const useI18nStore = create<I18nState>()(
             : await loadTranslations(locale);
 
         const isRTL = locale === 'ar';
-        const flatTranslations = flattenTranslations(translations);
+        // Le français sert de filet de sécurité : une clé absente en arabe / anglais
+        // s'affiche en français plutôt que sous forme de clé brute (ex. « en_attente »).
+        const fallbackTranslations =
+          locale === 'fr'
+            ? {}
+            : typeof window === 'undefined'
+              ? await loadTranslationsSSR('fr')
+              : await loadTranslations('fr');
+        const flatTranslations = {
+          ...flattenTranslations(fallbackTranslations),
+          ...flattenTranslations(translations),
+        };
 
         if (typeof document !== 'undefined') {
           document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
@@ -180,23 +187,23 @@ export const useI18nStore = create<I18nState>()(
 
       t: (key: string, vars?: Record<string, string>) => {
         const { translations } = get();
-        const flatTranslations = translations.__flat ?? {};
-        let value = getNestedValue(translations, key);
+        const flatTranslations: Record<string, string> = translations.__flat ?? {};
 
-        if (value === key) {
+        // 1) chemin exact (ex. « nav.dashboard »)
+        let value: any = key.split('.').reduce((acc: any, k) => acc?.[k], translations);
+
+        // 2) dictionnaire à plat : clé exacte, clé normalisée, puis dernier segment du chemin
+        if (typeof value !== 'string') {
           const normalizedKey = normalizeTranslationKey(key);
-          if (normalizedKey && normalizedKey !== key) {
-            value = getNestedValue(translations, normalizedKey);
+          const leafKey = key.includes('.') ? (key.split('.').pop() ?? key) : '';
+          const candidates = [key, normalizedKey, leafKey, leafKey ? normalizeTranslationKey(leafKey) : ''];
+          value = undefined;
+          for (const candidate of candidates) {
+            if (candidate && typeof flatTranslations[candidate] === 'string') {
+              value = flatTranslations[candidate];
+              break;
+            }
           }
-        }
-
-        if (value === key) {
-          value = flatTranslations[key] ?? flatTranslations[normalizeTranslationKey(key)] ?? key;
-        }
-
-        if (value === key && key.includes('.')) {
-          const leafKey = key.split('.').pop() ?? key;
-          value = flatTranslations[leafKey] ?? flatTranslations[normalizeTranslationKey(leafKey)] ?? key;
         }
 
         if (typeof value !== 'string') value = key;

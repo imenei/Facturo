@@ -175,7 +175,7 @@ function ClientDetail({ client, onBack, t }: { client: any; onBack: () => void; 
       {/* Tab: Factures */}
       {tab === 'factures' && d && (
         <div className="space-y-2">
-          {d.factures.length === 0 && <p className="text-center text-slate-400 py-8">Aucune facture</p>}
+          {d.factures.length === 0 && <p className="text-center text-slate-400 py-8">{t('Aucune facture')}</p>}
           {d.factures.map((inv: any) => (
             <Link key={inv.id} href={`/invoices/${inv.id}`}
               className="flex items-center justify-between p-4 rounded-xl bg-white border border-slate-200 hover:border-brand-300 transition-all">

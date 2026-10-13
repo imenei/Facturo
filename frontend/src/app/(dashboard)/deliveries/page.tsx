@@ -12,7 +12,7 @@ import { DELIVERY_UPDATED_EVENT } from '@/hooks/useRealtimeDelivery';
 function getDeliveryConfig(t: (key: string) => string) {
   return {
     en_attente: { label: t('delivery_status_pending'), color: 'bg-amber-100 text-amber-700', icon: Clock },
-    en_cours: { label: 'En cours', color: 'bg-blue-100 text-blue-700', icon: Timer },
+    en_cours: { label: t('En cours'), color: 'bg-blue-100 text-blue-700', icon: Timer },
     livree: { label: t('delivery_status_delivered'), color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
     non_livree: { label: t('delivery_status_not_delivered'), color: 'bg-red-100 text-red-600', icon: XCircle },
   };
@@ -95,7 +95,7 @@ export default function DeliveriesPage() {
         {[
           { key: 'total', label: t('total_deliveries'), color: 'text-slate-900', bg: 'bg-slate-100' },
           { key: 'en_attente', label: t('delivery_status_pending'), color: 'text-amber-700', bg: 'bg-amber-50' },
-          { key: 'en_cours', label: 'En cours', color: 'text-blue-700', bg: 'bg-blue-50' },
+          { key: 'en_cours', label: t('En cours'), color: 'text-blue-700', bg: 'bg-blue-50' },
           { key: 'livree', label: t('delivery_status_delivered_plural'), color: 'text-emerald-700', bg: 'bg-emerald-50' },
           { key: 'non_livree', label: t('delivery_status_not_delivered_plural'), color: 'text-red-700', bg: 'bg-red-50' },
         ].map(({ key, label, color, bg }) => (

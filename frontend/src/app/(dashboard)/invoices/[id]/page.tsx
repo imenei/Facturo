@@ -100,6 +100,7 @@ function WorkflowStepper({ current, invoiceId, onUpdate, canEdit, t }: any) {
 function DeliveryWorkflow({ invoice, canEdit, busy, onChange }: {
   invoice: any; canEdit: boolean; busy: boolean; onChange: (status: string) => void;
 }) {
+  const { t } = useI18nStore();
   const current: string = invoice.deliveryStatus || 'en_attente';
   const finished = current === 'livree' || current === 'non_livree';
   const task = invoice.deliveryTask;
@@ -132,7 +133,7 @@ function DeliveryWorkflow({ invoice, canEdit, busy, onChange }: {
                   !canEdit || i > currentIdx + 1 || i === currentIdx ? 'cursor-default' : 'cursor-pointer',
                 )}>
                 {done ? <step.Icon size={11} /> : <div className="w-2 h-2 rounded-full bg-current opacity-40" />}
-                {step.label}
+                {t(step.label)}
               </button>
               {i < steps.length - 1 && (
                 <ChevronRight size={14} className={clsx('mx-0.5', done && i < currentIdx ? 'text-brand-400' : 'text-slate-300')} />
@@ -146,7 +147,7 @@ function DeliveryWorkflow({ invoice, canEdit, busy, onChange }: {
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" disabled={busy} onClick={() => onChange('non_livree')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50">
-            <XCircle size={12} /> Marquer non livrée
+            <XCircle size={12} /> {t('Marquer non livrée')}
           </button>
         </div>
       )}
@@ -154,20 +155,20 @@ function DeliveryWorkflow({ invoice, canEdit, busy, onChange }: {
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" disabled={busy} onClick={() => onChange('en_cours')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50">
-            <RotateCcw size={12} /> Rouvrir la livraison
+            <RotateCcw size={12} /> {t('Rouvrir la livraison')}
           </button>
           <button type="button" disabled={busy} onClick={() => onChange('en_attente')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-            Remettre en attente
+            {t('Remettre en attente')}
           </button>
         </div>
       )}
 
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
-        {invoice.deliveryPersonName && <span className="flex items-center gap-1"><Truck size={11} /> Livreur : <strong className="text-slate-700">{invoice.deliveryPersonName}</strong></span>}
-        <span>Prix de livraison : <strong className="text-slate-700">{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
-        {task?.startedDeliveryAt && <span>Démarrée le {new Date(task.startedDeliveryAt).toLocaleString('fr-FR')}</span>}
-        {task?.finishedDeliveryAt && <span>Terminée le {new Date(task.finishedDeliveryAt).toLocaleString('fr-FR')}{task.deliveryDurationMinutes != null ? ` (${task.deliveryDurationMinutes} min)` : ''}</span>}
+        {invoice.deliveryPersonName && <span className="flex items-center gap-1"><Truck size={11} /> {t('Livreur')} : <strong className="text-slate-700">{invoice.deliveryPersonName}</strong></span>}
+        <span>{t('Prix de livraison')} : <strong className="text-slate-700">{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
+        {task?.startedDeliveryAt && <span>{t('Démarrée le')} {new Date(task.startedDeliveryAt).toLocaleString('fr-FR')}</span>}
+        {task?.finishedDeliveryAt && <span>{t('Terminée le')} {new Date(task.finishedDeliveryAt).toLocaleString('fr-FR')}{task.deliveryDurationMinutes != null ? ` (${task.deliveryDurationMinutes} min)` : ''}</span>}
       </div>
     </div>
   );
@@ -215,14 +216,14 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
 
   const saveTemplate = async () => {
     if (!subject.trim() || !body.trim() || !headerName.trim()) {
-      toast.error('L’en-tête, l’objet et le contenu du rappel sont obligatoires.');
+      toast.error(t('L’en-tête, l’objet et le contenu du rappel sont obligatoires.'));
       return;
     }
     setTemplateSaving(true);
     try {
       await api.put('/notifications/email-template', { subject, body, headerName });
       setTemplateOpen(false);
-      toast.success('Modèle de rappel enregistré.');
+      toast.success(t('Modèle de rappel enregistré.'));
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Impossible d’enregistrer le modèle de rappel.');
     }
@@ -261,42 +262,42 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
           <button type="button" onClick={() => void editTemplate()} disabled={templateLoading}
             className="btn-secondary flex items-center gap-2 text-sm">
             {templateLoading ? <Loader2 size={14} className="animate-spin" /> : <Settings size={14} />}
-            Modifier le contenu
+            {t('Modifier le contenu')}
           </button>
         </div>
       </div>
       {templateOpen && (
         <div className="mb-4 space-y-3 border-y border-slate-200 py-4">
           <div>
-            <label className="label" htmlFor="reminderTemplateHeader">Nom affiché dans l’en-tête</label>
+            <label className="label" htmlFor="reminderTemplateHeader">{t('Nom affiché dans l’en-tête')}</label>
             <input id="reminderTemplateHeader" className="input" value={headerName}
               onChange={(event) => setHeaderName(event.target.value)} />
           </div>
           <div>
-            <label className="label" htmlFor="reminderTemplateSubject">Objet de l’email</label>
+            <label className="label" htmlFor="reminderTemplateSubject">{t('Objet de l’email')}</label>
             <input id="reminderTemplateSubject" className="input" value={subject}
               onChange={(event) => setSubject(event.target.value)} />
           </div>
           <div>
-            <label className="label" htmlFor="reminderTemplateBody">Contenu de l’email</label>
+            <label className="label" htmlFor="reminderTemplateBody">{t('Contenu de l’email')}</label>
             <textarea id="reminderTemplateBody" className="input min-h-52 font-mono text-sm" rows={8}
               value={body} onChange={(event) => setBody(event.target.value)} />
             <p className="mt-1 text-xs text-slate-500">
               Variables disponibles : {'{{clientName}}'}, {'{{invoiceNumber}}'}, {'{{amount}}'}, {'{{dueDate}}'}, {'{{companyName}}'}.
-              Le HTML est accepté.
+              {t('Le HTML est accepté.')}
             </p>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setTemplateOpen(false)} className="btn-secondary">Annuler</button>
+            <button type="button" onClick={() => setTemplateOpen(false)} className="btn-secondary">{t('Annuler')}</button>
             <button type="button" onClick={() => void saveTemplate()} disabled={templateSaving}
               className="btn-primary flex items-center gap-2">
               {templateSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              Enregistrer
+              {t('Enregistrer')}
             </button>
           </div>
         </div>
       )}
-      <label className="label" htmlFor="invoiceReminderRecipient">Adresse e-mail du destinataire</label>
+      <label className="label" htmlFor="invoiceReminderRecipient">{t('Adresse e-mail du destinataire')}</label>
       <input id="invoiceReminderRecipient" className="input mb-3" type="email" value={recipientEmail}
         onChange={(event) => setRecipientEmail(event.target.value)} />
       <button
@@ -320,9 +321,9 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       )}
       {historyOpen && (
         <div className="mt-4 border-t border-slate-200 pt-3">
-          <h4 className="mb-2 text-sm font-semibold text-slate-700">Historique des rappels</h4>
+          <h4 className="mb-2 text-sm font-semibold text-slate-700">{t('Historique des rappels')}</h4>
           {historyLoading ? <Loader2 size={18} className="animate-spin text-slate-400" /> : history.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucun rappel enregistré pour cette facture.</p>
+            <p className="text-sm text-slate-500">{t('Aucun rappel enregistré pour cette facture.')}</p>
           ) : (
             <div className="divide-y divide-slate-100">
               {history.map((entry) => (
@@ -343,15 +344,15 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       )}
       <ConfirmDialog
         open={confirmOpen}
-        title="Confirmer l'envoi du rappel"
+        title={t("Confirmer l'envoi du rappel")}
         confirmLabel="Envoyer"
         loading={sending}
         onCancel={() => setConfirmOpen(false)}
         onConfirm={send}
       >
-        <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
+        <p>{t('Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?')}</p>
         <p><strong>{recipientEmail || 'Aucune adresse email'}</strong></p>
-        <p>Un email de rappel de paiement sera envoyé à ce destinataire.</p>
+        <p>{t('Un email de rappel de paiement sera envoyé à ce destinataire.')}</p>
       </ConfirmDialog>
     </div>
   );
@@ -380,7 +381,7 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
       <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center gap-2 flex-wrap">
         <Lock size={14} className="text-slate-500" />
         <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
-          Données internes — non incluses dans le PDF client
+          {t('Données internes — non incluses dans le PDF client')}
         </span>
         <TrendingUp size={14} className="text-emerald-500 ml-auto" />
         <span className="text-xs font-bold text-emerald-700">Bénéfice net : {formatMoneyDzd(netProfit)}</span>
@@ -389,17 +390,17 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
         <span>Marge brute : <strong>{formatMoneyDzd(grossMargin)}</strong></span>
         {adjustmentAmount > 0 && <span>{adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) : <strong>{adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</strong></span>}
         <span>Autre charge : <strong>{formatMoneyDzd(invoice.otherCharge || 0)}</strong></span>
-        <span>Prix de livraison : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
-        {invoice.deliveryPersonName && <span>Livreur : <strong>{invoice.deliveryPersonName}</strong></span>}
+        <span>{t('Prix de livraison')} : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
+        {invoice.deliveryPersonName && <span>{t('Livreur')} : <strong>{invoice.deliveryPersonName}</strong></span>}
         <span className="text-xs text-slate-400">Marge brute / chiffre d'affaires : {marginRate}%</span>
       </div>
       <table className="w-full">
         <thead>
           <tr className="bg-slate-50">
-            <th className="text-left text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">Produit</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Prix achat</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Prix vente</th>
-            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">Qté</th>
+            <th className="text-left text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">{t('Produit')}</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">{t('Prix achat')}</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">{t('Prix vente')}</th>
+            <th className="text-right text-xs font-600 text-slate-500 px-4 py-2.5 uppercase">{t('Qté')}</th>
             <th className="text-right text-xs font-600 text-slate-500 px-5 py-2.5 uppercase">Marge totale</th>
           </tr>
         </thead>
@@ -443,7 +444,7 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
       </table>
       {charges.length > 0 && (
         <div className="border-t border-slate-100 px-5 py-3 space-y-1">
-          <p className="text-xs font-semibold uppercase text-slate-500">Frais facturés</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">{t('Frais facturés')}</p>
           {charges.map((charge: any, index: number) => (
             <div key={`${charge.description}-${index}`} className="flex justify-between gap-3 text-sm text-slate-600">
               <span>{charge.description || 'Frais'}</span><strong>{formatMoneyDzd(charge.amount)}</strong>
@@ -535,7 +536,7 @@ export default function InvoiceDetailPage() {
 
   const handleDelete = async () => {
     if (user?.role === 'commercial' && !deleteReason.trim()) {
-      toast.error('Le motif de suppression est obligatoire');
+      toast.error(t('Le motif de suppression est obligatoire'));
       return;
     }
     setDeleting(true);
@@ -543,7 +544,7 @@ export default function InvoiceDetailPage() {
       if (user?.role === 'commercial') {
         await api.post(`/invoices/${id}/deletion-requests`, { reason: deleteReason.trim() });
         setInvoice((prev: any) => ({ ...prev, deletionRequestPending: true }));
-        toast.success('Demande de suppression envoyée à l’administrateur');
+        toast.success(t('Demande de suppression envoyée à l’administrateur'));
       } else {
         await api.delete(`/invoices/${id}`);
         toast.success(t('deleted'));
@@ -580,11 +581,11 @@ export default function InvoiceDetailPage() {
                 <span className={clsx('badge', STATUS_COLORS[invoice.status])}>{t(invoice.status)}</span>
               )}
               {invoice.type === 'bon_livraison' && (
-                <span className="badge bg-amber-100 text-amber-700">Bon de livraison</span>
+                <span className="badge bg-amber-100 text-amber-700">{t('Bon de livraison')}</span>
               )}
               {invoice.type !== 'proforma' && (
                 <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryStatus])}>
-                  {DELIVERY_LABELS[invoice.deliveryStatus] || t(invoice.deliveryStatus?.replace('_', ' '))}
+                  {DELIVERY_LABELS[invoice.deliveryStatus] ? t(DELIVERY_LABELS[invoice.deliveryStatus]) : t(invoice.deliveryStatus?.replace('_', ' '))}
                 </span>
               )}
               {invoice.type === 'facture' && (
@@ -634,7 +635,7 @@ export default function InvoiceDetailPage() {
           </button>
           {invoice.type === 'facture' && !invoice.deliveryNote && (
             <Link href={`/invoices/new?type=bon_livraison&sourceInvoiceId=${invoice.id}`} className="btn-secondary text-sm">
-              <FileText size={15} /> Créer un bon de livraison
+              <FileText size={15} /> {t('Créer un bon de livraison')}
             </Link>
           )}
           {invoice.type === 'facture' && invoice.deliveryNote && (
@@ -660,10 +661,10 @@ export default function InvoiceDetailPage() {
       {invoice.type === 'bon_livraison' && (
         <div className="card p-5 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-            <h3 className="text-sm font-600 text-slate-500">Progression de la livraison</h3>
+            <h3 className="text-sm font-600 text-slate-500">{t('Progression de la livraison')}</h3>
             {invoice.sourceInvoice && (
               <Link href={`/invoices/${invoice.sourceInvoice.id}`} className="inline-flex items-center gap-1.5 text-xs text-brand-600 hover:underline">
-                <Link2 size={12} /> Facture liée : <strong>{invoice.sourceInvoice.number}</strong>
+                <Link2 size={12} /> {t('Facture liée')} : <strong>{invoice.sourceInvoice.number}</strong>
                 <span className={clsx('badge ml-1', invoice.sourceInvoice.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600')}>
                   {invoice.sourceInvoice.paymentStatus === 'paid' ? t('paid_status') : t('unpaid_status')}
                 </span>
@@ -672,7 +673,7 @@ export default function InvoiceDetailPage() {
           </div>
           <DeliveryWorkflow invoice={invoice} canEdit={canManage} busy={updatingDelivery} onChange={updateDelivery} />
           <p className="mt-3 text-xs text-slate-400">
-            Le statut de livraison est synchronisé avec l’interface du livreur et la facture liée. Il n’a aucun effet sur le paiement de la facture.
+            {t('Le statut de livraison est synchronisé avec l’interface du livreur et la facture liée. Il n’a aucun effet sur le paiement de la facture.')}
           </p>
         </div>
       )}
@@ -681,12 +682,12 @@ export default function InvoiceDetailPage() {
         <div className="card p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm text-slate-600">
             <Truck size={16} className="text-brand-500" />
-            <span>Bon de livraison lié :</span>
+            <span>{t('Bon de livraison lié')} :</span>
             <Link href={`/invoices/${invoice.deliveryNote.id}`} className="font-mono font-semibold text-brand-600 hover:underline">{invoice.deliveryNote.number}</Link>
-            <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryNote.deliveryStatus])}>{DELIVERY_LABELS[invoice.deliveryNote.deliveryStatus] || invoice.deliveryNote.deliveryStatus}</span>
+            <span className={clsx('badge', DELIVERY_COLORS[invoice.deliveryNote.deliveryStatus])}>{DELIVERY_LABELS[invoice.deliveryNote.deliveryStatus] ? t(DELIVERY_LABELS[invoice.deliveryNote.deliveryStatus]) : invoice.deliveryNote.deliveryStatus}</span>
           </div>
           <div className="text-xs text-slate-500">
-            {invoice.deliveryNote.deliveryPersonName && <>Livreur : <strong className="text-slate-700">{invoice.deliveryNote.deliveryPersonName}</strong> · </>}
+            {invoice.deliveryNote.deliveryPersonName && <>{t('Livreur')} : <strong className="text-slate-700">{invoice.deliveryNote.deliveryPersonName}</strong> · </>}
             Prix de livraison : <strong className="text-slate-700">{formatMoneyDzd(invoice.deliveryNote.deliveryPrice || 0)}</strong>
           </div>
         </div>
@@ -741,18 +742,18 @@ export default function InvoiceDetailPage() {
                       className={clsx(
                         'text-xs px-3 py-1.5 rounded-lg border transition-all disabled:opacity-50',
                         invoice.deliveryStatus === s ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
-                      )}>{DELIVERY_LABELS[s]}</button>
+                      )}>{t(DELIVERY_LABELS[s])}</button>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">Indépendant du paiement{invoice.deliveryNote ? ' · partagé avec le bon de livraison lié' : ''}.</p>
+                <p className="mt-2 text-xs text-slate-400">{t('Indépendant du paiement')}{invoice.deliveryNote ? ` · ${t('partagé avec le bon de livraison lié')}` : ''}.</p>
               </div>
             )}
             {invoice.type === 'bon_livraison' && (
               <div className="text-sm text-slate-600 space-y-1">
-                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">Livraison</p>
-                <p>Livreur : <strong>{invoice.deliveryPersonName || '—'}</strong></p>
-                <p>Prix de livraison : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></p>
-                {invoice.deliveryDate && <p>Date prévue : <strong>{new Date(invoice.deliveryDate).toLocaleDateString('fr-FR')}</strong></p>}
+                <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">{t('Livraison')}</p>
+                <p>{t('Livreur')} : <strong>{invoice.deliveryPersonName || '—'}</strong></p>
+                <p>{t('Prix de livraison')} : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></p>
+                {invoice.deliveryDate && <p>{t('Date prévue')} : <strong>{new Date(invoice.deliveryDate).toLocaleDateString('fr-FR')}</strong></p>}
               </div>
             )}
           </div>
@@ -848,10 +849,10 @@ export default function InvoiceDetailPage() {
       >
         {user?.role === 'commercial' ? (
           <>
-            <p>La facture ne sera supprimée qu’après validation par un administrateur.</p>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="deleteReason">Motif de la suppression *</label>
+            <p>{t('La facture ne sera supprimée qu’après validation par un administrateur.')}</p>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="deleteReason">{t('Motif de la suppression')} *</label>
             <textarea id="deleteReason" className="input min-h-24 resize-y" required value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)} placeholder="Expliquez pourquoi cette facture doit être supprimée." />
+              onChange={(e) => setDeleteReason(e.target.value)} placeholder={t('Expliquez pourquoi cette facture doit être supprimée.')} />
           </>
         ) : <p>{t('confirm_delete_invoice')}</p>}
       </ConfirmDialog>

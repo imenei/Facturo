@@ -5,8 +5,10 @@ import { Check, Loader2, RefreshCw, X } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
+import { useI18nStore } from '@/store/i18nStore';
 
 export default function InvoiceDeletionRequestsPage() {
+  const { t } = useI18nStore();
   const { user } = useAuthStore();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ export default function InvoiceDeletionRequestsPage() {
       const { data } = await api.get('/invoices/deletion-requests');
       setRequests(data);
     } catch {
-      toast.error('Impossible de charger les demandes de suppression');
+      toast.error(t('Impossible de charger les demandes de suppression'));
     }
     setLoading(false);
   }, []);
@@ -31,31 +33,31 @@ export default function InvoiceDeletionRequestsPage() {
       toast.success(action === 'approve' ? 'Facture supprimée' : 'Demande rejetée');
       await load();
     } catch {
-      toast.error('Impossible de traiter cette demande');
+      toast.error(t('Impossible de traiter cette demande'));
     }
     setReviewing(null);
   };
 
   const removeRequest = async (requestId: string) => {
-    if (!window.confirm('Supprimer cette demande de suppression ? Cette action ne supprime pas la facture concernée.')) return;
+    if (!window.confirm(t('Supprimer cette demande de suppression ? Cette action ne supprime pas la facture concernée.'))) return;
     setReviewing(requestId);
     try {
       await api.delete(`/invoices/deletion-requests/${requestId}`);
-      toast.success('Demande de suppression supprimée');
+      toast.success(t('Demande de suppression supprimée'));
       await load();
     } catch {
-      toast.error('Impossible de supprimer cette demande');
+      toast.error(t('Impossible de supprimer cette demande'));
     }
     setReviewing(null);
   };
 
-  if (user?.role !== 'admin') return <div className="p-8 text-slate-500">Accès réservé aux administrateurs.</div>;
+  if (user?.role !== 'admin') return <div className="p-8 text-slate-500">{t('Accès réservé aux administrateurs.')}</div>;
 
   return (
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <div className="flex items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-display font-700 text-slate-900">Demandes de suppression</h1>
+          <h1 className="text-2xl font-display font-700 text-slate-900">{t('Demandes de suppression')}</h1>
           <p className="text-sm text-slate-500 mt-1">{requests.length} demande(s)</p>
         </div>
         <button type="button" onClick={() => { setLoading(true); void load(); }} className="btn-secondary" title="Actualiser" aria-label="Actualiser">
@@ -66,7 +68,7 @@ export default function InvoiceDeletionRequestsPage() {
       {loading ? (
         <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-brand-500" /></div>
       ) : requests.length === 0 ? (
-        <div className="py-12 text-center text-slate-500">Aucune demande de suppression.</div>
+        <div className="py-12 text-center text-slate-500">{t('Aucune demande de suppression.')}</div>
       ) : (
         <div className="divide-y divide-slate-200 border-y border-slate-200">
           {requests.map((request) => (
@@ -93,12 +95,12 @@ export default function InvoiceDeletionRequestsPage() {
                     {reviewing === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approuver
                   </button>
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'reject')} className="btn-secondary text-sm text-red-600">
-                    <X size={14} /> Rejeter
+                    <X size={14} /> {t('Rejeter')}
                   </button>
                   </>
                 )}
                 <button type="button" disabled={reviewing === request.id} onClick={() => void removeRequest(request.id)} className="btn-secondary text-sm text-slate-600">
-                  Supprimer la demande
+                  {t('Supprimer la demande')}
                 </button>
               </div>
             </article>

@@ -37,12 +37,13 @@ const TEMPLATE_LABELS: Record<string, string> = {
 const COMPANY_IDENTITIES = ['Lm company', 'Louassaa Nabil', 'Helping Hands company'];
 
 function ClientLogoPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useI18nStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
   const processFile = (file: File) => {
-    if (!file.type.startsWith('image/')) { toast.error('Fichier image requis'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('Taille max : 5 Mo'); return; }
+    if (!file.type.startsWith('image/')) { toast.error(t('Fichier image requis')); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error(t('Taille max : 5 Mo')); return; }
     const reader = new FileReader();
     reader.onload = () => onChange(reader.result as string);
     reader.readAsDataURL(file);
@@ -64,11 +65,11 @@ function ClientLogoPicker({ value, onChange }: { value: string; onChange: (v: st
         <div className="flex flex-col gap-1.5">
           <button type="button" onClick={() => fileRef.current?.click()}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg">
-            <Upload size={12} /> Changer
+            <Upload size={12} /> {t('Changer')}
           </button>
           <button type="button" onClick={() => onChange('')}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-lg">
-            <X size={12} /> Supprimer
+            <X size={12} /> {t('Supprimer')}
           </button>
         </div>
         <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
@@ -88,8 +89,8 @@ function ClientLogoPicker({ value, onChange }: { value: string; onChange: (v: st
         <Building2 size={16} className="text-slate-400" />
       </div>
       <div className="text-center">
-        <p className="text-xs font-medium text-slate-600">Logo de l'entreprise cliente</p>
-        <p className="text-xs text-slate-400">Cliquez ou glissez une image (PNG, JPG, SVG)</p>
+        <p className="text-xs font-medium text-slate-600">{t("Logo de l'entreprise cliente")}</p>
+        <p className="text-xs text-slate-400">{t('Cliquez ou glissez une image (PNG, JPG, SVG)')}</p>
       </div>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
     </div>
@@ -147,13 +148,13 @@ export default function NewInvoicePage() {
       if (def) setForm((p) => ({ ...p, templateType: def.type }));
 
       if (taskId && !deliveryTask?.data) {
-        toast.error('Impossible de charger la tâche de livraison.');
+        toast.error(t('Impossible de charger la tâche de livraison.'));
         return;
       }
 
       // Évite les doublons : cette facture a déjà son bon de livraison -> on y renvoie.
       if (sourceInvoice?.data?.deliveryNote) {
-        toast.error(`Cette facture a déjà un bon de livraison (${sourceInvoice.data.deliveryNote.number}).`);
+        toast.error(`${t('Cette facture a déjà un bon de livraison')} (${sourceInvoice.data.deliveryNote.number}).`);
         router.replace(`/invoices/${sourceInvoice.data.deliveryNote.id}`);
         return;
       }
@@ -282,7 +283,7 @@ export default function NewInvoicePage() {
 
       const referenceDate = form.invoiceDate || new Date().toISOString().slice(0, 10);
       if (form.deliveryDate && form.deliveryDate < referenceDate) {
-        toast.error('La date de livraison ne peut pas être antérieure à la date de facturation.');
+        toast.error(t('La date de livraison ne peut pas être antérieure à la date de facturation.'));
         setSaving(false);
         return;
       }
@@ -376,7 +377,7 @@ export default function NewInvoicePage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                 <div>
-                  <label className="label" htmlFor="issuerName">Nom affiché sur la facture</label>
+                  <label className="label" htmlFor="issuerName">{t('Nom affiché sur la facture')}</label>
                   <input id="issuerName" className="input" value={form.issuerName}
                     onChange={(e) => setForm({ ...form, issuerName: e.target.value })} maxLength={120} />
                 </div>
@@ -391,7 +392,7 @@ export default function NewInvoicePage() {
 
           {form.type !== 'bon_livraison' && (
             <div className="mt-4">
-              <label className="label flex items-center gap-1.5"><Building2 size={14} /> Émis au nom de</label>
+              <label className="label flex items-center gap-1.5"><Building2 size={14} /> {t('Émis au nom de')}</label>
               <div className="flex flex-wrap gap-2">
                 {COMPANY_IDENTITIES.map((name) => (
                   <button key={name} type="button" onClick={() => setForm({ ...form, issuerName: name })}
@@ -414,14 +415,14 @@ export default function NewInvoicePage() {
           <h2 className="font-display font-600 text-slate-900 mb-4">{t('client_information')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="label">Logo de l'entreprise cliente <span className="text-slate-400 font-normal">(optionnel)</span></label>
+              <label className="label">{t("Logo de l'entreprise cliente")} <span className="text-slate-400 font-normal">(optionnel)</span></label>
               <ClientLogoPicker value={form.clientLogoUrl} onChange={(v) => setForm({ ...form, clientLogoUrl: v })} />
             </div>
 
             <div className="md:col-span-2 relative">
               <label className="label">Nom / Raison sociale <span className="text-red-500">*</span></label>
               <input className="input" required value={form.clientName}
-                placeholder="Nom ou raison sociale du client"
+                placeholder={t('Nom ou raison sociale du client')}
                 onChange={(e) => { setForm({ ...form, clientName: e.target.value }); setShowClientSuggestions(true); }}
                 onFocus={() => setShowClientSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowClientSuggestions(false), 150)}
@@ -497,14 +498,14 @@ export default function NewInvoicePage() {
             'hidden md:grid gap-2 text-xs font-600 text-slate-400 uppercase tracking-wide px-1 mb-1',
             showInternalCosts ? 'grid-cols-13' : 'grid-cols-12',
           )}>
-            <div className={showInternalCosts ? 'col-span-5' : 'col-span-6'}>Désignation</div>
-            <div className="col-span-2 text-center">Qté</div>
+            <div className={showInternalCosts ? 'col-span-5' : 'col-span-6'}>{t('Désignation')}</div>
+            <div className="col-span-2 text-center">{t('Qté')}</div>
             {showInternalCosts && (
               <div className="col-span-2 text-right text-amber-600 flex items-center justify-end gap-1">
-                <Lock size={10} /> P. Achat
+                <Lock size={10} /> {t('P. Achat')}
               </div>
             )}
-            <div className="col-span-3 text-right">Prix Vente</div>
+            <div className="col-span-3 text-right">{t('Prix Vente')}</div>
             <div className="col-span-1" />
           </div>
 
@@ -520,11 +521,11 @@ export default function NewInvoicePage() {
                   )}>
                     {/* Description */}
                     <div className={clsx('invoice-item-description relative', showInternalCosts ? 'col-span-5' : 'col-span-6')}>
-                      <input className="input bg-white pr-8" placeholder="Description de l'article"
+                      <input className="input bg-white pr-8" placeholder={t("Description de l'article")}
                         value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} required />
                       {products.length > 0 && (
                         <button type="button" onClick={() => setShowProductPicker(showProductPicker === i ? null : i)}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-brand-500 rounded" title="Choisir un produit">
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-brand-500 rounded" title={t('Choisir un produit')}>
                           <ShoppingBag size={14} />
                         </button>
                       )}
@@ -534,7 +535,7 @@ export default function NewInvoicePage() {
                             <div className="relative">
                               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                               <input className="input py-1.5 pl-8 text-xs" autoFocus value={productSearch}
-                                onChange={(e) => setProductSearch(e.target.value)} placeholder="Rechercher nom ou référence" />
+                                onChange={(e) => setProductSearch(e.target.value)} placeholder={t('Rechercher nom ou référence')} />
                             </div>
                           </div>
                           {products.filter((product) => `${product.name} ${product.reference || ''}`.toLowerCase().includes(productSearch.trim().toLowerCase())).map((p) => (
@@ -643,7 +644,7 @@ export default function NewInvoicePage() {
 
             {otherChargeTotal > 0 && (
               <div className="flex justify-between text-sm text-slate-600">
-                <span>Frais supplémentaires</span>
+                <span>{t('Frais supplémentaires')}</span>
                 <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span>
               </div>
             )}
@@ -680,7 +681,7 @@ export default function NewInvoicePage() {
                 'flex justify-between text-sm font-medium pt-1 border-t border-dashed border-slate-200 items-center gap-2',
                 totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500',
               )}>
-                <span className="flex items-center gap-1"><Lock size={11} /> Marge brute (interne)</span>
+                <span className="flex items-center gap-1"><Lock size={11} /> {t('Marge brute (interne)')}</span>
                 <span>{formatMoneyDzd(totalMargin)} ({marginRate}%)</span>
               </div>
             )}
@@ -688,35 +689,35 @@ export default function NewInvoicePage() {
         </div>
 
         <div className="card p-6">
-          <h2 className="font-display font-600 text-slate-900 mb-4">Livraison et autres charges</h2>
+          <h2 className="font-display font-600 text-slate-900 mb-4">{t('Livraison et autres charges')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="label" htmlFor="deliveryPersonId">Livreur {form.type === 'bon_livraison' && <span className="text-red-500">*</span>}</label>
               <select id="deliveryPersonId" className="input" required={form.type === 'bon_livraison'} value={form.deliveryPersonId}
                 onChange={(e) => setForm({ ...form, deliveryPersonId: e.target.value })}>
-                <option value="">Non assigné</option>
+                <option value="">{t('Non assigné')}</option>
                 {deliveryPeople.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="deliveryPrice">Prix de livraison (DZD)</label>
+              <label className="label" htmlFor="deliveryPrice">{t('Prix de livraison (DZD)')}</label>
               <input id="deliveryPrice" className="input" type="number" min={0} step="0.01" value={form.deliveryPrice}
                 onChange={(e) => setForm({ ...form, deliveryPrice: Number(e.target.value) })} />
             </div>
             <div className="md:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">Frais supplémentaires facturés</label>
+                <label className="label mb-0">{t('Frais supplémentaires facturés')}</label>
                 <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
-                  <Plus size={13} /> Ajouter un frais
+                  <Plus size={13} /> {t('Ajouter un frais')}
                 </button>
               </div>
               {otherCharges.map((charge, index) => (
                 <div key={index} className="grid grid-cols-[1fr_150px_auto] gap-2 mb-2">
-                  <input className="input" aria-label="Description du frais" placeholder="Description"
+                  <input className="input" aria-label={t('Description du frais')} placeholder="Description"
                     value={charge.description} onChange={(e) => setOtherCharges((current) => current.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} />
-                  <input className="input text-right" aria-label="Montant du frais" type="number" min={0} step="0.01" value={charge.amount}
+                  <input className="input text-right" aria-label={t('Montant du frais')} type="number" min={0} step="0.01" value={charge.amount}
                     onChange={(e) => setOtherCharges((current) => current.map((item, i) => i === index ? { ...item, amount: Number(e.target.value) } : item))} />
-                  <button type="button" aria-label="Supprimer ce frais" disabled={otherCharges.length === 0}
+                  <button type="button" aria-label={t('Supprimer ce frais')} disabled={otherCharges.length === 0}
                     onClick={() => setOtherCharges((current) => current.filter((_, i) => i !== index))} className="btn-secondary text-red-600 px-2"><Trash2 size={15} /></button>
                 </div>
               ))}
@@ -724,7 +725,7 @@ export default function NewInvoicePage() {
             </div>
           </div>
           <div className="mt-4 border-t pt-3 flex justify-between text-sm">
-            <span className="text-slate-600">Bénéfice estimé après charges</span>
+            <span className="text-slate-600">{t('Bénéfice estimé après charges')}</span>
             <span className={clsx('font-semibold', netProfit >= 0 ? 'text-emerald-600' : 'text-red-600')}>
               {formatMoneyDzd(netProfit)}
             </span>
@@ -736,12 +737,12 @@ export default function NewInvoicePage() {
           <h2 className="font-display font-600 text-slate-900 mb-4">{t('dates_remarks')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label">Date d'échéance</label>
+              <label className="label">{t("Date d'échéance")}</label>
               <input type="date" className="input" value={form.dueDate}
                 onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
             </div>
             <div>
-              <label className="label">Date de livraison <span className="text-slate-400 font-normal">(optionnelle)</span></label>
+              <label className="label">{t('Date de livraison')} <span className="text-slate-400 font-normal">(optionnelle)</span></label>
               <input type="date" className="input" min={form.invoiceDate} value={form.deliveryDate}
                 onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} />
             </div>

@@ -24,11 +24,11 @@ function logoSrc(url: string | null | undefined): string | null {
   return `${API_BASE}${url}`;
 }
 
-function roleLabel(role: string): string {
+function roleLabel(role: string, t: (key: string) => string): string {
   const labels: Record<string, string> = {
     admin: 'Administrateur', commercial: 'Commercial', livreur: 'Livreur', technicien: 'Technicien',
   };
-  return labels[role] || role;
+  return labels[role] ? t(labels[role]) : role;
 }
 
 type TaskStatusKey = 'en_attente' | 'terminee' | 'non_terminee';
@@ -36,7 +36,7 @@ type TaskStatusKey = 'en_attente' | 'terminee' | 'non_terminee';
 function getStatusConfig(t: (key: string) => string) {
   return {
     en_attente: { label: t('task_status_pending'), color: 'bg-amber-100 text-amber-700', icon: Clock },
-    en_cours: { label: 'En cours', color: 'bg-blue-100 text-blue-700', icon: Timer },
+    en_cours: { label: t('En cours'), color: 'bg-blue-100 text-blue-700', icon: Timer },
     terminee: { label: t('task_status_completed'), color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
     non_terminee: { label: t('task_status_not_completed'), color: 'bg-red-100 text-red-600', icon: XCircle },
   } as const;
@@ -73,6 +73,7 @@ function ClientLogo({ name, logoUrl, size = 'md' }: { name?: string; logoUrl?: s
 // Bon de livraison du livreur : c'est le MÊME document PDF que celui créé par l'administrateur
 // ou le commercial (même générateur, mêmes désignations / quantités), sans prix ni facture.
 function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any; onClose: () => void }) {
+  const { t } = useI18nStore();
   const [note, setNote] = useState<any>(null);
   const [pdfUrl, setPdfUrl] = useState('');
   const [error, setError] = useState('');
@@ -93,7 +94,7 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
         setNote(data);
         setPdfUrl(blobUrl);
       } catch (e: any) {
-        if (!cancelled) setError(e?.response?.data?.message || 'Impossible de charger le bon de livraison.');
+        if (!cancelled) setError(e?.response?.data?.message || t('Impossible de charger le bon de livraison.'));
       }
     })();
     return () => {
@@ -135,14 +136,14 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
             {pdfUrl && (
               <>
                 <a href={pdfUrl} download={`${note?.number || 'bon-de-livraison'}.pdf`} className="btn-secondary text-sm">
-                  <Download size={15} /> Télécharger
+                  <Download size={15} /> {t('Télécharger')}
                 </a>
                 <button type="button" onClick={printNote} className="btn-primary text-sm">
-                  <Printer size={15} /> Imprimer
+                  <Printer size={15} /> {t('Imprimer')}
                 </button>
               </>
             )}
-            <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600" aria-label="Fermer">
+            <button type="button" onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600" aria-label={t('Fermer')}>
               <X size={18} />
             </button>
           </div>
@@ -150,11 +151,11 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
         <div className="flex-1 min-h-0 bg-slate-200 relative">
           {!pdfUrl && !error && (
             <div className="absolute inset-0 flex items-center justify-center gap-2 text-sm text-slate-600">
-              <Loader2 size={22} className="animate-spin text-brand-500" /> Chargement du bon de livraison…
+              <Loader2 size={22} className="animate-spin text-brand-500" /> {t('Chargement du bon de livraison…')}
             </div>
           )}
           {error && <div className="absolute inset-0 flex items-center justify-center p-6 text-sm text-red-600 text-center">{error}</div>}
-          {pdfUrl && <iframe ref={frameRef} src={pdfUrl} title="Bon de livraison" className="w-full h-full border-0 bg-white" />}
+          {pdfUrl && <iframe ref={frameRef} src={pdfUrl} title={t('Bon de livraison')} className="w-full h-full border-0 bg-white" />}
         </div>
       </div>
     </div>
@@ -163,13 +164,14 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
 
 // MOD 8a: Print tasks summary for admin (by livreur + period)
 function PrintRecapModal({ users, onClose }: { users: any[]; onClose: () => void }) {
+  const { t } = useI18nStore();
   const [livreurId, setLivreurId] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handlePrint = async () => {
-    if (!livreurId) { toast.error('Sélectionnez un livreur'); return; }
+    if (!livreurId) { toast.error(t('Sélectionnez un livreur')); return; }
     setLoading(true);
     try {
       const params: any = {};
@@ -179,31 +181,31 @@ function PrintRecapModal({ users, onClose }: { users: any[]; onClose: () => void
       const livreur = users.find((u) => u.id === livreurId);
       const w = window.open('', '_blank');
       if (!w) return;
-      const totalFinal = tasks.reduce((s: number, t: any) => s + Number(t.finalPrice || t.price), 0);
-      const rows = tasks.map((t: any) => `
+      const totalFinal = tasks.reduce((s: number, task: any) => s + Number(task.finalPrice || task.price), 0);
+      const rows = tasks.map((task: any) => `
         <tr>
-          <td>${new Date(t.createdAt).toLocaleDateString('fr-FR')}</td>
-          <td>${t.clientName || '—'}</td>
-          <td>${t.clientAddress || '—'}</td>
-          <td><span class="${t.status === 'terminee' ? 'ok' : t.status === 'non_terminee' ? 'ko' : 'wait'}">${t.status === 'terminee' ? 'Terminé' : t.status === 'non_terminee' ? 'Non terminé' : 'En attente'}</span></td>
-          <td class="r">${formatMoneyDzd(t.price)}</td>
-          <td class="r">${formatMoneyDzd(t.extraFees || 0)}</td>
-          <td class="r"><strong>${formatMoneyDzd(t.finalPrice || t.price)}</strong></td>
+          <td>${new Date(task.createdAt).toLocaleDateString('fr-FR')}</td>
+          <td>${task.clientName || '—'}</td>
+          <td>${task.clientAddress || '—'}</td>
+          <td><span class="${task.status === 'terminee' ? 'ok' : task.status === 'non_terminee' ? 'ko' : 'wait'}">${task.status === 'terminee' ? t('Terminé') : task.status === 'non_terminee' ? t('Non terminé') : t('En attente')}</span></td>
+          <td class="r">${formatMoneyDzd(task.price)}</td>
+          <td class="r">${formatMoneyDzd(task.extraFees || 0)}</td>
+          <td class="r"><strong>${formatMoneyDzd(task.finalPrice || task.price)}</strong></td>
         </tr>`).join('');
-      w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Récap tâches</title>
+      w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('Récap tâches')}</title>
       <style>body{font-family:Arial;padding:24px;color:#1e293b} h1{color:#1a54ff;font-size:20px} h2{font-size:14px;color:#64748b;font-weight:normal}
       table{width:100%;border-collapse:collapse;margin-top:16px} th{background:#1a54ff;color:white;padding:8px;text-align:left;font-size:12px}
       td{padding:7px 8px;font-size:12px;border-bottom:1px solid #e2e8f0} .r{text-align:right}
       .ok{color:#059669;font-weight:bold} .ko{color:#dc2626;font-weight:bold} .wait{color:#d97706;font-weight:bold}
       .total{background:#f8fafc;font-weight:bold} @media print{body{padding:8px}}</style></head><body>
-      <h1>Récapitulatif des tâches</h1>
-      <h2>Livreur : <strong>${livreur?.name || livreurId}</strong> · Période : ${from || '—'} → ${to || '—'}</h2>
-      <table><thead><tr><th>Date</th><th>Client</th><th>Adresse</th><th>Statut</th><th class="r">Prix base</th><th class="r">Frais imprévus</th><th class="r">Prix final</th></tr></thead>
-      <tbody>${rows}<tr class="total"><td colspan="6">TOTAL</td><td class="r">${formatMoneyDzd(totalFinal)}</td></tr></tbody></table>
+      <h1>${t('Récapitulatif des tâches')}</h1>
+      <h2>${t('Livreur')} : <strong>${livreur?.name || livreurId}</strong> · ${t('Période')} : ${from || '—'} → ${to || '—'}</h2>
+      <table><thead><tr><th>${t('Date')}</th><th>${t('Client')}</th><th>${t('Adresse')}</th><th>${t('Statut')}</th><th class="r">${t('Prix base')}</th><th class="r">${t('Frais imprévus')}</th><th class="r">${t('Prix final')}</th></tr></thead>
+      <tbody>${rows}<tr class="total"><td colspan="6">${t('TOTAL')}</td><td class="r">${formatMoneyDzd(totalFinal)}</td></tr></tbody></table>
       </body></html>`);
       w.document.close();
       setTimeout(() => w.print(), 500);
-    } catch { toast.error('Erreur chargement tâches'); }
+    } catch { toast.error(t('Erreur chargement tâches')); }
     setLoading(false);
     onClose();
   };
@@ -212,32 +214,32 @@ function PrintRecapModal({ users, onClose }: { users: any[]; onClose: () => void
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl animate-slide-up">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-display font-600 text-slate-900">Imprimer récap livreur</h3>
+          <h3 className="font-display font-600 text-slate-900">{t('Imprimer récap livreur')}</h3>
           <button onClick={onClose} className="p-1 text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <div className="space-y-3">
           <div>
-            <label className="label">Livreur *</label>
+            <label className="label">{t('Livreur')} *</label>
             <select className="input" value={livreurId} onChange={(e) => setLivreurId(e.target.value)}>
-              <option value="">Choisir un livreur</option>
+              <option value="">{t('Choisir un livreur')}</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="label">Du</label>
+              <label className="label">{t('Du')}</label>
               <input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
             <div>
-              <label className="label">Au</label>
+              <label className="label">{t('Au')}</label>
               <input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
           </div>
         </div>
         <div className="flex gap-3 mt-5">
-          <button onClick={onClose} className="btn-secondary flex-1">Annuler</button>
+          <button onClick={onClose} className="btn-secondary flex-1">{t('Annuler')}</button>
           <button onClick={handlePrint} disabled={loading} className="btn-primary flex-1">
-            {loading ? <Loader2 size={15} className="animate-spin" /> : <><Printer size={15} /> Imprimer</>}
+            {loading ? <Loader2 size={15} className="animate-spin" /> : <><Printer size={15} /> {t('Imprimer')}</>}
           </button>
         </div>
       </div>
@@ -309,7 +311,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
     try {
       await api.patch(`/tasks/${task.id}/start-delivery`);
       onUpdate();
-      toast.success('Livraison démarrée !');
+      toast.success(t('Livraison démarrée !'));
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
@@ -319,20 +321,20 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
     try {
       await api.patch(`/tasks/${task.id}/finish-delivery`);
       onUpdate();
-      toast.success('Livraison terminée !');
+      toast.success(t('Livraison terminée !'));
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
 
   // Rouvrir une livraison terminée par erreur : retour « en cours », statut et compteurs recalculés.
   const reopenDelivery = async () => {
-    if (!confirm('Rouvrir cette livraison ? Elle repassera « en cours ».')) return;
+    if (!confirm(t('Rouvrir cette livraison ? Elle repassera « en cours ».'))) return;
     setSaving(true);
     try {
       await api.patch(`/tasks/${task.id}/reopen-delivery`);
       onUpdate();
-      toast.success('Livraison rouverte');
-    } catch (e: any) { toast.error(e?.response?.data?.message || 'Impossible de rouvrir la livraison'); }
+      toast.success(t('Livraison rouverte'));
+    } catch (e: any) { toast.error(e?.response?.data?.message || t('Impossible de rouvrir la livraison')); }
     setSaving(false);
   };
 
@@ -341,8 +343,8 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
     setSaving(true);
     try {
       await api.patch(`/tasks/${task.id}/extra-fees`, { extraFees: Number(extraFees), extraFeesNote });
-      setShowExtraFees(false); onUpdate(); toast.success('Frais imprévus enregistrés');
-    } catch { toast.error('Erreur enregistrement frais'); }
+      setShowExtraFees(false); onUpdate(); toast.success(t('Frais imprévus enregistrés'));
+    } catch { toast.error(t('Erreur enregistrement frais')); }
     setSaving(false);
   };
 
@@ -351,7 +353,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
     try {
       await api.put(`/tasks/${task.id}`, { cancelDelivery: true });
       onUpdate();
-      toast.success('Livraison annulée');
+      toast.success(t('Livraison annulée'));
     } catch (e: any) { toast.error(e?.response?.data?.message || 'Erreur'); }
     setSaving(false);
   };
@@ -427,7 +429,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
                 href={`/invoices/new?type=bon_livraison&taskId=${encodeURIComponent(task.id)}${task.invoice?.type === 'facture' ? `&sourceInvoiceId=${encodeURIComponent(task.invoice.id)}` : ''}`}
                 className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 hover:underline mt-1"
               >
-                <FileText size={11} /> Créer le bon de livraison pour cette tâche
+                <FileText size={11} /> {t('Créer le bon de livraison pour cette tâche')}
               </Link>
             )}
             {!isLivreur && task.assignedTo && <p className="text-xs text-slate-400 mt-0.5">👤 {task.assignedTo.name}</p>}
@@ -437,7 +439,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
                 <User size={10} />
                 Créé par {task.createdBy.name}
                 <span className="text-slate-300">·</span>
-                {roleLabel(task.createdBy.role)}
+                {roleLabel(task.createdBy.role, t)}
               </p>
             )}
           </div>
@@ -462,7 +464,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
         {/* MOD 6: delivery tracking info */}
         {task.startedDeliveryAt && !task.finishedDeliveryAt && (
           <div className="mb-3 flex items-center gap-2">
-            <span className="text-xs text-blue-600 font-medium">🚚 Livraison en cours</span>
+            <span className="text-xs text-blue-600 font-medium">{t('🚚 Livraison en cours')}</span>
             <DeliveryTimer startedAt={task.startedDeliveryAt} />
           </div>
         )}
@@ -485,13 +487,13 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
             {!task.startedDeliveryAt && task.status === 'en_attente' && (
               <button onClick={startDelivery} disabled={saving}
                 className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-medium transition-all">
-                <Play size={14} /> Démarrer la livraison
+                <Play size={14} /> {t('Démarrer la livraison')}
               </button>
             )}
             {task.startedDeliveryAt && !task.finishedDeliveryAt && (
               <button onClick={finishDelivery} disabled={saving}
                 className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white hover:bg-emerald-700 border border-emerald-600 rounded-xl text-sm font-semibold transition-all shadow-sm">
-                <CheckCircle size={16} /> Terminer
+                <CheckCircle size={16} /> {t('Terminer')}
               </button>
             )}
             {!task.startedDeliveryAt && task.status === 'en_attente' && (
@@ -513,7 +515,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <button onClick={() => onOpenNote(task)}
               className="flex items-center gap-2 px-3 py-2 bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium transition-all">
-              <FileText size={14} /> Consulter / télécharger / imprimer le bon
+              <FileText size={14} /> {t('Consulter / télécharger / imprimer le bon')}
             </button>
             <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold">
               <Truck size={14} /> Prix de livraison : {formatMoneyDzd(task.deliveryPrice || 0)}
@@ -538,11 +540,11 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
               <>
                 <button onClick={finishDelivery} disabled={saving}
                   className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-sm font-medium transition-all">
-                  <Square size={14} /> Terminer la livraison
+                  <Square size={14} /> {t('Terminer la livraison')}
                 </button>
                 <button onClick={cancelDelivery} disabled={saving}
                   className="flex items-center gap-2 px-3 py-2 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 rounded-xl text-sm font-medium transition-all">
-                  <XCircle size={14} /> Annuler la livraison
+                  <XCircle size={14} /> {t('Annuler la livraison')}
                 </button>
               </>
             )}
@@ -575,16 +577,16 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
           <div className="mb-3">
             {showExtraFees ? (
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl space-y-2">
-                <p className="text-xs font-medium text-orange-700 flex items-center gap-1"><AlertTriangle size={12} /> Frais imprévus</p>
+                <p className="text-xs font-medium text-orange-700 flex items-center gap-1"><AlertTriangle size={12} /> {t('Frais imprévus')}</p>
                 <div className="flex gap-2">
-                  <input type="number" min={0} className="input text-sm flex-1" placeholder="Montant (DZD)" value={extraFees}
+                  <input type="number" min={0} className="input text-sm flex-1" placeholder={t('Montant (DZD)')} value={extraFees}
                     onChange={(e) => setExtraFees(e.target.value)} />
-                  <input className="input text-sm flex-1" placeholder="Note (ex: péage)" value={extraFeesNote}
+                  <input className="input text-sm flex-1" placeholder={t('Note (ex: péage)')} value={extraFeesNote}
                     onChange={(e) => setExtraFeesNote(e.target.value)} />
                 </div>
                 <div className="flex gap-2">
                   <button onClick={saveExtraFees} disabled={saving} className="btn-primary text-xs py-1.5">
-                    {saving ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> Enregistrer</>}
+                    {saving ? <Loader2 size={12} className="animate-spin" /> : <><Save size={12} /> {t('Enregistrer')}</>}
                   </button>
                   <button onClick={() => setShowExtraFees(false)} className="btn-secondary text-xs py-1.5"><X size={12} /></button>
                 </div>
@@ -792,13 +794,13 @@ export default function TasksPage() {
         <div className="flex gap-2 flex-wrap">
           {canManage && (
             <button onClick={() => setShowPrintRecap(true)} className="btn-secondary">
-              <Printer size={16} /> Imprimer récap livreur
+              <Printer size={16} /> {t('Imprimer récap livreur')}
             </button>
           )}
           {canManage && (
             <>
               <Link href="/invoices/new?type=bon_livraison" className="btn-secondary">
-                <Printer size={16} /> Bon de livraison
+                <Printer size={16} /> {t('Bon de livraison')}
               </Link>
               <button onClick={() => { setShowNew(!showNew); if (!showNew) loadLivreurs(); }} className="btn-primary">
                 <Plus size={18} /> {t('new_task')}
@@ -812,8 +814,8 @@ export default function TasksPage() {
       {isLivreur && stats && (
         <div className="task-stats grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-slate-900">{stats.total}</div><div className="text-xs text-slate-500 mt-1">{t('total')}</div></div>
-          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-amber-600">{stats.pending}</div><div className="text-xs text-slate-500 mt-1">En attente</div></div>
-          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-blue-600">{stats.inProgress ?? 0}</div><div className="text-xs text-slate-500 mt-1">En cours</div></div>
+          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-amber-600">{stats.pending}</div><div className="text-xs text-slate-500 mt-1">{t('En attente')}</div></div>
+          <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-blue-600">{stats.inProgress ?? 0}</div><div className="text-xs text-slate-500 mt-1">{t('En cours')}</div></div>
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-emerald-600">{stats.completed}</div><div className="text-xs text-slate-500 mt-1">{t('completed_tasks')}</div></div>
           <div className="card p-4 text-center"><div className="text-2xl font-display font-700 text-red-600">{stats.notCompleted ?? 0}</div><div className="text-xs text-slate-500 mt-1">{t('task_status_not_completed')}</div></div>
         </div>
@@ -825,7 +827,7 @@ export default function TasksPage() {
           <h3 className="font-display font-600 text-slate-900 mb-4">{t('new_task')}</h3>
           <form onSubmit={createTask} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="label" htmlFor="taskInvoice">Facture définitive liée <span className="text-slate-400 font-normal">({t('optional')})</span></label>
+              <label className="label" htmlFor="taskInvoice">{t('Facture définitive liée')} <span className="text-slate-400 font-normal">({t('optional')})</span></label>
               <select id="taskInvoice" className="input" value={newTask.invoiceId}
                 onChange={(event) => {
                   const invoiceId = event.target.value;
@@ -842,7 +844,7 @@ export default function TasksPage() {
                     } : {}),
                   }));
                 }}>
-                <option value="">Aucune facture liée</option>
+                <option value="">{t('Aucune facture liée')}</option>
                 {finalInvoices.map((invoice) => <option key={invoice.id} value={invoice.id}>{invoice.number} · {invoice.clientName}</option>)}
               </select>
             </div>
@@ -874,11 +876,11 @@ export default function TasksPage() {
             {(newTask.clientName || !clients.length) && (
               <>
                 <div className="md:col-span-2">
-                  <label className="label">Adresse client</label>
-                  <input className="input" value={newTask.clientAddress} onChange={(e) => setNewTask((p) => ({ ...p, clientAddress: e.target.value }))} placeholder="Adresse de livraison" />
+                  <label className="label">{t('Adresse client')}</label>
+                  <input className="input" value={newTask.clientAddress} onChange={(e) => setNewTask((p) => ({ ...p, clientAddress: e.target.value }))} placeholder={t('Adresse de livraison')} />
                 </div>
                 <div>
-                  <label className="label">Téléphone</label>
+                  <label className="label">{t('Téléphone')}</label>
                   <input className="input" value={newTask.clientPhone} onChange={(e) => setNewTask((p) => ({ ...p, clientPhone: e.target.value }))} placeholder="05x xx xx xx" />
                 </div>
                 <div>
@@ -911,7 +913,7 @@ export default function TasksPage() {
                 ))}
               </select>
               {users.length === 0 && (
-                <p className="text-xs text-amber-600 mt-1">Aucun livreur trouvé. Créez un utilisateur avec le rôle « Livreur » dans Utilisateurs.</p>
+                <p className="text-xs text-amber-600 mt-1">{t('Aucun livreur trouvé. Créez un utilisateur avec le rôle « Livreur » dans Utilisateurs.')}</p>
               )}
             </div>
             <div>

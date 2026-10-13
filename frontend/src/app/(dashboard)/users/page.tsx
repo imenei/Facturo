@@ -113,9 +113,9 @@ export default function UsersPage() {
     if (!confirm(`⚠️ Supprimer définitivement "${name}" ? Cette action est irréversible et supprimera l'utilisateur de la base de données.`)) return;
     try {
       await api.delete(`/users/${id}/forever`);
-      toast.success('Utilisateur supprimé définitivement');
+      toast.success(t('Utilisateur supprimé définitivement'));
       setUsers((prev) => prev.filter((u) => u.id !== id));
-    } catch { toast.error('Erreur lors de la suppression définitive'); }
+    } catch { toast.error(t('Erreur lors de la suppression définitive')); }
   };
 
   return (
@@ -265,13 +265,13 @@ export default function UsersPage() {
                   </div>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-brand-600 transition-colors" title="Modifier">
+                  <button onClick={() => openEdit(u)} className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-brand-600 transition-colors" title={t('Modifier')}>
                     <Edit2 size={14} />
                   </button>
-                  <button onClick={() => handleDelete(u.id, u.name)} className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500 transition-colors" title="Désactiver">
+                  <button onClick={() => handleDelete(u.id, u.name)} className="p-1.5 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500 transition-colors" title={t('Désactiver')}>
                     <UserX size={14} />
                   </button>
-                  <button onClick={() => handleDeleteForever(u.id, u.name)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 transition-colors" title="Supprimer définitivement">
+                  <button onClick={() => handleDeleteForever(u.id, u.name)} className="p-1.5 hover:bg-red-50 rounded text-slate-400 hover:text-red-600 transition-colors" title={t('Supprimer définitivement')}>
                     <Trash2 size={14} />
                   </button>
                 </div>

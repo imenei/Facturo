@@ -7,8 +7,10 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import { formatMoneyDzd } from '@/lib/formatMoney';
+import { useI18nStore } from '@/store/i18nStore';
 
 export default function TrashPage() {
+  const { t } = useI18nStore();
   const { user } = useAuthStore();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ export default function TrashPage() {
       const { data } = await api.get('/invoices/trash');
       setInvoices(data);
     } catch {
-      toast.error('Impossible de charger la corbeille');
+      toast.error(t('Impossible de charger la corbeille'));
     }
     setLoading(false);
   }, []);
@@ -32,16 +34,16 @@ export default function TrashPage() {
     setRestoringId(id);
     try {
       await api.patch(`/invoices/${id}/restore`);
-      toast.success('Facture restaurée');
+      toast.success(t('Facture restaurée'));
       setInvoices((current) => current.filter((invoice) => invoice.id !== id));
     } catch {
-      toast.error('Impossible de restaurer cette facture');
+      toast.error(t('Impossible de restaurer cette facture'));
     }
     setRestoringId(null);
   };
 
   if (user?.role !== 'admin') {
-    return <div className="p-8 text-slate-500">Accès réservé aux administrateurs.</div>;
+    return <div className="p-8 text-slate-500">{t('Accès réservé aux administrateurs.')}</div>;
   }
 
   return (
@@ -50,10 +52,10 @@ export default function TrashPage() {
         <div>
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <Link href="/invoices" className="inline-flex items-center gap-1 hover:text-brand-600">
-              <ArrowLeft size={14} /> Retour aux factures
+              <ArrowLeft size={14} /> {t('Retour aux factures')}
             </Link>
           </div>
-          <h1 className="text-2xl font-display font-700 text-slate-900 mt-2">Corbeille</h1>
+          <h1 className="text-2xl font-display font-700 text-slate-900 mt-2">{t('Corbeille')}</h1>
           <p className="text-sm text-slate-500 mt-1">{invoices.length} document(s) supprimé(s)</p>
         </div>
         <button type="button" onClick={() => { setLoading(true); void load(); }} className="btn-secondary" title="Actualiser" aria-label="Actualiser">
@@ -66,7 +68,7 @@ export default function TrashPage() {
       ) : invoices.length === 0 ? (
         <div className="card p-12 text-center text-slate-500">
           <Trash2 size={36} className="mx-auto mb-3 opacity-30" />
-          <p>Aucune facture dans la corbeille.</p>
+          <p>{t('Aucune facture dans la corbeille.')}</p>
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -75,10 +77,10 @@ export default function TrashPage() {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">N°</th>
-                  <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">Client</th>
+                  <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{t('Client')}</th>
                   <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">Type</th>
-                  <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">Montant</th>
-                  <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">Supprimé le</th>
+                  <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{t('Montant')}</th>
+                  <th className="text-left text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">{t('Supprimé le')}</th>
                   <th className="text-right text-xs font-600 text-slate-500 px-4 py-3 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>

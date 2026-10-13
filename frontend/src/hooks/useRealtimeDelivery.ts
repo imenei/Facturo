@@ -1,4 +1,5 @@
 'use client';
+import { useI18nStore } from '@/store/i18nStore';
 import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
@@ -42,8 +43,9 @@ export function useRealtimeDelivery(onUpdate?: (data: any) => void) {
       // On ne notifie pas l'auteur du changement, il a déjà son retour visuel.
       socket.on('delivery:status-updated', (data: any) => {
         if (!data?.actorId || data.actorId !== user.id) {
-          const label = DELIVERY_STATUS_LABELS[data?.status] || data?.status || '';
-          toast(`Livraison ${data?.number || ''}${data?.clientName ? ` — ${data.clientName}` : ''} : ${label}`, { icon: '🚚' });
+          const t = useI18nStore.getState().t; // langue courante au moment de l'événement
+          const label = DELIVERY_STATUS_LABELS[data?.status] ? t(DELIVERY_STATUS_LABELS[data.status]) : (data?.status || '');
+          toast(`${t('Livraison')} ${data?.number || ''}${data?.clientName ? ` — ${data.clientName}` : ''} : ${label}`, { icon: '🚚' });
         }
         window.dispatchEvent(new CustomEvent(DELIVERY_UPDATED_EVENT, { detail: data }));
         onUpdate?.(data);

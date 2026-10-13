@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Download, Check, Loader2, Eye } from 'lucide-react';
 import clsx from 'clsx';
+import { useI18nStore } from '@/store/i18nStore';
 
 const TEMPLATES = [
   { key: 'classic',     label: 'Classic',      icon: '📄', desc: 'Logo gauche, style professionnel' },
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function PDFPreviewModal({ invoice, company, onClose, onDownload, onTemplateChange }: Props) {
+  const { t } = useI18nStore();
   const prevUrlRef = useRef<string>('');
   const [selected, setSelected] = useState(invoice.templateType || 'classic');
   const [rendering, setRendering] = useState(false);
@@ -86,7 +88,7 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
               <Eye size={16} className="text-slate-600" />
             </div>
             <div>
-              <h2 className="font-display font-700 text-slate-900">Aperçu du document</h2>
+              <h2 className="font-display font-700 text-slate-900">{t('Aperçu du document')}</h2>
               <p className="text-xs text-slate-500">{invoice.number} · Sélectionnez un template puis téléchargez</p>
             </div>
           </div>
@@ -102,13 +104,13 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
           <div className="w-52 shrink-0 border-r border-slate-100 bg-slate-50 flex flex-col overflow-y-auto">
             <p className="text-xs font-600 text-slate-400 uppercase tracking-wider px-4 pt-4 pb-2">Template</p>
             <div className="px-3 pb-4 space-y-1.5 flex-1">
-              {TEMPLATES.map((t) => {
-                const isActive = selected === t.key;
-                const isCurrent = invoice.templateType === t.key;
+              {TEMPLATES.map((tpl) => {
+                const isActive = selected === tpl.key;
+                const isCurrent = invoice.templateType === tpl.key;
                 return (
                   <button
-                    key={t.key}
-                    onClick={() => setSelected(t.key)}
+                    key={tpl.key}
+                    onClick={() => setSelected(tpl.key)}
                     disabled={rendering}
                     className={clsx(
                       'w-full text-left px-3 py-3 rounded-xl border-2 transition-all duration-150',
@@ -117,9 +119,9 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-base leading-none">{t.icon}</span>
+                        <span className="text-base leading-none">{tpl.icon}</span>
                         <span className={clsx('text-sm font-medium', isActive ? 'text-brand-700' : 'text-slate-800')}>
-                          {t.label}
+                          {t(tpl.label)}
                         </span>
                       </div>
                       <div className={clsx(
@@ -129,10 +131,10 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
                         {isActive && <Check size={9} className="text-white" strokeWidth={3} />}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-400 leading-tight">{t.desc}</p>
+                    <p className="text-xs text-slate-400 leading-tight">{t(tpl.desc)}</p>
                     {isCurrent && (
                       <span className={clsx('text-xs font-medium mt-1 block', isActive ? 'text-brand-600' : 'text-emerald-600')}>
-                        {isActive ? '✓ Template actuel' : '← actuel'}
+                        {isActive ? t('✓ Template actuel') : t('← actuel')}
                       </span>
                     )}
                   </button>
@@ -142,8 +144,8 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
 
             {selected !== invoice.templateType && (
               <div className="mx-3 mb-3 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-xl">
-                <p className="text-xs text-amber-700 font-medium">⚡ Nouveau template</p>
-                <p className="text-xs text-amber-600 mt-0.5">Sera sauvegardé au téléchargement</p>
+                <p className="text-xs text-amber-700 font-medium">{t('⚡ Nouveau template')}</p>
+                <p className="text-xs text-amber-600 mt-0.5">{t('Sera sauvegardé au téléchargement')}</p>
               </div>
             )}
           </div>
@@ -153,7 +155,7 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
             {rendering && (
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-200/95 gap-3">
                 <Loader2 size={30} className="animate-spin text-brand-500" />
-                <span className="text-sm font-medium text-slate-600">Génération de l'aperçu…</span>
+                <span className="text-sm font-medium text-slate-600">{t("Génération de l'aperçu…")}</span>
               </div>
             )}
 
@@ -161,7 +163,7 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
               <iframe
                 src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
                 className="w-full h-full border-0 bg-white"
-                title="Aperçu PDF"
+                title={t('Aperçu PDF')}
               />
             )}
 
@@ -169,8 +171,8 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
             {!rendering && previewUrl && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
                 <div className="bg-black/60 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm font-medium flex items-center gap-1.5">
-                  <span>{TEMPLATES.find(t => t.key === selected)?.icon}</span>
-                  <span>{TEMPLATES.find(t => t.key === selected)?.label}</span>
+                  <span>{TEMPLATES.find((tpl) => tpl.key === selected)?.icon}</span>
+                  <span>{t(TEMPLATES.find((tpl) => tpl.key === selected)?.label || '')}</span>
                 </div>
               </div>
             )}
@@ -182,7 +184,7 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
           <div className="text-sm text-slate-500 flex items-center gap-2">
             <span>Template :</span>
             <strong className="text-slate-900">
-              {TEMPLATES.find(t => t.key === selected)?.icon} {TEMPLATES.find(t => t.key === selected)?.label}
+              {TEMPLATES.find((tpl) => tpl.key === selected)?.icon} {t(TEMPLATES.find((tpl) => tpl.key === selected)?.label || '')}
             </strong>
             {selected !== invoice.templateType && (
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
@@ -191,11 +193,11 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
             )}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={onClose} className="btn-secondary">Annuler</button>
+            <button onClick={onClose} className="btn-secondary">{t('Annuler')}</button>
             <button onClick={handleDownload} disabled={saving || rendering} className="btn-primary px-6">
               {saving
-                ? <><Loader2 size={15} className="animate-spin" /> Préparation…</>
-                : <><Download size={15} /> Télécharger le PDF</>}
+                ? <><Loader2 size={15} className="animate-spin" /> {t('Préparation…')}</>
+                : <><Download size={15} /> {t('Télécharger le PDF')}</>}
             </button>
           </div>
         </div>

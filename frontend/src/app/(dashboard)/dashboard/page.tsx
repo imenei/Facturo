@@ -49,7 +49,8 @@ function WorkflowBadge({ step }: { step: string }) {
 function MiniBarChart({ data, labelKey, valueKey, color = 'bg-brand-500' }: {
   data: any[]; labelKey: string; valueKey: string; color?: string;
 }) {
-  if (!data?.length) return <p className="text-slate-400 text-sm">Pas de données</p>;
+  const { t } = useI18nStore();
+  if (!data?.length) return <p className="text-slate-400 text-sm">{t('Pas de données')}</p>;
   const max = Math.max(...data.map((d) => Number(d[valueKey]) || 0));
   return (
     <div className="space-y-2">
@@ -74,7 +75,8 @@ function MiniBarChart({ data, labelKey, valueKey, color = 'bg-brand-500' }: {
 
 // MOD 1+4: Unpaid by client widget
 function UnpaidByClientWidget({ data }: { data: any[] }) {
-  if (!data.length) return <p className="text-slate-400 text-sm py-2">Aucun impayé 🎉</p>;
+  const { t } = useI18nStore();
+  if (!data.length) return <p className="text-slate-400 text-sm py-2">{t('Aucun impayé 🎉')}</p>;
   const maxVal = Math.max(...data.map((d) => Number(d.unpaidTotal)));
   return (
     <div className="space-y-3">
@@ -416,7 +418,7 @@ export default function DashboardPage() {
                   <div className="text-sm text-slate-500">👤 {iv.clientName}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs text-slate-400">Démarré le</div>
+                  <div className="text-xs text-slate-400">{t('Démarré le')}</div>
                   <div className="text-sm">{iv.startedAt ? new Date(iv.startedAt).toLocaleDateString('fr-FR') : '—'}</div>
                   <div className="text-brand-600 font-700 text-sm mt-1">{formatMoneyDzd(iv.totalPrice)}</div>
                 </div>
@@ -477,7 +479,7 @@ export default function DashboardPage() {
           {user?.role === 'admin' && (
             <>
               <Link href="/tasks" className="btn-secondary"><CheckSquare size={16} /> {t('tasks')}</Link>
-              <Link href="/interventions" className="btn-secondary"><Wrench size={16} /> Interventions</Link>
+              <Link href="/interventions" className="btn-secondary"><Wrench size={16} /> {t('Interventions')}</Link>
             </>
           )}
           {user?.role === 'commercial' && (
@@ -488,8 +490,8 @@ export default function DashboardPage() {
           )}
           {user?.role === 'technicien' && (
             <>
-              <Link href="/interventions" className="btn-primary"><Wrench size={16} /> Mes interventions</Link>
-              <Link href="/interventions/new" className="btn-secondary"><PlayCircle size={16} /> Nouvelle intervention</Link>
+              <Link href="/interventions" className="btn-primary"><Wrench size={16} /> {t('Mes interventions')}</Link>
+              <Link href="/interventions/new" className="btn-secondary"><PlayCircle size={16} /> {t('Nouvelle intervention')}</Link>
             </>
           )}
         </div>

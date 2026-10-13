@@ -37,7 +37,7 @@ function WorkflowBar({ step, t }: { step: string; t: (k: string) => string }) {
             i === 0 ? 'w-2' : i === 1 ? 'w-3' : i === 2 ? 'w-4' : 'w-5')}
         />
       ))}
-      <span className="text-xs text-slate-400 ml-1 capitalize">{WORKFLOW_LABELS[step] || step}</span>
+      <span className="text-xs text-slate-400 ml-1 capitalize">{WORKFLOW_LABELS[step] ? t(WORKFLOW_LABELS[step]) : step}</span>
     </div>
   );
 }
@@ -61,7 +61,7 @@ function PaymentBadge({ status, invoiceId, onUpdate, t }: {
   return (
     <button onClick={toggle}
       className={clsx(
-        'inline-flex items-center gap-1 px-2.5 py-1 lg:px-2 lg:py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80',
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80',
         status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600',
       )}>
       {status === 'paid' ? <CheckCircle size={11} /> : <XCircle size={11} />}
@@ -149,7 +149,7 @@ export default function InvoicesPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     if (user?.role === 'commercial' && !deleteReason.trim()) {
-      toast.error('Le motif de suppression est obligatoire');
+      toast.error(t('Le motif de suppression est obligatoire'));
       return;
     }
     setDeleting(true);
@@ -157,7 +157,7 @@ export default function InvoicesPage() {
       if (user?.role === 'commercial') {
         await api.post(`/invoices/${deleteTarget.id}/deletion-requests`, { reason: deleteReason.trim() });
         setInvoices((current) => current.map((invoice) => invoice.id === deleteTarget.id ? { ...invoice, deletionRequestPending: true } : invoice));
-        toast.success('Demande de suppression envoyée à l’administrateur');
+        toast.success(t('Demande de suppression envoyée à l’administrateur'));
       } else {
         await api.delete(`/invoices/${deleteTarget.id}`);
         toast.success(t('deleted'));
@@ -187,94 +187,42 @@ export default function InvoicesPage() {
 
   const activeFiltersCount = [typeFilter, paymentFilter, dateFilter, statusFilter, numberSearch].filter(Boolean).length;
 
-  // Boutons d'action partagés entre le tableau (desktop) et les cartes (mobile/tablette)
-  const renderActions = (inv: any) => {
-    const btn = 'p-2 lg:p-1 rounded hover:bg-slate-100 text-slate-500';
-    const iconSize = 18;
-    return (
-      <div className="flex flex-wrap items-center gap-1 lg:gap-0.5">
-        <Link href={`/invoices/${inv.id}`} className={clsx(btn, 'hover:text-brand-600')} title={t('view')}>
-          <Eye size={iconSize} />
-        </Link>
-        <Link href={`/invoices/${inv.id}/edit`} className={clsx(btn, 'hover:text-amber-600')} title={t('edit')}>
-          <Edit size={iconSize} />
-        </Link>
-        <button onClick={async () => { await generateInvoicePDF(inv, company); }} className={clsx(btn, 'hover:text-red-600')} title={t('export_pdf')}>
-          <FileDown size={iconSize} />
-        </button>
-        <button onClick={async () => { await printInvoicePDF(inv, company); }} className={clsx(btn, 'hover:text-slate-900')} title="Imprimer">
-          <Printer size={iconSize} />
-        </button>
-        {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
-          <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
-            className={clsx(btn, 'hover:bg-amber-50 hover:text-amber-500')} title={t('send_reminder')}>
-            {reminding === inv.id ? <Loader2 size={iconSize} className="animate-spin" /> : <Bell size={iconSize} />}
-          </button>
-        )}
-        {isManager(user?.role) && (
-          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }}
-            className={clsx(btn, 'hover:bg-red-50 hover:text-red-500')}
-            title={user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}>
-            <Trash2 size={iconSize} />
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  const renderWorkflow = (inv: any) =>
-    inv.type !== 'proforma' && inv.workflowStep ? (
-      <div className="relative">
-        <WorkflowBar step={inv.workflowStep} t={t} />
-        {isManager(user?.role) && (
-          <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={inv.workflowStep}
-            onChange={(e) => { e.stopPropagation(); updateWorkflow(inv.id, e.target.value); }}>
-            {WORKFLOW_STEPS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        )}
-      </div>
-    ) : <span className="text-xs text-slate-400">—</span>;
-
   return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
-      {/* En-tête */}
-      <div className="flex items-center justify-between mb-4 sm:mb-6 flex-wrap gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl sm:text-3xl font-display font-700 text-slate-900">{t('invoices_documents')}</h1>
+    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div>
+          <h1 className="text-3xl font-display font-700 text-slate-900">{t('invoices_documents')}</h1>
           <p className="text-slate-500 text-sm mt-1">{invoices.length} {t('documents_count')}</p>
         </div>
-        <Link href="/invoices/new" className="btn-primary w-full sm:w-auto justify-center">
-          <Plus size={18} /> {t('new_invoice')}
-        </Link>
+        <Link href="/invoices/new" className="btn-primary"><Plus size={18} /> {t('new_invoice')}</Link>
       </div>
 
-      {/* Filtres */}
-      <div className="card p-3 sm:p-4 mb-4 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-3">
+      <div className="card p-4 mb-4 space-y-3">
+        <div className="flex gap-3 flex-wrap">
           {/* MOD 2: two search fields - client name + invoice number */}
-          <div className="relative lg:flex-1 lg:min-w-44">
+          <div className="relative flex-1 min-w-44">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-9" placeholder={t('search_by_client')} value={search}
               onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="relative lg:min-w-44">
+          <div className="relative min-w-44">
             <Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className="input pl-9" placeholder="N° facture (ex: FAC-2025)" value={numberSearch}
+            <input className="input pl-9" placeholder={t('N° facture (ex: FAC-2025)')} value={numberSearch}
               onChange={(e) => setNumberSearch(e.target.value)} />
           </div>
-          <select className="input w-full lg:w-auto lg:min-w-36" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+          <select className="input w-auto min-w-36" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">{t('all_types')}</option>
             <option value="facture">{t('invoices')}</option>
             <option value="proforma">{t('proformas')}</option>
             <option value="bon_livraison">{t('delivery_notes')}</option>
           </select>
-          <select className="input w-full lg:w-auto lg:min-w-36" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+          <select className="input w-auto min-w-36" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
             <option value="">{t('all_payments')}</option>
             <option value="paid">{t('paid')}</option>
             <option value="unpaid">{t('unpaid')}</option>
           </select>
           <button onClick={() => setShowFilters(!showFilters)}
-            className={clsx('btn-secondary relative w-full sm:col-span-2 lg:w-auto justify-center', activeFiltersCount > 0 && 'ring-2 ring-brand-400')}>
+            className={clsx('btn-secondary relative', activeFiltersCount > 0 && 'ring-2 ring-brand-400')}>
             <ArrowUpDown size={15} /> {t('advanced_filters')}
             {activeFiltersCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-brand-600 text-white text-xs rounded-full flex items-center justify-center">
@@ -285,14 +233,14 @@ export default function InvoicesPage() {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap gap-3 pt-2 border-t border-slate-100 animate-slide-up">
+          <div className="flex gap-3 flex-wrap pt-2 border-t border-slate-100 animate-slide-up">
             <div>
               <label className="label text-xs">{t('exact_date')}</label>
-              <input type="date" className="input text-sm w-full" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
+              <input type="date" className="input text-sm" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} />
             </div>
             <div>
               <label className="label text-xs">{t('document_status')}</label>
-              <select className="input text-sm w-full lg:w-40" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <select className="input text-sm w-40" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
                 <option value="">{t('all')}</option>
                 <option value="brouillon">{t('brouillon')}</option>
                 <option value="emise">{t('emise')}</option>
@@ -300,9 +248,9 @@ export default function InvoicesPage() {
                 <option value="annulee">{t('annulee')}</option>
               </select>
             </div>
-            <div className="flex items-end sm:col-span-2 lg:col-span-1">
+            <div className="flex items-end">
               <button onClick={() => { setTypeFilter(''); setPaymentFilter(''); setDateFilter(''); setStatusFilter(''); setNumberSearch(''); setSearch(''); }}
-                className="btn-secondary text-sm py-2 w-full lg:w-auto justify-center">{t('reset_filters')}</button>
+                className="btn-secondary text-sm py-2">{t('reset_filters')}</button>
             </div>
           </div>
         )}
@@ -312,62 +260,8 @@ export default function InvoicesPage() {
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
         <div className="card overflow-hidden">
-          {/* ===== Mobile & tablette (< lg) : liste de cartes ===== */}
-          <div className="lg:hidden">
-            {invoices.length === 0 ? (
-              <div className="text-center py-16 text-slate-400">
-                <FileText size={36} className="mx-auto mb-3 opacity-30" />
-                {t('no_documents_found')}
-              </div>
-            ) : (
-              <ul className="divide-y divide-slate-100">
-                {invoices.map((inv) => (
-                  <li key={inv.id} className="p-4 space-y-3">
-                    {/* Numéro + type */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-mono text-sm font-semibold text-slate-900 break-all">{inv.number}</div>
-                        <CreatorBadge invoice={inv} />
-                      </div>
-                      <span className={clsx('badge shrink-0', TYPE_COLORS[inv.type])}>
-                        {typeLabels[inv.type]}
-                      </span>
-                    </div>
-
-                    {/* Client + montant */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="text-sm font-medium text-slate-900 truncate">{inv.clientName}</div>
-                        {inv.clientEmail && <div className="text-xs text-slate-400 truncate">{inv.clientEmail}</div>}
-                      </div>
-                      <div className="text-sm font-semibold text-slate-900 whitespace-nowrap">
-                        {formatMoneyDzd(inv.total)}
-                      </div>
-                    </div>
-
-                    {/* Paiement + workflow + date */}
-                    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {inv.type === 'facture' && (
-                          <PaymentBadge status={inv.paymentStatus || 'unpaid'} invoiceId={inv.id} onUpdate={load} t={t} />
-                        )}
-                        {renderWorkflow(inv)}
-                      </div>
-                      <span className="text-xs text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</span>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="pt-2 border-t border-slate-50">
-                      {renderActions(inv)}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* ===== Desktop (>= lg) : tableau ===== */}
-          <div className="hidden lg:block">
+          {/* ✅ Plus de overflow-x-auto : le tableau s'adapte à la largeur de la page */}
+          <div>
             <table className="w-full table-auto">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
@@ -389,6 +283,7 @@ export default function InvoicesPage() {
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-3 py-3">
                       <div className="font-mono text-sm font-semibold text-slate-900 break-all">{inv.number}</div>
+                      {/* MOD 3: creator badge */}
                       <CreatorBadge invoice={inv} />
                     </td>
                     <td className="px-3 py-3">
@@ -410,11 +305,45 @@ export default function InvoicesPage() {
                         <span className="text-xs text-slate-400">—</span>
                       )}
                     </td>
-                    <td className="px-3 py-3">{renderWorkflow(inv)}</td>
+                    <td className="px-3 py-3">
+                      {inv.type !== 'proforma' && inv.workflowStep ? (
+                        <div className="relative">
+                          <WorkflowBar step={inv.workflowStep} t={t} />
+                          {isManager(user?.role) && (
+                            <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={inv.workflowStep}
+                              onChange={(e) => { e.stopPropagation(); updateWorkflow(inv.id, e.target.value); }}>
+                              {WORKFLOW_STEPS.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      ) : <span className="text-xs text-slate-400">—</span>}
+                    </td>
                     <td className="px-3 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</td>
                     <td className="px-3 py-3">
-                      <div className="opacity-60 group-hover:opacity-100 transition-opacity">
-                        {renderActions(inv)}
+                      <div className="flex flex-wrap items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Link href={`/invoices/${inv.id}`} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600" title={t('view')}>
+                          <Eye size={15} />
+                        </Link>
+                        <Link href={`/invoices/${inv.id}/edit`} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600" title={t('edit')}>
+                          <Edit size={15} />
+                        </Link>
+                        <button onClick={async () => { await generateInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
+                          <FileDown size={15} />
+                        </button>
+                        <button onClick={async () => { await printInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900" title={t('Imprimer')}>
+                          <Printer size={15} />
+                        </button>
+                        {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
+                          <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
+                            className="p-1 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
+                            {reminding === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
+                          </button>
+                        )}
+                        {isManager(user?.role) && (
+                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -423,9 +352,8 @@ export default function InvoicesPage() {
             </table>
           </div>
 
-          {/* Totaux */}
           {invoices.length > 0 && (
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:flex-wrap gap-1.5 sm:gap-4 text-xs text-slate-500">
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500">
               <span>{t('total_amount')} : <strong className="text-slate-900">
                 {formatMoneyDzd(invoices.reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
@@ -441,13 +369,13 @@ export default function InvoicesPage() {
       )}
       <ConfirmDialog
         open={Boolean(reminderTarget)}
-        title="Confirmer l'envoi du rappel"
+        title={t("Confirmer l'envoi du rappel")}
         confirmLabel="Envoyer"
         loading={Boolean(reminding)}
         onCancel={() => setReminderTarget(null)}
         onConfirm={() => reminderTarget && void sendReminder(reminderTarget)}
       >
-        <p>Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?</p>
+        <p>{t('Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?')}</p>
         <p><strong>{reminderTarget?.clientEmail}</strong></p>
         <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>
       </ConfirmDialog>
@@ -463,9 +391,9 @@ export default function InvoicesPage() {
         {user?.role === 'commercial' ? (
           <>
             <p>La facture {deleteTarget?.number} ne sera supprimée qu’après validation par un administrateur.</p>
-            <label className="block text-sm font-medium text-slate-700" htmlFor="listDeleteReason">Motif de la suppression *</label>
+            <label className="block text-sm font-medium text-slate-700" htmlFor="listDeleteReason">{t('Motif de la suppression')} *</label>
             <textarea id="listDeleteReason" className="input min-h-24 resize-y" required value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)} placeholder="Expliquez pourquoi cette facture doit être supprimée." />
+              onChange={(e) => setDeleteReason(e.target.value)} placeholder={t('Expliquez pourquoi cette facture doit être supprimée.')} />
           </>
         ) : <p>{t('confirm_delete_invoice')}</p>}
       </ConfirmDialog>

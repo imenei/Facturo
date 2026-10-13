@@ -71,7 +71,7 @@ export default function EditInvoicePage() {
     try {
       const referenceDate = form.invoiceDate || new Date().toISOString().slice(0, 10);
       if (form.deliveryDate && form.deliveryDate < referenceDate) {
-        toast.error('La date de livraison ne peut pas être antérieure à la date de facturation.');
+        toast.error(t('La date de livraison ne peut pas être antérieure à la date de facturation.'));
         setSaving(false);
         return;
       }
@@ -131,7 +131,7 @@ export default function EditInvoicePage() {
           </div>
           {form.type !== 'bon_livraison' && (
             <div className="mt-4">
-              <label className="label">Émis au nom de</label>
+              <label className="label">{t('Émis au nom de')}</label>
               <div className="flex gap-2 flex-wrap">
                 {['Lm company', 'Louassaa Nabil', 'Helping Hands company'].map((name) => (
                   <label key={name} className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer transition-all text-sm ${form.issuerName === name ? 'border-brand-500 bg-brand-50 font-medium' : 'border-slate-200 hover:border-slate-300'}`}>
@@ -142,7 +142,7 @@ export default function EditInvoicePage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                 <div>
-                  <label className="label" htmlFor="issuerName">Nom affiché sur la facture</label>
+                  <label className="label" htmlFor="issuerName">{t('Nom affiché sur la facture')}</label>
                   <input id="issuerName" className="input" value={form.issuerName || ''}
                     onChange={(e) => setForm({ ...form, issuerName: e.target.value })} maxLength={120} />
                 </div>
@@ -163,41 +163,41 @@ export default function EditInvoicePage() {
         </div>
 
         <div className="card p-6">
-          <label className="label" htmlFor="deliveryDate">Date de livraison</label>
+          <label className="label" htmlFor="deliveryDate">{t('Date de livraison')}</label>
           <input id="deliveryDate" className="input max-w-xs" type="date" min={form.invoiceDate} value={form.deliveryDate || ''}
             onChange={(e) => setForm({ ...form, deliveryDate: e.target.value })} />
         </div>
 
         <div className="card p-6">
-          <h2 className="font-display font-600 text-slate-900 mb-4">Livraison et autres charges</h2>
+          <h2 className="font-display font-600 text-slate-900 mb-4">{t('Livraison et autres charges')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="label" htmlFor="deliveryPersonId">Livreur</label>
+              <label className="label" htmlFor="deliveryPersonId">{t('Livreur')}</label>
               <select id="deliveryPersonId" className="input" value={form.deliveryPersonId || ''}
                 onChange={(e) => setForm({ ...form, deliveryPersonId: e.target.value })}>
-                <option value="">Non assigné</option>
+                <option value="">{t('Non assigné')}</option>
                 {deliveryPeople.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="label" htmlFor="deliveryPrice">Prix de livraison (DZD)</label>
+              <label className="label" htmlFor="deliveryPrice">{t('Prix de livraison (DZD)')}</label>
               <input id="deliveryPrice" className="input" type="number" min={0} step="0.01" value={form.deliveryPrice ?? 0}
                 onChange={(e) => setForm({ ...form, deliveryPrice: Number(e.target.value) })} />
             </div>
             <div className="md:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">Frais supplémentaires facturés</label>
+                <label className="label mb-0">{t('Frais supplémentaires facturés')}</label>
                 <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
-                  <Plus size={13} /> Ajouter un frais
+                  <Plus size={13} /> {t('Ajouter un frais')}
                 </button>
               </div>
               {otherCharges.map((charge, index) => (
                 <div key={index} className="grid grid-cols-[1fr_150px_auto] gap-2 mb-2">
-                  <input className="input" aria-label="Description du frais" placeholder="Description"
+                  <input className="input" aria-label={t('Description du frais')} placeholder="Description"
                     value={charge.description} onChange={(e) => setOtherCharges((current) => current.map((item, i) => i === index ? { ...item, description: e.target.value } : item))} />
-                  <input className="input text-right" aria-label="Montant du frais" type="number" min={0} step="0.01" value={charge.amount}
+                  <input className="input text-right" aria-label={t('Montant du frais')} type="number" min={0} step="0.01" value={charge.amount}
                     onChange={(e) => setOtherCharges((current) => current.map((item, i) => i === index ? { ...item, amount: Number(e.target.value) } : item))} />
-                  <button type="button" aria-label="Supprimer ce frais"
+                  <button type="button" aria-label={t('Supprimer ce frais')}
                     onClick={() => setOtherCharges((current) => current.filter((_, i) => i !== index))} className="btn-secondary text-red-600 px-2"><Trash2 size={15} /></button>
                 </div>
               ))}
@@ -269,16 +269,16 @@ export default function EditInvoicePage() {
                   <input className="input bg-white" value={item.description} onChange={(e) => updateItem(i, 'description', e.target.value)} required placeholder={t('description')} />
                 </div>
                 <div className="col-span-3 md:col-span-1">
-                  <label className="block text-xs text-slate-500 mb-1">Qté</label>
-                  <input aria-label="Quantité" className="input bg-white text-center" type="number" min={1} value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))} />
+                  <label className="block text-xs text-slate-500 mb-1">{t('Qté')}</label>
+                  <input aria-label={t('Quantité')} className="input bg-white text-center" type="number" min={1} value={item.quantity} onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))} />
                 </div>
                 <div className="col-span-4 md:col-span-2">
-                  <label className="block text-xs text-amber-700 mb-1">Prix d'achat</label>
-                  <input aria-label="Prix d'achat" className="input bg-amber-50 border-amber-200 text-right" type="number" min={0} step="0.01" value={item.purchasePrice} onChange={(e) => updateItem(i, 'purchasePrice', Number(e.target.value))} />
+                  <label className="block text-xs text-amber-700 mb-1">{t("Prix d'achat")}</label>
+                  <input aria-label={t("Prix d'achat")} className="input bg-amber-50 border-amber-200 text-right" type="number" min={0} step="0.01" value={item.purchasePrice} onChange={(e) => updateItem(i, 'purchasePrice', Number(e.target.value))} />
                 </div>
                 <div className="col-span-4 md:col-span-3">
-                  <label className="block text-xs text-slate-500 mb-1">Prix de vente</label>
-                  <input aria-label="Prix de vente" className="input bg-white text-right" type="number" min={0} step="0.01" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))} />
+                  <label className="block text-xs text-slate-500 mb-1">{t('Prix de vente')}</label>
+                  <input aria-label={t('Prix de vente')} className="input bg-white text-right" type="number" min={0} step="0.01" value={item.unitPrice} onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))} />
                 </div>
                 <div className="col-span-1 flex justify-center">
                   {items.length > 1 && <button type="button" onClick={() => removeItem(i)} className="p-1.5 text-red-400 hover:text-red-600 rounded"><Trash2 size={14} /></button>}
@@ -290,7 +290,7 @@ export default function EditInvoicePage() {
           <div className="mt-4 border-t pt-4 space-y-1.5 text-right">
             <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{formatMoneyDzd(adjustedSubtotal)}</span></div>
             {otherChargeTotal > 0 && (
-              <div className="text-sm text-slate-600">Frais supplémentaires : <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span></div>
+              <div className="text-sm text-slate-600">{t('Frais supplémentaires')} : <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span></div>
             )}
             {form.hasTva && <div className="text-sm text-slate-600">TVA: <span className="font-medium">{formatMoneyDzd(tvaAmount)}</span></div>}
             <div className="text-lg font-display font-700 text-brand-600">{t('total')}: {formatMoneyDzd(total)}</div>

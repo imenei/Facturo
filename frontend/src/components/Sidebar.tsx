@@ -16,8 +16,8 @@ import {
 const adminNav = [
   { href: '/dashboard',    icon: LayoutDashboard, label: 'nav.dashboard' },
   { href: '/invoices',     icon: FileText,        label: 'nav.invoices' },
-  { href: '/invoice-deletion-requests', icon: FileText, label: 'Demandes de suppression' },
-  { href: '/trash',        icon: Trash2,          label: 'Corbeille' },
+  { href: '/invoice-deletion-requests', icon: FileText, label: 'nav.deletion_requests' },
+  { href: '/trash',        icon: Trash2,          label: 'nav.trash' },
   { href: '/clients',      icon: UserSquare2,     label: 'nav.clients' },
   { href: '/deliveries',   icon: Truck,           label: 'nav.deliveries' },
   { href: '/tasks',        icon: CheckSquare,     label: 'nav.tasks' },

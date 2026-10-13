@@ -55,7 +55,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
       if (data?.subject) setSubject(data.subject);
       if (data?.body) setBody(data.body);
       if (data?.headerName) setHeaderName(data.headerName);
-    }).catch(() => toast.error('Impossible de charger le modèle. Vérifie que la migration des notifications a été appliquée.'));
+    }).catch(() => toast.error(t('Impossible de charger le modèle. Vérifie que la migration des notifications a été appliquée.')));
   }, []);
 
   const insertVar = (v: string) => {
@@ -67,7 +67,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
     try {
       await api.put('/notifications/email-template', { subject, body, headerName });
       toast.success(t('template_saved'));
-    } catch { toast.error('Impossible d’enregistrer le modèle. Vérifie la migration de la base de production.'); }
+    } catch { toast.error(t('Impossible d’enregistrer le modèle. Vérifie la migration de la base de production.')); }
     setSaving(false);
   };
 
@@ -81,7 +81,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
       const { data } = await api.get('/notifications/email-template');
       setHeaderName(data.headerName || 'HelpDZ');
       toast.success(t('template_saved'));
-    } catch { toast.error('Impossible de réinitialiser le modèle. Vérifie la migration de la base de production.'); }
+    } catch { toast.error(t('Impossible de réinitialiser le modèle. Vérifie la migration de la base de production.')); }
     setSaving(false);
   };
 
@@ -109,7 +109,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-slide-up">
         <div className="flex items-center justify-between p-5 border-b border-slate-200">
           <h2 className="font-display font-700 text-slate-900 flex items-center gap-2">
-            <Settings size={18} className="text-brand-500" /> Modèle d'email de rappel
+            <Settings size={18} className="text-brand-500" /> {t("Modèle d'email de rappel")}
           </h2>
           <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg">✕</button>
         </div>
@@ -129,16 +129,16 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
           {tab === 'edit' ? (
             <div className="space-y-4">
               <div>
-                <label className="label">Nom affiché dans l’en-tête</label>
+                <label className="label">{t('Nom affiché dans l’en-tête')}</label>
                 <input className="input" value={headerName} onChange={(e) => setHeaderName(e.target.value)} placeholder="HelpDZ" />
               </div>
               <div>
-                <label className="label">Objet de l'email</label>
+                <label className="label">{t("Objet de l'email")}</label>
                 <input className="input" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet..." />
               </div>
               <div className="flex gap-3 items-start">
                 <div className="flex-1">
-                  <label className="label">Corps de l'email <span className="text-slate-400 text-xs">(HTML supporté)</span></label>
+                  <label className="label">{t("Corps de l'email")} <span className="text-slate-400 text-xs">{t('(HTML supporté)')}</span></label>
                   <textarea className="input font-mono text-xs" rows={14} value={body}
                     onChange={(e) => setBody(e.target.value)} />
                 </div>
@@ -162,7 +162,7 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
           ) : (
             <div>
               <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-                Prévisualisation avec des données fictives. Les vraies données seront utilisées lors de l'envoi.
+                {t("Prévisualisation avec des données fictives. Les vraies données seront utilisées lors de l'envoi.")}
               </div>
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs text-slate-600">
@@ -176,12 +176,12 @@ function EmailTemplateEditor({ onClose }: { onClose: () => void }) {
 
         <div className="flex gap-3 p-5 border-t border-slate-200">
           <button onClick={handleReset} className="btn-secondary flex items-center gap-2">
-            <RotateCcw size={14} /> Réinitialiser
+            <RotateCcw size={14} /> {t('Réinitialiser')}
           </button>
           <div className="flex-1" />
-          <button onClick={onClose} className="btn-secondary">Fermer</button>
+          <button onClick={onClose} className="btn-secondary">{t('Fermer')}</button>
           <button onClick={handleSave} disabled={saving} className="btn-primary">
-            {saving ? <Loader2 size={15} className="animate-spin" /> : <><Save size={15} /> Enregistrer</>}
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <><Save size={15} /> {t('Enregistrer')}</>}
           </button>
         </div>
       </div>
@@ -218,7 +218,7 @@ export default function NotificationsPage() {
   }, []);
 
   const sendReminder = async (invoice: any) => {
-    if (!recipientEmail.trim()) { toast.error('Saisissez l’adresse e-mail du destinataire.'); return; }
+    if (!recipientEmail.trim()) { toast.error(t('Saisissez l’adresse e-mail du destinataire.')); return; }
     setReminderTarget(null);
     setSending(invoice.id);
     try {
@@ -261,7 +261,7 @@ export default function NotificationsPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setShowFullHistory((open) => !open)} className="btn-secondary flex items-center gap-2">
-            <History size={16} /> Historique des rappels
+            <History size={16} /> {t('Historique des rappels')}
           </button>
           <button onClick={() => setShowTemplateEditor(true)} className="btn-secondary flex items-center gap-2">
             <Settings size={16} /> {t('edit_email_template')}
@@ -283,9 +283,9 @@ export default function NotificationsPage() {
 
       {showFullHistory && (
         <section className="mb-6 border-y border-slate-200">
-          <h2 className="py-3 text-sm font-semibold text-slate-700">Historique conservé pendant un an</h2>
+          <h2 className="py-3 text-sm font-semibold text-slate-700">{t('Historique conservé pendant un an')}</h2>
           {fullHistory.length === 0 ? (
-            <p className="py-4 text-sm text-slate-500">Aucun rappel enregistré.</p>
+            <p className="py-4 text-sm text-slate-500">{t('Aucun rappel enregistré.')}</p>
           ) : fullHistory.map((row: any) => (
             <div key={row.id} className="flex flex-wrap justify-between gap-2 border-t border-slate-100 py-3 text-sm">
               <div>
@@ -385,13 +385,13 @@ export default function NotificationsPage() {
       )}
       <ConfirmDialog
         open={Boolean(reminderTarget)}
-        title="Confirmer l'envoi du rappel"
+        title={t("Confirmer l'envoi du rappel")}
         confirmLabel="Envoyer"
         loading={Boolean(sending)}
         onCancel={() => setReminderTarget(null)}
         onConfirm={() => reminderTarget && void sendReminder(reminderTarget)}
       >
-        <label className="label" htmlFor="reminderRecipient">Adresse e-mail du destinataire</label>
+        <label className="label" htmlFor="reminderRecipient">{t('Adresse e-mail du destinataire')}</label>
         <input id="reminderRecipient" className="input" type="email" required value={recipientEmail}
           onChange={(e) => setRecipientEmail(e.target.value)} />
         <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>

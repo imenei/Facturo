@@ -486,7 +486,7 @@ export default function InterventionWorkspacePage() {
           <div className="card p-4">
             <div className="flex items-center gap-2 mb-2">
               <FileText size={14} className="text-amber-500" />
-              <span className="text-xs font-600 text-slate-500 uppercase tracking-wide">Panne décrite par le client</span>
+              <span className="text-xs font-600 text-slate-500 uppercase tracking-wide">{t('Panne décrite par le client')}</span>
             </div>
             <p className="text-sm text-slate-700 bg-amber-50 border border-amber-100 rounded-lg p-3 leading-relaxed">
               {item.clientDescription}
@@ -614,7 +614,7 @@ export default function InterventionWorkspacePage() {
                     <div className="input bg-slate-50 text-slate-500 cursor-default">{formatMoneyDzd(partsCost)}</div>
                   </div>
                   <div className="card p-3 bg-brand-50 border-brand-200 flex flex-col justify-center">
-                    <div className="text-xs text-brand-500 font-medium">TOTAL</div>
+                    <div className="text-xs text-brand-500 font-medium">{t('TOTAL')}</div>
                     <div className="text-lg font-display font-700 text-brand-700">{formatMoneyDzd(totalPrice)}</div>
                   </div>
                 </div>
