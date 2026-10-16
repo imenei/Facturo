@@ -274,7 +274,6 @@ export default function NewInvoicePage() {
     e.preventDefault();
     setSaving(true);
     try {
-      // FIX: upload base64 logo first, then use the returned URL
       // Send base64 logo directly in the payload (no separate upload)
       let clientLogoUrl: string | undefined = form.clientLogoUrl || undefined;
       if (clientLogoUrl && !clientLogoUrl.startsWith('data:') && !clientLogoUrl.startsWith('http')) {
@@ -329,8 +328,14 @@ export default function NewInvoicePage() {
       if (form.type !== 'bon_livraison' && form.issuerName) payload.issuerName = form.issuerName;
 
       const { data } = await api.post('/invoices', payload);
-      toast.success(t('invoice_created_successfully'));
-      router.push(`/invoices/${data.id}`);
+      if (data?._offline) {
+        // Hors ligne : la facture est en file d'attente (id temporaire), on revient à la liste
+        toast.success(t('Facture enregistrée hors ligne, elle sera synchronisée au retour du réseau.'));
+        router.push('/invoices');
+      } else {
+        toast.success(t('invoice_created_successfully'));
+        router.push(`/invoices/${data.id}`);
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.message || t('error_during_creation'));
     }
