@@ -1,18 +1,18 @@
 // Service Worker HelpDZ : permet d'ouvrir l'application sans réseau.
-// - /_next/static/* (fichiers à hash)  : cache d'abord
-// - pages (navigation) et /_next/data  : réseau d'abord, cache en secours
-// - autres fichiers statiques (ex: /locales) : cache + mise à jour en arrière-plan
+// - /_next/static/*                    : cache d'abord
+// - pages (navigation), /_next/data, _rsc : réseau d'abord, cache en secours
+// - autres fichiers statiques (/locales, manifest...) : cache + mise à jour en arrière-plan
 // Les appels à l'API (autre domaine) sont gérés dans lib/api.ts.
 // Changer VERSION force le nettoyage des anciens caches.
-const VERSION = 'v2';
+const VERSION = 'v4';
 const STATIC_CACHE = `helpdz-static-${VERSION}`;
 const PAGES_CACHE = `helpdz-pages-${VERSION}`;
 const NETWORK_TIMEOUT_MS = 5000;
 
-// Fichiers précachés à l'installation (chaque fichier est indépendant :
-// si un seul échoue, les autres sont quand même mis en cache)
-const PRECACHE_PAGES = ['/login', '/manifest.json'];
+// Précache : chaque fichier est indépendant (un échec n'empêche pas les autres)
+const PRECACHE_PAGES = ['/login'];
 const PRECACHE_STATIC = [
+  '/manifest.json',
   '/locales/fr/common.json',
   '/locales/en/common.json',
   '/locales/ar/common.json',
@@ -56,6 +56,7 @@ function withTimeout(promise, ms) {
   });
 }
 
+// Réponse de secours : toujours une vraie Response (jamais undefined)
 function fallbackResponse(request, text = 'Hors ligne') {
   const isJson = new URL(request.url).pathname.endsWith('.json');
   return new Response(isJson ? '{}' : text, {
@@ -66,7 +67,23 @@ function fallbackResponse(request, text = 'Hors ligne') {
   });
 }
 
-async function networkFirst(request, cacheName, fallbackUrls = []) {
+// Page affichée quand une page n'a jamais été ouverte en ligne.
+// (On ne sert JAMAIS le HTML d'une autre page : ça cause des erreurs d'hydratation React.)
+function offlinePage() {
+  return new Response(
+    '<!doctype html><html lang="fr"><head><meta charset="utf-8">' +
+      '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>Hors ligne</title></head>' +
+      '<body style="font-family:sans-serif;text-align:center;padding:3rem">' +
+      '<h2>Hors ligne</h2>' +
+      "<p>Cette page n'a pas encore été ouverte en ligne.</p>" +
+      '<button onclick="location.reload()">Réessayer</button>' +
+      '</body></html>',
+    { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+  );
+}
+
+async function networkFirst(request, cacheName, isNavigation = false) {
   const cache = await caches.open(cacheName);
   try {
     const res = await withTimeout(fetch(request), NETWORK_TIMEOUT_MS);
@@ -75,11 +92,7 @@ async function networkFirst(request, cacheName, fallbackUrls = []) {
   } catch (e) {
     const cached = await cache.match(request, { ignoreVary: true });
     if (cached) return cached;
-    for (const url of fallbackUrls) {
-      const fb = await cache.match(url);
-      if (fb) return fb;
-    }
-    return fallbackResponse(request);
+    return isNavigation ? offlinePage() : fallbackResponse(request);
   }
 }
 
@@ -119,10 +132,11 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
   } else if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request, PAGES_CACHE, ['/dashboard', '/login']));
+    event.respondWith(networkFirst(request, PAGES_CACHE, true));
   } else if (
     url.pathname.startsWith('/_next/data/') ||
-    url.pathname.startsWith('/_next/image')
+    url.pathname.startsWith('/_next/image') ||
+    url.searchParams.has('_rsc')
   ) {
     event.respondWith(networkFirst(request, PAGES_CACHE));
   } else if (!url.pathname.startsWith('/api/')) {
