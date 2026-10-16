@@ -8,24 +8,30 @@ interface HelpDZDB extends DBSchema {
   invoices: { key: string; value: any };
   tasks: { key: string; value: any };
   company: { key: string; value: any };
+  apiCache: { key: string; value: { key: string; data: any; ts: number } };
 }
 
 let db: IDBPDatabase<HelpDZDB> | null = null;
 
 async function getDB() {
   if (db) return db;
-  db = await openDB<HelpDZDB>('helpdz-offline', 1, {
-    upgrade(database) {
-      database.createObjectStore('offlineQueue', { autoIncrement: true });
-      database.createObjectStore('invoices', { keyPath: 'id' });
-      database.createObjectStore('tasks', { keyPath: 'id' });
-      database.createObjectStore('company', { keyPath: 'id' });
+  db = await openDB<HelpDZDB>('helpdz-offline', 2, {
+    upgrade(database, oldVersion) {
+      if (oldVersion < 1) {
+        database.createObjectStore('offlineQueue', { autoIncrement: true });
+        database.createObjectStore('invoices', { keyPath: 'id' });
+        database.createObjectStore('tasks', { keyPath: 'id' });
+        database.createObjectStore('company', { keyPath: 'id' });
+      }
+      if (oldVersion < 2) {
+        database.createObjectStore('apiCache', { keyPath: 'key' });
+      }
     },
   });
   return db;
 }
 
-export async function addToOfflineQueue(item: { method: string; url: string; data: any; timestamp: number }) {
+export async function addToOfflineQueue(item: { method: string; url: string; data: any; timestamp: number; params?: any }) {
   const database = await getDB();
   await database.add('offlineQueue', item);
 }
@@ -128,4 +134,26 @@ export async function getCachedCompany() {
   const database = await getDB();
   const all = await database.getAll('company');
   return all[0] || null;
+}
+
+
+// ---- Cache générique des réponses GET de l'API (utilisé par lib/api.ts) ----
+export async function putApiCache(key: string, data: any) {
+  const database = await getDB();
+  await database.put('apiCache', { key, data, ts: Date.now() });
+}
+
+export async function getApiCache(key: string) {
+  const database = await getDB();
+  return database.get('apiCache', key);
+}
+
+export async function getAllApiCache() {
+  const database = await getDB();
+  return database.getAll('apiCache');
+}
+
+export async function clearApiCache() {
+  const database = await getDB();
+  await database.clear('apiCache');
 }
