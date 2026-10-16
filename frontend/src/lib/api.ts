@@ -12,15 +12,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.helpdz.com/api';
 
 const api = axios.create({ baseURL: API_URL, timeout: 30000 });
 
-// ---------------------------------------------------------------------------
-// Mode offline (transparent pour les pages : elles appellent toujours api.get/post/...)
-//  - GET réussi        -> réponse copiée dans IndexedDB
-//  - GET sans réseau   -> réponse servie depuis cette copie
-//  - Écriture sans réseau (liste blanche ci-dessous) -> mise en file d'attente,
-//    puis rejouée par flushOfflineQueue() au retour du réseau.
-// ---------------------------------------------------------------------------
-
-// Écritures autorisées hors ligne (le reste échoue normalement : emails, utilisateurs, login, etc.)
+// Écritures autorisées hors ligne
 const QUEUEABLE = [
   /^\/tasks(\/|$)/,
   /^\/interventions(\/|$)/,
@@ -29,8 +21,11 @@ const QUEUEABLE = [
   /^\/products(\/|$)/,
 ];
 const NEVER_QUEUE = [/send-reminder/, /deletion-requests/, /\/forever/, /\/auth\//];
-// Jamais mis en cache
+// Jamais mis en cache IndexedDB
 const NEVER_CACHE = [/^\/auth\//];
+// /auth/me : copie locale (localStorage) pour rester connecté offline
+const ME_CACHE_KEY = 'helpdz_me_cache';
+const isMePath = (p: string) => /^\/auth\/me\/?$/.test(p);
 
 const isBrowser = () => typeof window !== 'undefined';
 
@@ -58,7 +53,7 @@ function cacheKey(config: InternalAxiosRequestConfig) {
   const params = new URLSearchParams(qs);
   const extra = config.params || {};
   Object.keys(extra).forEach((k) => params.set(k, String(extra[k])));
-  params.delete('_'); // anti-cache (Date.now())
+  params.delete('_');
   params.sort();
   return `${currentUserId()}|${path}?${params.toString()}`;
 }
@@ -67,9 +62,8 @@ function fakeResponse(config: InternalAxiosRequestConfig, data: any, status = 20
   return { data, status, statusText: 'OFFLINE', headers: {}, config, request: {} } as AxiosResponse;
 }
 
-// Applique localement une écriture en attente sur les listes / détails déjà en cache
 async function applyOptimistic(method: string, path: string, body: any, tempId: string) {
-  const parts = path.split('/').filter(Boolean); // ex: ['tasks', '12', 'finish-delivery']
+  const parts = path.split('/').filter(Boolean);
   const collection = parts[0];
   const itemId = parts[1];
   const uid = currentUserId();
@@ -108,9 +102,15 @@ api.interceptors.response.use(
   async (res) => {
     if (isBrowser() && (res.config.method || 'get') === 'get' && res.status === 200) {
       const path = normalizePath(res.config.url);
+
+      // Copie locale de /auth/me (même format que le backend)
+      if (isMePath(path)) {
+        try { localStorage.setItem(ME_CACHE_KEY, JSON.stringify(res.data)); } catch { /* ignore */ }
+      }
+
       const isJson = !res.config.responseType || res.config.responseType === 'json';
       if (isJson && !NEVER_CACHE.some((r) => r.test(path))) {
-        try { await putApiCache(cacheKey(res.config), res.data); } catch { /* quota / navigation privée */ }
+        try { await putApiCache(cacheKey(res.config), res.data); } catch { /* quota / privé */ }
       }
     }
     return res;
@@ -124,6 +124,15 @@ api.interceptors.response.use(
       const path = normalizePath(config.url);
 
       if (method === 'get') {
+        // Offline : /auth/me servi depuis la copie locale -> pas de déconnexion
+        if (isMePath(path) && localStorage.getItem('helpdz_token')) {
+          try {
+            const raw = localStorage.getItem(ME_CACHE_KEY);
+            if (raw) return fakeResponse(config, JSON.parse(raw));
+            const user = localStorage.getItem('helpdz_user');
+            if (user) return fakeResponse(config, JSON.parse(user));
+          } catch { /* ignore */ }
+        }
         const hit = await getApiCache(cacheKey(config)).catch(() => undefined);
         if (hit) return fakeResponse(config, hit.data);
       } else if (
@@ -143,10 +152,11 @@ api.interceptors.response.use(
       }
     }
 
-    // --- Session expirée ---
+    // --- Session expirée (uniquement une vraie réponse 401) ---
     if (err.response?.status === 401 && isBrowser() && !(config as any)?._offlineReplay) {
       localStorage.removeItem('helpdz_token');
       localStorage.removeItem('helpdz_user');
+      localStorage.removeItem(ME_CACHE_KEY);
       window.location.href = '/login';
     }
     return Promise.reject(err);
@@ -154,7 +164,7 @@ api.interceptors.response.use(
 );
 
 // ---------------------------------------------------------------------------
-// Rejeu de la file d'attente (appelé au retour du réseau et au démarrage)
+// Rejeu de la file d'attente
 // ---------------------------------------------------------------------------
 export interface FlushResult { synced: number; failed: number; remaining: number }
 
@@ -181,9 +191,8 @@ export async function flushOfflineQueue(): Promise<FlushResult> {
         result.synced++;
       } catch (e) {
         const er = e as AxiosError;
-        if (!er.response) { result.remaining = queue.length - i; break; } // réseau reperdu : on garde le reste
-        if (er.response.status === 401) { result.remaining = queue.length - i; break; } // reconnexion requise
-        // Rejet métier (400/404/409...) : on retire l'élément pour ne pas bloquer la file
+        if (!er.response) { result.remaining = queue.length - i; break; }
+        if (er.response.status === 401) { result.remaining = queue.length - i; break; }
         await removeOfflineQueueItem(item.key);
         result.failed++;
       }
