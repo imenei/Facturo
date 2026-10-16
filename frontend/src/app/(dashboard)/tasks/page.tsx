@@ -1,4 +1,5 @@
 'use client';
+import PdfPagesViewer from '@/components/PdfPagesViewer';
 import { useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
@@ -155,7 +156,9 @@ function DeliveryNoteModal({ task, company, onClose }: { task: any; company: any
             </div>
           )}
           {error && <div className="absolute inset-0 flex items-center justify-center p-6 text-sm text-red-600 text-center">{error}</div>}
-          {pdfUrl && <iframe ref={frameRef} src={pdfUrl} title={t('Bon de livraison')} className="w-full h-full border-0 bg-white" />}
+          {pdfUrl && <PdfPagesViewer url={pdfUrl} title={t('Bon de livraison')} />}
+          {/* iframe hors écran, utilisée uniquement pour l'impression */}
+          {pdfUrl && <iframe ref={frameRef} src={pdfUrl} title="print" aria-hidden="true" tabIndex={-1} style={{ position: 'absolute', width: 1, height: 1, border: 0, opacity: 0, pointerEvents: 'none' }} />}
         </div>
       </div>
     </div>
@@ -271,7 +274,7 @@ function DeliveryTimer({ startedAt }: { startedAt: string }) {
 
 function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, t }: {
   task: any; onUpdate: () => void; onDelete: (id: string) => void; onOpenNote: (task: any) => void;
-  isLivreur: boolean; canManage: boolean; t: (k: string) => string;
+  isLivreur: boolean; canManage: boolean; t: (k: string, vars?: Record<string, string>) => string;
 }) {
   const [editing, setEditing] = useState(false);
   const [remarks, setRemarks] = useState(task.remarks || '');
@@ -421,7 +424,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
             )}
             {isLivreur && task.hasDeliveryNote && (
               <p className="text-xs text-brand-600 mt-1 flex items-center gap-1">
-                <FileText size={11} /> Bon de livraison {task.deliveryNoteNumber}
+                <FileText size={11} /> {t('Bon de livraison')} {task.deliveryNoteNumber}
               </p>
             )}
             {canManage && task.invoice?.type !== 'bon_livraison' && (
@@ -437,7 +440,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
             {task.createdBy && (
               <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
                 <User size={10} />
-                Créé par {task.createdBy.name}
+                {t('Créé par')} {task.createdBy.name}
                 <span className="text-slate-300">·</span>
                 {roleLabel(task.createdBy.role, t)}
               </p>
@@ -470,7 +473,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
         )}
         {task.finishedDeliveryAt && task.deliveryDurationMinutes != null && (
           <div className="mb-3 text-xs text-emerald-600">
-            ✅ Livré en {task.deliveryDurationMinutes} min
+            ✅ {t('tasks_delivered_in', { n: String(task.deliveryDurationMinutes) })}
           </div>
         )}
 
@@ -518,7 +521,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
               <FileText size={14} /> {t('Consulter / télécharger / imprimer le bon')}
             </button>
             <span className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-sm font-semibold">
-              <Truck size={14} /> Prix de livraison : {formatMoneyDzd(task.deliveryPrice || 0)}
+              <Truck size={14} /> {t('Prix de livraison')} : {formatMoneyDzd(task.deliveryPrice || 0)}
             </span>
           </div>
         )}
@@ -528,7 +531,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
           <div className="mb-3">
             <button onClick={reopenDelivery} disabled={saving}
               className="flex items-center gap-2 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl text-sm font-medium transition-all disabled:opacity-50">
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Rouvrir la livraison
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} {t('Rouvrir la livraison')}
             </button>
           </div>
         )}
@@ -594,7 +597,7 @@ function TaskCard({ task, onUpdate, onDelete, onOpenNote, isLivreur, canManage, 
             ) : (
               <button onClick={() => setShowExtraFees(true)}
                 className="text-xs text-orange-500 hover:text-orange-700 flex items-center gap-1 py-1">
-                <DollarSign size={12} /> Ajouter frais imprévus {extra > 0 && `(actuel: +${formatMoneyDzd(extra)})`}
+                <DollarSign size={12} /> {t('Ajouter frais imprévus')} {extra > 0 && `(actuel: +${formatMoneyDzd(extra)})`}
               </button>
             )}
           </div>

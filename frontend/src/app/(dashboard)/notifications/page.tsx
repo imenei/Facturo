@@ -394,7 +394,7 @@ export default function NotificationsPage() {
         <label className="label" htmlFor="reminderRecipient">{t('Adresse e-mail du destinataire')}</label>
         <input id="reminderRecipient" className="input" type="email" required value={recipientEmail}
           onChange={(e) => setRecipientEmail(e.target.value)} />
-        <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>
+        <p>{t('Un email de rappel sera envoyé au client')} {reminderTarget?.clientName}.</p>
       </ConfirmDialog>
     </div>
   );

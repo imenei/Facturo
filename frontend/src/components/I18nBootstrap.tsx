@@ -1,10 +1,22 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
 import { useI18nStore } from '@/store/i18nStore';
 
-function normalizeTranslationKey(input: string): string {
+/**
+ * Filet de sécurité de traduction.
+ *
+ * La traduction principale passe par t() dans les composants. Ce composant traduit en plus,
+ * dans le DOM, les textes français écrits « en dur » dont la clé existe dans les fichiers de langue,
+ * et surtout il le fait de façon fiable :
+ *  - un MutationObserver traduit aussi les contenus qui apparaissent après coup (données chargées,
+ *    modales, changement de page) : plus besoin de rafraîchir la page ;
+ *  - le texte d'origine de chaque nœud est mémorisé, et oublié dès que React le remplace
+ *    (sinon un ancien texte pouvait réapparaître après un changement de langue) ;
+ *  - au retour en français, les textes d'origine sont restaurés.
+ */
+
+function normalizeKey(input: string): string {
   return input
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -13,79 +25,96 @@ function normalizeTranslationKey(input: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
-function resolveTranslation(translations: Record<string, any>, source: string): string | null {
-  const trimmed = source.trim();
-  if (!trimmed) return null;
+type Dict = Record<string, string>;
+type TextRecord = { orig: string; applied: string };
 
-  const direct = trimmed.split('.').reduce((acc, key) => acc?.[key], translations);
+const textRecords = new WeakMap<Text, TextRecord>();
+const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'CODE', 'PRE']);
+const ATTRIBUTES = [
+  { attr: 'placeholder', orig: 'i18nOrigPlaceholder', applied: 'i18nAppliedPlaceholder' },
+  { attr: 'title', orig: 'i18nOrigTitle', applied: 'i18nAppliedTitle' },
+  { attr: 'aria-label', orig: 'i18nOrigAria', applied: 'i18nAppliedAria' },
+] as const;
+
+function lookup(dict: Dict, source: string): string | null {
+  const text = source.trim();
+  if (!text) return null;
+  const direct = dict[text];
   if (typeof direct === 'string') return direct;
-
-  const normalized = normalizeTranslationKey(trimmed);
-  const normalizedValue = normalized.split('.').reduce((acc, key) => acc?.[key], translations);
-  return typeof normalizedValue === 'string' ? normalizedValue : null;
+  const normalized = normalizeKey(text);
+  if (!normalized) return null;
+  const value = dict[normalized];
+  return typeof value === 'string' ? value : null;
 }
 
-function shouldSkipTextNode(node: Text): boolean {
+function shouldSkip(node: Node): boolean {
   const parent = node.parentElement;
   if (!parent) return true;
-  const tag = parent.tagName;
-  return ['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA'].includes(tag);
+  if (SKIP_TAGS.has(parent.tagName)) return true;
+  return !!parent.closest('[data-no-i18n], [contenteditable="true"]');
 }
 
-function translateDom(translations: Record<string, any>) {
-  if (typeof document === 'undefined') return;
+function translateTextNode(node: Text, dict: Dict, restoreOnly: boolean) {
+  if (shouldSkip(node)) return;
+  const raw = node.nodeValue ?? '';
+  if (!raw.trim()) return;
 
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const textNodes: Text[] = [];
-  let current: Node | null = walker.nextNode();
+  let record = textRecords.get(node);
+  if (!record || raw !== record.applied) {
+    // Nouveau nœud, ou texte remplacé par React : le texte courant devient la nouvelle référence.
+    record = { orig: raw, applied: raw };
+    textRecords.set(node, record);
+  }
+
+  const source = record.orig;
+  const translated = restoreOnly ? null : lookup(dict, source);
+  const next = translated ? source.replace(source.trim(), translated) : source;
+  if (next !== raw) {
+    node.nodeValue = next;
+  }
+  record.applied = next;
+}
+
+function translateElementAttributes(el: HTMLElement, dict: Dict, restoreOnly: boolean) {
+  for (const { attr, orig, applied } of ATTRIBUTES) {
+    const current = el.getAttribute(attr);
+    if (current === null) continue;
+    let original = el.dataset[orig];
+    if (original === undefined || current !== el.dataset[applied]) {
+      original = current;
+      el.dataset[orig] = current;
+    }
+    const translated = restoreOnly ? null : lookup(dict, original);
+    const next = translated || original;
+    if (next !== current) el.setAttribute(attr, next);
+    el.dataset[applied] = next;
+  }
+}
+
+function translateTree(root: Node, dict: Dict, restoreOnly: boolean) {
+  if (root.nodeType === Node.TEXT_NODE) {
+    translateTextNode(root as Text, dict, restoreOnly);
+    return;
+  }
+  if (root.nodeType !== Node.ELEMENT_NODE) return;
+
+  const rootEl = root as HTMLElement;
+  if (rootEl.matches?.('[placeholder], [title], [aria-label]')) translateElementAttributes(rootEl, dict, restoreOnly);
+  rootEl.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]').forEach((el) => {
+    translateElementAttributes(el, dict, restoreOnly);
+  });
+
+  const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  let current = walker.nextNode();
   while (current) {
-    textNodes.push(current as Text);
+    nodes.push(current as Text);
     current = walker.nextNode();
   }
-
-  for (const node of textNodes) {
-    if (shouldSkipTextNode(node)) continue;
-    const raw = node.nodeValue ?? '';
-    if (!raw.trim()) continue;
-
-    const original = ((node as any).__i18nOriginalText as string | undefined) ?? raw;
-    if (!(node as any).__i18nOriginalText) {
-      (node as any).__i18nOriginalText = original;
-    }
-
-    const translated = resolveTranslation(translations, original);
-    node.nodeValue = translated ? raw.replace(original.trim(), translated) : original;
-  }
-
-  const elements = document.body.querySelectorAll<HTMLElement>('input, textarea, button, option, [title], [aria-label]');
-  for (const el of elements) {
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      const placeholder = el.dataset.i18nOriginalPlaceholder ?? el.getAttribute('placeholder') ?? '';
-      if (placeholder) {
-        el.dataset.i18nOriginalPlaceholder = placeholder;
-        const translatedPlaceholder = resolveTranslation(translations, placeholder);
-        el.setAttribute('placeholder', translatedPlaceholder || placeholder);
-      }
-    }
-
-    const title = el.dataset.i18nOriginalTitle ?? el.getAttribute('title') ?? '';
-    if (title) {
-      el.dataset.i18nOriginalTitle = title;
-      const translatedTitle = resolveTranslation(translations, title);
-      el.setAttribute('title', translatedTitle || title);
-    }
-
-    const ariaLabel = el.dataset.i18nOriginalAriaLabel ?? el.getAttribute('aria-label') ?? '';
-    if (ariaLabel) {
-      el.dataset.i18nOriginalAriaLabel = ariaLabel;
-      const translatedAriaLabel = resolveTranslation(translations, ariaLabel);
-      el.setAttribute('aria-label', translatedAriaLabel || ariaLabel);
-    }
-  }
+  for (const node of nodes) translateTextNode(node, dict, restoreOnly);
 }
 
 export default function I18nBootstrap() {
-  const pathname = usePathname();
   const { locale, setLocale, translations } = useI18nStore();
 
   useEffect(() => {
@@ -93,19 +122,63 @@ export default function I18nBootstrap() {
   }, [locale, setLocale]);
 
   useEffect(() => {
-    const id = window.setTimeout(() => {
-      translateDom(translations);
-    }, 300);
+    if (typeof document === 'undefined') return;
 
-    const id2 = window.setTimeout(() => {
-      translateDom(translations);
-    }, 800);
+    const dict: Dict = (translations as any)?.__flat ?? {};
+    const restoreOnly = locale === 'fr';
+    let applying = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const pending = new Set<Node>();
+
+    const run = (roots: Iterable<Node>) => {
+      applying = true;
+      try {
+        for (const root of roots) {
+          if (root.isConnected) translateTree(root, dict, restoreOnly);
+        }
+      } finally {
+        applying = false;
+      }
+    };
+
+    // Passe complète immédiate (changement de langue) puis observation continue.
+    run([document.body]);
+
+    const observer = new MutationObserver((mutations) => {
+      if (applying) return;
+      for (const mutation of mutations) {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => pending.add(node));
+        } else if (mutation.type === 'characterData') {
+          pending.add(mutation.target);
+        } else if (mutation.type === 'attributes' && mutation.target instanceof HTMLElement) {
+          pending.add(mutation.target);
+        }
+      }
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        const batch = Array.from(pending);
+        pending.clear();
+        run(batch);
+        observer.takeRecords(); // ignore nos propres modifications
+      }, 60);
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['placeholder', 'title', 'aria-label'],
+    });
+    observer.takeRecords();
 
     return () => {
-      window.clearTimeout(id);
-      window.clearTimeout(id2);
+      observer.disconnect();
+      if (timer) clearTimeout(timer);
     };
-  }, [translations, locale, pathname]);
+  }, [translations, locale]);
 
   return null;
 }

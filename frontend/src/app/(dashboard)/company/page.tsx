@@ -10,7 +10,7 @@ export default function CompanyPage() {
   const [form, setForm] = useState<any>({
     name: '', address: '', phone: '', email: '', website: '',
     nif: '', nis: '', rc: '', ai: '', rib: '', bank: '',
-    legalMentions: '', logo: '', signature: '', stamp: '',
+    legalMentions: '', logo: '', signature: '', stamp: '', documentColor: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -124,6 +124,46 @@ export default function CompanyPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="card p-6">
+          <h2 className="font-display font-600 text-slate-900 mb-1">{t('Couleur des documents')}</h2>
+          <p className="text-sm text-slate-500 mb-4">{t('Couleur principale des factures, bons de livraison et exports PDF / Word.')}</p>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {[
+              { hex: '', name: 'Noir (par défaut)', preview: '#141414' },
+              { hex: '#374151', name: 'Anthracite', preview: '#374151' },
+              { hex: '#1e3a8a', name: 'Bleu marine', preview: '#1e3a8a' },
+              { hex: '#1d4ed8', name: 'Bleu', preview: '#1d4ed8' },
+              { hex: '#0f766e', name: 'Turquoise', preview: '#0f766e' },
+              { hex: '#047857', name: 'Vert', preview: '#047857' },
+              { hex: '#b91c1c', name: 'Rouge', preview: '#b91c1c' },
+              { hex: '#7f1d1d', name: 'Bordeaux', preview: '#7f1d1d' },
+              { hex: '#c2410c', name: 'Orange', preview: '#c2410c' },
+              { hex: '#6d28d9', name: 'Violet', preview: '#6d28d9' },
+            ].map((color) => {
+              const active = (form.documentColor || '') === color.hex;
+              return (
+                <button key={color.name} type="button" title={t(color.name)} aria-label={t(color.name)}
+                  onClick={() => setForm({ ...form, documentColor: color.hex })}
+                  className={`h-9 w-9 rounded-full border-2 transition-all ${active ? 'border-brand-500 ring-2 ring-brand-200 scale-110' : 'border-white shadow'}`}
+                  style={{ backgroundColor: color.preview }} />
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-sm text-slate-600">{t('Personnalisée')}</label>
+            <input type="color" aria-label={t('Personnalisée')} value={/^#[0-9a-fA-F]{6}$/.test(form.documentColor || '') ? form.documentColor : '#141414'}
+              onChange={(e) => setForm({ ...form, documentColor: e.target.value })}
+              className="h-10 w-14 cursor-pointer rounded border border-slate-200 bg-white p-1" />
+            <input className="input max-w-[9rem] font-mono" dir="ltr" maxLength={7} placeholder="#141414"
+              value={form.documentColor || ''} onChange={(e) => setForm({ ...form, documentColor: e.target.value })} />
+            <div className="h-10 flex-1 min-w-[10rem] rounded-lg flex items-center px-4 text-sm font-semibold text-white"
+              style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(form.documentColor || '') ? form.documentColor : '#141414' }}>
+              {form.name || 'Mon Entreprise'}
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-slate-400">{t('Une couleur trop claire est automatiquement assombrie pour garder le texte lisible.')}</p>
         </div>
 
         <div className="card p-6">

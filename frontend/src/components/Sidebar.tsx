@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
@@ -52,6 +52,27 @@ export default function Sidebar() {
   const { t, locale } = useI18nStore();
   const isOnline = useOnlineStatus();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isRTL = locale === 'ar';
+
+  // Tiroir mobile : Échap pour fermer + on bloque le défilement de la page derrière le menu.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileOpen(false); };
+    window.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
+
+  // Repasse en mode bureau (≥ 1024px) : on referme le tiroir.
+  useEffect(() => {
+    const onResize = () => { if (window.innerWidth >= 1024) setMobileOpen(false); };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   if (!user) return null;
   const items = navItems[user.role as keyof typeof navItems] || [];
@@ -61,7 +82,7 @@ export default function Sidebar() {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="mobile-nav-toggle fixed left-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white shadow-lg md:hidden"
+        className="mobile-nav-toggle fixed start-4 top-4 z-40 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-950 text-white shadow-lg lg:hidden"
         aria-label="Open navigation"
       >
         <Menu size={20} />
@@ -71,7 +92,7 @@ export default function Sidebar() {
         <button
           type="button"
           aria-label="Close navigation"
-          className="fixed inset-0 z-40 bg-slate-950/50 md:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/50 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -79,11 +100,11 @@ export default function Sidebar() {
       <aside
         key={locale}
         className={clsx(
-          'fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 text-white flex flex-col h-screen shrink-0 transition-transform duration-200 md:sticky md:top-0 md:z-auto md:w-64 md:translate-x-0',
-          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          'fixed inset-y-0 start-0 z-50 w-72 max-w-[85vw] bg-slate-950 text-white flex flex-col h-screen h-dvh shrink-0 overflow-hidden transition-transform duration-200 lg:sticky lg:top-0 lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0',
+          mobileOpen ? 'translate-x-0' : isRTL ? 'translate-x-full' : '-translate-x-full',
         )}
       >
-      <div className="px-6 py-5 border-b border-slate-800">
+      <div className="px-6 py-4 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
             <FileText size={16} className="text-white" />
@@ -92,7 +113,7 @@ export default function Sidebar() {
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white md:hidden"
+            className="ms-auto rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white lg:hidden"
             aria-label="Close navigation"
           >
             <X size={18} />
@@ -100,7 +121,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <div className="px-4 py-4 border-b border-slate-800">
+      <div className="px-4 py-3 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-brand-600 flex items-center justify-center text-sm font-bold uppercase">
             {user.name?.charAt(0)}
@@ -112,7 +133,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 min-h-0 px-3 py-3 space-y-0.5 overflow-y-auto overscroll-contain">
         {items.map(({ href, icon: Icon, label }) => {
 
           const baseHref = href.split('?')[0];
@@ -131,7 +152,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-slate-800 space-y-1">
+      <div className="px-3 py-3 border-t border-slate-800 space-y-1 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <LanguageSelector />
         <div className={clsx('flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg', isOnline ? 'text-emerald-400' : 'text-amber-400')}>
           {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}

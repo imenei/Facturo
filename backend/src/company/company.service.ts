@@ -21,6 +21,10 @@ export class CompanyService {
 
   async update(dto: Partial<Company>): Promise<Company> {
     const company = await this.get();
+    if (dto.documentColor !== undefined) {
+      const color = String(dto.documentColor || '').trim();
+      dto.documentColor = /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : null;
+    }
     Object.assign(company, dto);
     return this.companyRepository.save(company);
   }

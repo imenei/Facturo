@@ -30,7 +30,7 @@ export default function InvoiceDeletionRequestsPage() {
     setReviewing(requestId);
     try {
       await api.patch(`/invoices/deletion-requests/${requestId}`, { action });
-      toast.success(action === 'approve' ? 'Facture supprimée' : 'Demande rejetée');
+      toast.success(action === 'approve' ? t('Facture supprimée') : t('Demande rejetée'));
       await load();
     } catch {
       toast.error(t('Impossible de traiter cette demande'));
@@ -58,9 +58,9 @@ export default function InvoiceDeletionRequestsPage() {
       <div className="flex items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-display font-700 text-slate-900">{t('Demandes de suppression')}</h1>
-          <p className="text-sm text-slate-500 mt-1">{requests.length} demande(s)</p>
+          <p className="text-sm text-slate-500 mt-1">{t('del_requests_count', { n: String(requests.length) })}</p>
         </div>
-        <button type="button" onClick={() => { setLoading(true); void load(); }} className="btn-secondary" title="Actualiser" aria-label="Actualiser">
+        <button type="button" onClick={() => { setLoading(true); void load(); }} className="btn-secondary" title={t('Actualiser')} aria-label={t('Actualiser')}>
           <RefreshCw size={16} />
         </button>
       </div>
@@ -75,16 +75,16 @@ export default function InvoiceDeletionRequestsPage() {
             <article key={request.id} className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr_2fr_auto] gap-4 py-5 items-start">
               <div>
                 <p className="font-mono font-semibold text-slate-900">{request.invoiceNumber}</p>
-                <p className="text-sm text-slate-500">{request.clientName || 'Client non renseigné'}</p>
+                <p className="text-sm text-slate-500">{request.clientName || t('Client non renseigné')}</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Demandée par {request.requestedBy?.name || 'Utilisateur'} · {new Date(request.createdAt).toLocaleString('fr-FR')}
+                  {t('del_requested_by', { name: request.requestedBy?.name || t('user'), date: new Date(request.createdAt).toLocaleString('fr-FR') })}
                 </p>
               </div>
               <div>
                 <span className={`inline-flex px-2 py-1 text-xs font-medium rounded ${request.status === 'pending' ? 'bg-amber-100 text-amber-800' : request.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'}`}>
-                  {request.status === 'pending' ? 'En attente' : request.status === 'approved' ? 'Approuvée' : 'Rejetée'}
+                  {request.status === 'pending' ? t('En attente') : request.status === 'approved' ? t('Approuvée') : t('Rejetée')}
                 </span>
-                {request.reviewedAt && <p className="text-xs text-slate-400 mt-2">Traitée le {new Date(request.reviewedAt).toLocaleString('fr-FR')}</p>}
+                {request.reviewedAt && <p className="text-xs text-slate-400 mt-2">{t('Traitée le')} {new Date(request.reviewedAt).toLocaleString('fr-FR')}</p>}
               </div>
               <p className="text-sm text-slate-700 whitespace-pre-wrap">{request.reason}</p>
               <div className="flex gap-2 flex-wrap">
@@ -92,7 +92,7 @@ export default function InvoiceDeletionRequestsPage() {
                   <>
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'approve')}
                     className="btn-primary text-sm bg-emerald-600 hover:bg-emerald-700">
-                    {reviewing === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Approuver
+                    {reviewing === request.id ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t('Approuver')}
                   </button>
                   <button type="button" disabled={reviewing === request.id} onClick={() => void review(request.id, 'reject')} className="btn-secondary text-sm text-red-600">
                     <X size={14} /> {t('Rejeter')}

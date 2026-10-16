@@ -1,10 +1,28 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { adjustedUnitPrice, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
+import { breakLongWords, hexToRgb } from './textUtils';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Couleur principale des documents (réglable dans « Société »). null = noir d'origine.
+let ACCENT: [number, number, number] | null = null;
+
+/** Couleur d'accent, assombrie si besoin pour que le texte blanc reste lisible dessus. */
+function resolveAccent(hex?: string | null): [number, number, number] | null {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return null;
+  let [r, g, b] = rgb;
+  while ((0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5) {
+    r = Math.round(r * 0.9); g = Math.round(g * 0.9); b = Math.round(b * 0.9);
+  }
+  return [r, g, b];
+}
+function accent(fallback: number[]): [number, number, number] {
+  return (ACCENT || fallback) as [number, number, number];
+}
 
 function resolveLogoSrc(company: any): string | null {
   const raw = company?.logo || company?.logoUrl;
@@ -61,23 +79,6 @@ function companyNameSize(invoice: any): number {
   const n = Number(invoice?.issuerNameSize);
   if (!Number.isFinite(n)) return 16;
   return Math.min(24, Math.max(12, n));
-}
-
-// ─── Prix de vente ───────────────────────────────────────────────────────────
-// La remise / l'ajout saisi à la création s'applique désormais au PRIX D'ACHAT (interne) :
-// le prix de vente affiché au client n'est donc jamais modifié.
-// Compatibilité : les anciennes factures (créées avant ce changement) portent une remise
-// sur le prix de vente, repérable par discountPercent > 0 -> on garde l'ancien affichage pour elles.
-function legacyDiscountPercent(invoice: any): number {
-  if (invoice?.type === 'bon_livraison') return 0;
-  return Number(invoice?.discountPercent) > 0 ? Number(invoice.discountPercent) : 0;
-}
-
-function salePrice(invoice: any, rawUnitPrice: any): number {
-  const legacy = legacyDiscountPercent(invoice);
-  return legacy > 0
-    ? adjustedUnitPrice(Number(rawUnitPrice), 'discount' as any, legacy)
-    : roundMoney(Number(rawUnitPrice) || 0);
 }
 
 // ─── Nombre en lettres (DZD) ────────────────────────────────────────────────
@@ -208,10 +209,13 @@ function clientBlock(doc: jsPDF, invoice: any, x: number, y: number, label = 'FA
 
 // Items table helper
 function itemsTable(doc: jsPDF, invoice: any, startY: number, headFill: number[], headText: number[]) {
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const body = (invoice.items || []).map((item: any) => {
-    const unitPrice = salePrice(invoice, item.unitPrice);
+    const unitPrice = invoice.type === 'bon_livraison'
+      ? roundMoney(item.unitPrice)
+      : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
     return [
-      item.description,
+      breakLongWords(item.description, 30),
       { content: String(item.quantity), styles: { halign: 'center' } },
       { content: fmt(unitPrice), styles: { halign: 'right' } },
       { content: fmt(roundMoney(unitPrice * Number(item.quantity || 0))), styles: { halign: 'right' } },
@@ -245,9 +249,11 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   let ty = y + 8;
   const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
-  const legacyDiscount = legacyDiscountPercent(invoice);
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
-    const unitPrice = salePrice(invoice, item.unitPrice);
+    const unitPrice = invoice.type === 'bon_livraison'
+      ? roundMoney(item.unitPrice)
+      : adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
     return sum + roundMoney(unitPrice * Number(item.quantity || 0));
   }, 0));
 
@@ -276,7 +282,7 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
 
   ty += 2;
   const BOX_H = 11;
-  doc.setFillColor(20, 20, 20);
+  doc.setFillColor(...accent([20, 20, 20]));
   doc.rect(boxX, ty, BOX_W, BOX_H, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
@@ -295,13 +301,10 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const wrapped = doc.splitTextToSize(words, W - 28);
   doc.text(wrapped, 14, ty + 6);
   ty += 6 + wrapped.length * 3.6;
-
-  // Mention de remise : uniquement pour les anciennes factures (remise sur prix de vente).
-  // Les nouvelles remises portent sur le prix d'achat et ne doivent jamais apparaître au client.
-  if (legacyDiscount > 0) {
+  if (adjustmentType === 'discount' && adjustmentPercent > 0) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
-    doc.text(`Remise appliquée : ${legacyDiscount}% (incluse dans les prix unitaires)`, 14, ty + 4);
+    doc.text(`Remise appliquée : ${adjustmentPercent}% (incluse dans les prix unitaires)`, 14, ty + 4);
     ty += 4;
   }
 
@@ -399,7 +402,7 @@ function renderClassic(doc: jsPDF, invoice: any, company: any): number {
 function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  doc.setFillColor(35, 35, 35);
+  doc.setFillColor(...accent([35, 35, 35]));
   doc.rect(0, 0, W, 30, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(companyNameSize(invoice));
@@ -453,7 +456,7 @@ function renderCompact(doc: jsPDF, invoice: any, company: any): number {
   doc.setLineWidth(0.3);
   doc.line(14, 62, W - 14, 62);
 
-  return itemsTable(doc, invoice, 66, [50, 50, 50], [255, 255, 255]);
+  return itemsTable(doc, invoice, 66, accent([50, 50, 50]), [255, 255, 255]);
 }
 
 // ─── TEMPLATE 3: DETAILED ─────────────────────────────────────────────────────
@@ -517,7 +520,7 @@ function renderDetailed(doc: jsPDF, invoice: any, company: any): number {
 function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   const W = doc.internal.pageSize.getWidth();
 
-  doc.setFillColor(18, 18, 18);
+  doc.setFillColor(...accent([18, 18, 18]));
   doc.rect(0, 0, W, 32, 'F');
 
   addLogo(doc, company, W / 2 - 16, 4, 32, 22);
@@ -533,7 +536,7 @@ function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   const info = [company?.phone, company?.email, company?.address].filter(Boolean).join('   ·   ');
   doc.text(info, W / 2, 49, { align: 'center', maxWidth: W - 28 });
 
-  doc.setDrawColor(18, 18, 18);
+  doc.setDrawColor(...accent([18, 18, 18]));
   doc.setLineWidth(1.2);
   doc.line(14, 55, W - 14, 55);
   doc.setLineWidth(0.2);
@@ -569,7 +572,7 @@ function renderCorporate(doc: jsPDF, invoice: any, company: any): number {
   doc.text(`Date : ${fDate(invoice.createdAt)}`, 14, refY);
   if (invoice.dueDate) doc.text(`Échéance : ${fDate(invoice.dueDate)}`, 70, refY);
 
-  return itemsTable(doc, invoice, refY + 8, [22, 22, 22], [255, 255, 255]);
+  return itemsTable(doc, invoice, refY + 8, accent([22, 22, 22]), [255, 255, 255]);
 }
 
 // ─── TEMPLATE 5: TABLE_FOCUS ─────────────────────────────────────────────────
@@ -618,10 +621,11 @@ function renderTableFocus(doc: jsPDF, invoice: any, company: any): number {
   if (invoice.dueDate) doc.text(`Échéance : ${fDate(invoice.dueDate)}`, W - 14, 65, { align: 'right' });
   if (invoice.deliveryDate) doc.text(`Livraison : ${fDate(invoice.deliveryDate)}`, W - 14, 71, { align: 'right' });
 
+  const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const body = invoice.items.map((i: any) => {
-    const unitPrice = salePrice(invoice, i.unitPrice);
+    const unitPrice = adjustedUnitPrice(Number(i.unitPrice), adjustmentType, adjustmentPercent);
     return [
-      i.description,
+      breakLongWords(i.description, 30),
       { content: String(i.quantity), styles: { halign: 'center' } },
       { content: fmt(unitPrice), styles: { halign: 'right' } },
       { content: fmt(roundMoney(unitPrice * Number(i.quantity || 0))), styles: { halign: 'right', fontStyle: 'bold' } },
@@ -722,7 +726,7 @@ function renderDeliveryNote(doc: jsPDF, invoice: any, company: any): number {
 
   // TABLEAU : DESIGNATION / QTE / TOTAL ("reçu")
   const body = (invoice.items || []).map((i: any) => [
-    i.description,
+    breakLongWords(i.description, 30),
     { content: String(i.quantity), styles: { halign: 'center' } },
     { content: 'reçu', styles: { halign: 'center' } },
   ]);
@@ -747,6 +751,8 @@ export function generateInvoicePDFDoc(invoice: any, company: any): jsPDF {
   // Si une identité société a été choisie pour ce document (invoice.issuerName),
   // elle remplace le nom de la société par défaut sur le document généré.
   company = { ...company, ...(invoice.issuerName ? { name: invoice.issuerName } : {}), _nameSize: invoice.issuerNameSize };
+
+  ACCENT = resolveAccent(company?.documentColor);
 
   if (invoice.type === 'bon_livraison') {
     renderDeliveryNote(doc, invoice, company);

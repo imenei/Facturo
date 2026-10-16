@@ -165,7 +165,7 @@ export default function InvoicesPage() {
       setDeleteTarget(null);
       setDeleteReason('');
       load();
-    } catch { toast.error(user?.role === 'commercial' ? 'Impossible d’envoyer la demande de suppression' : t('error_deleting')); }
+    } catch { toast.error(user?.role === 'commercial' ? t('Impossible d’envoyer la demande de suppression') : t('error_deleting')); }
     setDeleting(false);
   };
 
@@ -340,7 +340,7 @@ export default function InvoicesPage() {
                           </button>
                         )}
                         {isManager(user?.role) && (
-                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}>
+                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? t('Demander la suppression') : t('delete')}>
                             <Trash2 size={15} />
                           </button>
                         )}
@@ -377,12 +377,12 @@ export default function InvoicesPage() {
       >
         <p>{t('Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?')}</p>
         <p><strong>{reminderTarget?.clientEmail}</strong></p>
-        <p>Un email de rappel sera envoyé au client {reminderTarget?.clientName}.</p>
+        <p>{t('Un email de rappel sera envoyé au client')} {reminderTarget?.clientName}.</p>
       </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title={user?.role === 'commercial' ? 'Demande de suppression' : 'Supprimer la facture'}
-        confirmLabel={user?.role === 'commercial' ? 'Envoyer la demande' : 'Supprimer'}
+        title={user?.role === 'commercial' ? t('Demande de suppression') : t('Supprimer la facture')}
+        confirmLabel={user?.role === 'commercial' ? t('Envoyer la demande') : 'Supprimer'}
         danger={user?.role !== 'commercial'}
         loading={deleting}
         onCancel={() => { setDeleteTarget(null); setDeleteReason(''); }}
@@ -390,7 +390,7 @@ export default function InvoicesPage() {
       >
         {user?.role === 'commercial' ? (
           <>
-            <p>La facture {deleteTarget?.number} ne sera supprimée qu’après validation par un administrateur.</p>
+            <p>{t('inv_delete_notice', { number: deleteTarget?.number || '' })}</p>
             <label className="block text-sm font-medium text-slate-700" htmlFor="listDeleteReason">{t('Motif de la suppression')} *</label>
             <textarea id="listDeleteReason" className="input min-h-24 resize-y" required value={deleteReason}
               onChange={(e) => setDeleteReason(e.target.value)} placeholder={t('Expliquez pourquoi cette facture doit être supprimée.')} />

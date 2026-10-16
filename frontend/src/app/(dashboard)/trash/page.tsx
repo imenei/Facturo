@@ -58,7 +58,7 @@ export default function TrashPage() {
           <h1 className="text-2xl font-display font-700 text-slate-900 mt-2">{t('Corbeille')}</h1>
           <p className="text-sm text-slate-500 mt-1">{invoices.length} document(s) supprimé(s)</p>
         </div>
-        <button type="button" onClick={() => { setLoading(true); void load(); }} className="btn-secondary" title="Actualiser" aria-label="Actualiser">
+        <button type="button" onClick={() => { setLoading(true); void load(); }} className="btn-secondary" title={t('Actualiser')} aria-label={t('Actualiser')}>
           <RefreshCw size={16} />
         </button>
       </div>

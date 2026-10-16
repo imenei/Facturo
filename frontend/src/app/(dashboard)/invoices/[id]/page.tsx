@@ -195,7 +195,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       const { data } = await api.get('/notifications/reminder-history');
       setHistory(data.filter((entry: any) => entry.invoiceId === invoice.id));
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Impossible de charger l’historique des rappels.');
+      toast.error(error?.response?.data?.message || t('Impossible de charger l’historique des rappels.'));
     }
     setHistoryLoading(false);
   };
@@ -209,7 +209,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       setHeaderName(data.headerName || 'HelpDZ');
       setTemplateOpen(true);
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Impossible de charger le modèle de rappel.');
+      toast.error(error?.response?.data?.message || t('Impossible de charger le modèle de rappel.'));
     }
     setTemplateLoading(false);
   };
@@ -225,7 +225,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
       setTemplateOpen(false);
       toast.success(t('Modèle de rappel enregistré.'));
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Impossible d’enregistrer le modèle de rappel.');
+      toast.error(error?.response?.data?.message || t('Impossible d’enregistrer le modèle de rappel.'));
     }
     setTemplateSaving(false);
   };
@@ -257,7 +257,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
             setHistoryOpen(opening);
             if (opening) void loadHistory();
           }} className="btn-secondary flex items-center gap-2 text-sm">
-            <History size={14} /> {historyOpen ? 'Masquer l’historique' : 'Historique'}
+            <History size={14} /> {historyOpen ? t('Masquer l’historique') : 'Historique'}
           </button>
           <button type="button" onClick={() => void editTemplate()} disabled={templateLoading}
             className="btn-secondary flex items-center gap-2 text-sm">
@@ -351,7 +351,7 @@ function ReminderPanel({ invoice, t }: { invoice: any; t: (key: string) => strin
         onConfirm={send}
       >
         <p>{t('Êtes-vous sûr de vouloir envoyer un rappel à cette adresse email ?')}</p>
-        <p><strong>{recipientEmail || 'Aucune adresse email'}</strong></p>
+        <p><strong>{recipientEmail || t('Aucune adresse email')}</strong></p>
         <p>{t('Un email de rappel de paiement sera envoyé à ce destinataire.')}</p>
       </ConfirmDialog>
     </div>
@@ -553,7 +553,7 @@ export default function InvoiceDetailPage() {
       setShowDeleteDialog(false);
       setDeleteReason('');
     } catch {
-      toast.error(user?.role === 'commercial' ? 'Impossible d’envoyer la demande de suppression' : t('error_deleting'));
+      toast.error(user?.role === 'commercial' ? t('Impossible d’envoyer la demande de suppression') : t('error_deleting'));
     }
     setDeleting(false);
   };
@@ -611,15 +611,15 @@ export default function InvoiceDetailPage() {
                   invoice.createdBy.role === 'admin' ? 'bg-blue-50 text-blue-600' : 'bg-violet-50 text-violet-600',
                 )}>
                   {invoice.createdBy.role === 'admin' ? <ShieldCheck size={10} /> : <Briefcase size={10} />}
-                  Créé par {invoice.createdBy.name}
+                  {t('Créé par')} {invoice.createdBy.name}
                   <span className="text-slate-300"> · </span>
                   {invoice.createdBy.role === 'commercial' ? 'Commercial' : invoice.createdBy.role === 'admin' ? 'Administrateur' : invoice.createdBy.role}
-                  · {new Date(invoice.createdAt).toLocaleDateString('fr-FR')} à {new Date(invoice.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  · {new Date(invoice.createdAt).toLocaleDateString('fr-FR')} {t('at_time')} {new Date(invoice.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                 </span>
               )}
               {invoice.lastModifiedBy && invoice.lastModifiedBy.id !== invoice.createdBy?.id && (
                 <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 font-medium">
-                  Modifié par {invoice.lastModifiedBy.name}
+                  {t('Modifié par')} {invoice.lastModifiedBy.name}
                   {invoice.lastModifiedBy.role === 'commercial' && (
                     <span className="text-amber-500">· Commercial</span>
                   )}
@@ -652,7 +652,7 @@ export default function InvoiceDetailPage() {
           {canManage && (
             <button onClick={() => setShowDeleteDialog(true)} disabled={invoice.deletionRequestPending}
               className="btn-secondary text-sm text-red-600 hover:bg-red-50 hover:border-red-200 disabled:opacity-50">
-              <Trash2 size={15} /> {invoice.deletionRequestPending ? 'Demande en attente' : user?.role === 'commercial' ? 'Demander la suppression' : t('delete')}
+              <Trash2 size={15} /> {invoice.deletionRequestPending ? t('Demande en attente') : user?.role === 'commercial' ? t('Demander la suppression') : t('delete')}
             </button>
           )}
         </div>
@@ -812,7 +812,7 @@ export default function InvoiceDetailPage() {
           </div>
           {invoice.type !== 'bon_livraison' && adjustmentType === 'discount' && adjustmentPercent > 0 && (
             <p className="pt-2 text-right text-xs text-slate-500">
-              Remise appliquée : {adjustmentPercent}% (incluse dans les prix unitaires)
+              {t('inv_discount_applied', { n: String(adjustmentPercent) })}
             </p>
           )}
         </div>
@@ -840,8 +840,8 @@ export default function InvoiceDetailPage() {
       )}
       <ConfirmDialog
         open={showDeleteDialog}
-        title={user?.role === 'commercial' ? 'Demande de suppression' : 'Supprimer la facture'}
-        confirmLabel={user?.role === 'commercial' ? 'Envoyer la demande' : 'Supprimer'}
+        title={user?.role === 'commercial' ? t('Demande de suppression') : t('Supprimer la facture')}
+        confirmLabel={user?.role === 'commercial' ? t('Envoyer la demande') : 'Supprimer'}
         danger={user?.role !== 'commercial'}
         loading={deleting}
         onCancel={() => { setShowDeleteDialog(false); setDeleteReason(''); }}

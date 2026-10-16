@@ -95,7 +95,7 @@ export default function EditInvoicePage() {
         deliveryPersonId: form.deliveryPersonId || null,
         hasTva: Boolean(form.hasTva),
         tvaRate: form.hasTva ? Number(form.tvaRate) || 19 : 0,
-        issuerName: form.type !== 'bon_livraison' ? form.issuerName || undefined : undefined,
+        issuerName: form.issuerName || undefined,
         items: items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
@@ -129,7 +129,7 @@ export default function EditInvoicePage() {
               </label>
             ))}
           </div>
-          {form.type !== 'bon_livraison' && (
+          {(
             <div className="mt-4">
               <label className="label">{t('Émis au nom de')}</label>
               <div className="flex gap-2 flex-wrap">
@@ -245,13 +245,13 @@ export default function EditInvoicePage() {
             {form.hasTva && <input type="number" className="input w-20" value={form.tvaRate} onChange={(e) => setForm({ ...form, tvaRate: Number(e.target.value) })} />}
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <label className="text-sm font-medium">Ajustement</label>
+            <label className="text-sm font-medium">{t('Ajustement')}</label>
             <select className="input w-32 py-1" value={form.adjustmentType || 'discount'}
               onChange={(e) => setForm({ ...form, adjustmentType: e.target.value })}>
-              <option value="discount">Remise (-)</option>
-              <option value="addition">Ajout (+)</option>
+              <option value="discount">{t('Remise (-)')}</option>
+              <option value="addition">{t('Ajout (+)')}</option>
             </select>
-            <input aria-label="Pourcentage d'ajustement" type="number" min={0} max={100} step={0.01} className="input w-20 text-right" value={form.adjustmentPercent ?? 0}
+            <input aria-label={t("Pourcentage d'ajustement")} type="number" min={0} max={100} step={0.01} className="input w-20 text-right" value={form.adjustmentPercent ?? 0}
               onChange={(e) => setForm({ ...form, adjustmentPercent: Number(e.target.value) || 0 })} />
             <span className="text-sm text-slate-500">%</span>
           </div>

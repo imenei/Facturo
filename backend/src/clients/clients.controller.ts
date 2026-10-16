@@ -24,36 +24,43 @@ export class ClientsController {
     private invoicesRepo: Repository<Invoice>,
   ) {}
 
+  /**
+   * Liste des clients (regroupés depuis les documents non supprimés).
+   * La recherche porte sur le CLIENT : nom, e-mail, téléphone ou adresse — jamais sur les factures.
+   */
   @Get()
-  async getClients(@Query('name') name?: string) {
+  async getClients(@Query('name') name?: string, @Query('q') q?: string) {
+    const term = (q || name || '').trim().toLowerCase();
     const qb = this.invoicesRepo
       .createQueryBuilder('inv')
       .select('inv.clientName', 'clientName')
       .addSelect('inv.clientId', 'clientId')
-      .addSelect('inv.clientEmail', 'clientEmail')
-      .addSelect('inv.clientPhone', 'clientPhone')
-      .addSelect('inv.clientAddress', 'clientAddress')
+      .addSelect('MAX(inv.clientEmail)', 'clientEmail')
+      .addSelect('MAX(inv.clientPhone)', 'clientPhone')
+      .addSelect('MAX(inv.clientAddress)', 'clientAddress')
       .addSelect('MAX(inv.clientLogoUrl)', 'clientLogoUrl')
       .addSelect('COUNT(*)', 'documentCount')
-      .addSelect('SUM(inv.total)', 'totalAmount')
+      .addSelect("COALESCE(SUM(CASE WHEN inv.type = 'facture' AND inv.status IN ('emise', 'payee') THEN inv.total ELSE 0 END), 0)", 'totalAmount')
       // MOD 1: add unpaid amount per client
       .addSelect(
-        "SUM(CASE WHEN inv.paymentStatus = 'unpaid' AND inv.status != 'annulee' AND inv.type = 'facture' THEN inv.total ELSE 0 END)",
+        "COALESCE(SUM(CASE WHEN inv.paymentStatus = 'unpaid' AND inv.status = 'emise' AND inv.type = 'facture' THEN inv.total ELSE 0 END), 0)",
         'unpaidAmount',
       )
       .addSelect(
-        "COUNT(CASE WHEN inv.paymentStatus = 'unpaid' AND inv.status != 'annulee' AND inv.type = 'facture' THEN 1 END)",
+        "COUNT(CASE WHEN inv.paymentStatus = 'unpaid' AND inv.status = 'emise' AND inv.type = 'facture' THEN 1 END)",
         'unpaidCount',
       )
+      .where('inv.isDeleted = false')
       .groupBy('inv.clientName')
       .addGroupBy('inv.clientId')
-      .addGroupBy('inv.clientEmail')
-      .addGroupBy('inv.clientPhone')
-      .addGroupBy('inv.clientAddress')
       .orderBy('inv.clientName', 'ASC');
 
-    if (name) {
-      qb.where('LOWER(inv.clientName) LIKE :name', { name: `%${name.toLowerCase()}%` });
+    if (term) {
+      qb.andWhere(
+        `(LOWER(inv.clientName) LIKE :term OR LOWER(COALESCE(inv.clientEmail, '')) LIKE :term
+          OR LOWER(COALESCE(inv.clientPhone, '')) LIKE :term OR LOWER(COALESCE(inv.clientAddress, '')) LIKE :term)`,
+        { term: `%${term}%` },
+      );
     }
 
     return qb.getRawMany();

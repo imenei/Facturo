@@ -1,4 +1,5 @@
 'use client';
+import PdfPagesViewer from '@/components/PdfPagesViewer';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Download, Check, Loader2, Eye } from 'lucide-react';
 import clsx from 'clsx';
@@ -160,11 +161,7 @@ export default function PDFPreviewModal({ invoice, company, onClose, onDownload,
             )}
 
             {previewUrl && !rendering && (
-              <iframe
-                src={`${previewUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
-                className="w-full h-full border-0 bg-white"
-                title={t('Aperçu PDF')}
-              />
+              <PdfPagesViewer url={previewUrl} title={t('Aperçu PDF')} />
             )}
 
             {/* Bottom label */}

@@ -155,7 +155,7 @@ export default function DeliveriesPage() {
                       <div className="text-xs text-slate-400 capitalize">{t(inv.type.replace('_', ' '))}</div>
                       {inv.type === 'bon_livraison' && inv.sourceInvoiceId && invoiceById.get(inv.sourceInvoiceId) && (
                         <Link href={`/invoices/${inv.sourceInvoiceId}`} className="mt-0.5 inline-flex items-center gap-1 text-xs text-brand-600 hover:underline">
-                          <Link2 size={10} /> Facture {invoiceById.get(inv.sourceInvoiceId).number}
+                          <Link2 size={10} /> {t('Facture')} {invoiceById.get(inv.sourceInvoiceId).number}
                         </Link>
                       )}
                       {inv.deliveryPersonName && <div className="text-xs text-slate-400">Livreur : {inv.deliveryPersonName}</div>}

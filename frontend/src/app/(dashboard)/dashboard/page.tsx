@@ -22,7 +22,7 @@ function StatCard({ icon: Icon, label, value, color, sub }: any) {
       </div>
       <div className="min-w-0">
         <p className="text-sm text-slate-500">{label}</p>
-        <p className="text-2xl font-display font-700 text-slate-900 mt-0.5 truncate">{value}</p>
+        <p dir="ltr" className="text-xl xl:text-2xl font-display font-700 text-slate-900 mt-0.5 break-words rtl:text-right">{value}</p>
         {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
       </div>
     </div>
@@ -31,6 +31,7 @@ function StatCard({ icon: Icon, label, value, color, sub }: any) {
 
 function WorkflowBadge({ step }: { step: string }) {
   const steps = ['commande', 'livraison', 'facturation', 'recouvrement'];
+  const { t } = useI18nStore();
   const labels: Record<string, string> = { commande: 'Cmd', livraison: 'Liv', facturation: 'Fact', recouvrement: 'Recouv' };
   const currentIdx = steps.indexOf(step);
   return (
@@ -38,7 +39,7 @@ function WorkflowBadge({ step }: { step: string }) {
       {steps.map((s, i) => (
         <div key={s}
           className={`text-xs px-1.5 py-0.5 rounded font-medium ${i <= currentIdx ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-          {labels[s]}
+          {t(labels[s])}
         </div>
       ))}
     </div>
@@ -226,14 +227,14 @@ export default function DashboardPage() {
               {overdueInvoices.length > 0 && (
                 <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
                   <AlertCircle size={16} className="shrink-0" />
-                  <strong>{overdueInvoices.length} facture(s)</strong> impayée(s) depuis plus de 30 jours —
-                  <Link href="/invoices?paymentStatus=unpaid" className="underline ml-1">Voir →</Link>
+                  <strong>{t('dash_overdue_count', { n: String(overdueInvoices.length) })}</strong> {t('dash_overdue_suffix')}
+                  <Link href="/invoices?paymentStatus=unpaid" className="underline ms-1">{t('dash_see')}</Link>
                 </div>
               )}
               {recoveryRate < 70 && (
                 <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
                   <ShieldAlert size={16} className="shrink-0" />
-                  Taux de recouvrement faible : <strong className="mx-1">{recoveryRate}%</strong> (objectif 70%)
+                  {t('dash_low_recovery')} : <strong className="mx-1">{recoveryRate}%</strong> {t('dash_goal')}
                 </div>
               )}
             </div>
@@ -242,54 +243,54 @@ export default function DashboardPage() {
           {/* KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             <StatCard
-              icon={TrendingUp} label={t('revenue')} color="bg-brand-500"
+              icon={TrendingUp} label={t('dash_revenue_ht')} color="bg-brand-500"
               value={formatMoneyDzd(overview.revenue?.totalRevenue || 0)}
-              sub={`${overview.revenue?.paidInvoicesCount || 0} factures payées`}
+              sub={t('dash_collected', { n: formatMoneyDzd(overview.revenue?.collectedRevenue || 0) })}
             />
             <StatCard
               icon={AlertCircle} label={t('unpaid_amount')} color="bg-red-500"
               value={formatMoneyDzd(overview.revenue?.unpaidRevenue || 0)}
-              sub={`${overview.invoicesCount?.unpaid || 0} en attente`}
+              sub={t('dash_unpaid_pending', { n: String(overview.invoicesCount?.unpaid || 0) })}
             />
             <StatCard
-              icon={Receipt} label="Total TVA" color="bg-amber-500"
+              icon={Receipt} label={t('dash_total_vat')} color="bg-amber-500"
               value={formatMoneyDzd(overview.revenue?.totalVat || 0)}
-              sub="Factures émises et payées"
+              sub={t('dash_vat_sub')}
             />
             {/* MOD 4: recovery rate KPI */}
             <StatCard
               icon={BarChart3} label={t('recovery_rate')} color={recoveryRate >= 70 ? 'bg-emerald-500' : 'bg-orange-500'}
               value={`${recoveryRate}%`}
-              sub={`${overview.invoicesCount?.paid || 0} / ${overview.invoicesCount?.total || 0} factures`}
+              sub={t('dash_invoices_ratio', { a: String(overview.invoicesCount?.paid || 0), b: String(overview.invoicesCount?.total || 0) })}
             />
             <StatCard
               icon={CheckSquare} label={t('deliveries')} color="bg-emerald-500"
               value={`${overview.deliveries?.completed || 0} / ${overview.deliveries?.total || 0}`}
-              sub={`Taux : ${overview.deliveries?.completionRate || 0}%`}
+              sub={t('dash_rate', { n: String(overview.deliveries?.completionRate || 0) })}
             />
           </div>
 
           {/* MOD 4: row 2 — margin + delivery perf */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             <StatCard
-              icon={DollarSign} label="Bénéfice net" color="bg-purple-500"
+              icon={DollarSign} label={t('dash_net_profit')} color="bg-purple-500"
               value={marginStats ? formatMoneyDzd(marginStats.totalMargin) : '—'}
-              sub={marginStats ? `Taux : ${marginStats.marginRate}%` : ''}
+              sub={marginStats ? t('dash_rate', { n: String(marginStats.marginRate) }) : ''}
             />
             <StatCard
               icon={Truck} label={t('on_time_deliveries')} color={Number(deliveryPerf?.onTimeRate) >= 80 ? 'bg-emerald-600' : 'bg-amber-500'}
               value={deliveryPerf ? `${deliveryPerf.onTimeRate}%` : '—'}
-              sub={deliveryPerf ? `${deliveryPerf.onTime} à temps / ${deliveryPerf.completed} terminées` : ''}
+              sub={deliveryPerf ? t('dash_on_time', { a: String(deliveryPerf.onTime), b: String(deliveryPerf.completed) }) : ''}
             />
             <StatCard
-              icon={FileText} label="Total documents" color="bg-slate-600"
+              icon={FileText} label={t('dash_total_docs')} color="bg-slate-600"
               value={overview.invoicesCount?.total || 0}
-              sub={`${overview.invoicesCount?.draft || 0} brouillons`}
+              sub={t('dash_drafts', { n: String(overview.invoicesCount?.draft || 0) })}
             />
             <StatCard
               icon={Users} label={t('active_clients')} color="bg-indigo-500"
               value={topClients.length || 0}
-              sub="avec au moins 1 document"
+              sub={t('dash_clients_sub')}
             />
           </div>
 

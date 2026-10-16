@@ -97,5 +97,8 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
--- 11. Vérification : lister les colonnes de la table invoices
+-- 11. Couleur principale des documents PDF / Word (réglage « Société »)
+ALTER TABLE company ADD COLUMN IF NOT EXISTS "documentColor" varchar(9);
+
+-- 12. Vérification : lister les colonnes de la table invoices
 -- \d invoices

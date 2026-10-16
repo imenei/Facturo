@@ -284,9 +284,14 @@ export default function ClientsPage() {
     return <ClientDetail client={selected} onBack={() => setSelected(null)} t={t} />;
   }
 
-  const filtered = clients.filter((c) =>
-    !search || c.clientName?.toLowerCase().includes(search.toLowerCase()),
-  );
+  // Recherche sur le client (nom, e-mail, téléphone, adresse), sans tenir compte des accents.
+  const fold = (value: any) =>
+    String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const filtered = clients.filter((c) => {
+    const term = fold(search.trim());
+    if (!term) return true;
+    return [c.clientName, c.clientEmail, c.clientPhone, c.clientAddress].some((v) => fold(v).includes(term));
+  });
 
   return (
     <div className="p-6 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -298,8 +303,8 @@ export default function ClientsPage() {
       </div>
 
       <div className="relative mb-5">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-        <input className="input pl-9 max-w-sm" placeholder={t('search_client')} value={search}
+        <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <input className="input ps-9 max-w-sm" placeholder={t('search_client')} value={search}
           onChange={(e) => setSearch(e.target.value)} />
       </div>
 

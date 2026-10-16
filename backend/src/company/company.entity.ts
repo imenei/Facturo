@@ -53,6 +53,10 @@ export class Company {
   @Column({ nullable: true, type: 'text' })
   legalMentions: string;
 
+  // Couleur principale des documents PDF / Word (hex #RRGGBB). Vide = noir d'origine.
+  @Column({ type: 'varchar', length: 9, nullable: true })
+  documentColor: string | null;
+
   @UpdateDateColumn()
   updatedAt: Date;
 }

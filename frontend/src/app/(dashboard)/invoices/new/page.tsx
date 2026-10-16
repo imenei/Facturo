@@ -22,14 +22,18 @@ interface Item {
 }
 
 const TYPE_OPTIONS = [
-  { value: 'facture', label: '📄 Facture' },
-  { value: 'proforma', label: '📋 Proforma' },
-  { value: 'bon_livraison', label: '📦 Bon de livraison' },
+  { value: 'facture', icon: '📄', label: 'Facture' },
+  { value: 'proforma', icon: '📋', label: 'Proforma' },
+  { value: 'bon_livraison', icon: '📦', label: 'Bon de livraison' },
 ];
 
 const TEMPLATE_LABELS: Record<string, string> = {
-  classic: '📄 Classic', compact: '📋 Compact', detailed: '📑 Détaillé',
-  corporate: '🏢 Corporate', table_focus: '📊 Tableau Focus',
+  classic: 'Classic', compact: 'Compact', detailed: 'Détaillé',
+  corporate: 'Corporate', table_focus: 'Tableau Focus',
+};
+
+const TEMPLATE_ICONS: Record<string, string> = {
+  classic: '📄', compact: '📋', detailed: '📑', corporate: '🏢', table_focus: '📊',
 };
 
 // Les 3 identités société utilisées pour émettre les documents.
@@ -183,6 +187,9 @@ export default function NewInvoicePage() {
           adjustmentPercent: 0,
           deliveryPrice: Number(invoice.deliveryPrice || 0),
           deliveryPersonId: invoice.deliveryPersonId || '',
+          // Le bon de livraison garde l'identité société (nom + taille) de sa facture.
+          issuerName: invoice.issuerName || p.issuerName,
+          issuerNameSize: Number(invoice.issuerNameSize) || p.issuerNameSize,
         }));
         setItems((invoice.items || []).map((item: any) => ({
           description: item.description || '',
@@ -274,6 +281,7 @@ export default function NewInvoicePage() {
     e.preventDefault();
     setSaving(true);
     try {
+      // FIX: upload base64 logo first, then use the returned URL
       // Send base64 logo directly in the payload (no separate upload)
       let clientLogoUrl: string | undefined = form.clientLogoUrl || undefined;
       if (clientLogoUrl && !clientLogoUrl.startsWith('data:') && !clientLogoUrl.startsWith('http')) {
@@ -325,17 +333,11 @@ export default function NewInvoicePage() {
       if (form.dueDate) payload.dueDate = form.dueDate;
       if (form.deliveryDate) payload.deliveryDate = form.deliveryDate;
       if (form.templateType) payload.templateType = form.templateType;
-      if (form.type !== 'bon_livraison' && form.issuerName) payload.issuerName = form.issuerName;
+      if (form.issuerName) payload.issuerName = form.issuerName;
 
       const { data } = await api.post('/invoices', payload);
-      if (data?._offline) {
-        // Hors ligne : la facture est en file d'attente (id temporaire), on revient à la liste
-        toast.success(t('Facture enregistrée hors ligne, elle sera synchronisée au retour du réseau.'));
-        router.push('/invoices');
-      } else {
-        toast.success(t('invoice_created_successfully'));
-        router.push(`/invoices/${data.id}`);
-      }
+      toast.success(t('invoice_created_successfully'));
+      router.push(`/invoices/${data.id}`);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || t('error_during_creation'));
     }
@@ -363,7 +365,7 @@ export default function NewInvoicePage() {
               <button key={opt.value} type="button" onClick={() => setForm({ ...form, type: opt.value })}
                 className={clsx('px-4 py-2 rounded-xl border-2 font-medium text-sm transition-all',
                   form.type === opt.value ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-brand-300')}>
-                {opt.label}
+                {opt.icon} {t(opt.label)}
               </button>
             ))}
           </div>
@@ -376,7 +378,7 @@ export default function NewInvoicePage() {
                     onClick={() => setForm({ ...form, templateType: tmpl.type || tmpl.id })}
                     className={clsx('px-3 py-1.5 rounded-lg border text-sm transition-all',
                       form.templateType === (tmpl.type || tmpl.id) ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:border-brand-300')}>
-                    {TEMPLATE_LABELS[tmpl.type] || tmpl.name || tmpl.type}
+                    {TEMPLATE_ICONS[tmpl.type] ? `${TEMPLATE_ICONS[tmpl.type]} ` : ''}{t(TEMPLATE_LABELS[tmpl.type] || tmpl.name || tmpl.type)}
                   </button>
                 ))}
               </div>
@@ -395,7 +397,7 @@ export default function NewInvoicePage() {
             </div>
           )}
 
-          {form.type !== 'bon_livraison' && (
+          {(
             <div className="mt-4">
               <label className="label flex items-center gap-1.5"><Building2 size={14} /> {t('Émis au nom de')}</label>
               <div className="flex flex-wrap gap-2">
@@ -490,7 +492,7 @@ export default function NewInvoicePage() {
               <button type="button" onClick={() => setShowInternalCosts(!showInternalCosts)}
                 className={clsx('flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all',
                   showInternalCosts ? 'bg-slate-100 border-slate-300 text-slate-700' : 'border-slate-200 text-slate-500 hover:border-slate-300')}>
-                <Lock size={12} /> {showInternalCosts ? 'Masquer prix achat' : 'Prix achat (interne)'}
+                <Lock size={12} /> {showInternalCosts ? t('Masquer prix achat') : t('Prix achat (interne)')}
               </button>
               <button type="button" onClick={addItem} className="btn-secondary text-sm py-1.5">
                 <Plus size={15} /> {t('add_line')}
@@ -662,14 +664,14 @@ export default function NewInvoicePage() {
             )}
 
             <div className="flex justify-between text-sm text-slate-600 mt-2">
-              <span>Ajustement</span>
+              <span>{t('Ajustement')}</span>
               <div className="flex items-center gap-2">
                 <select className="input w-32 py-1" value={form.adjustmentType}
                   onChange={(e) => setForm({ ...form, adjustmentType: e.target.value })}>
-                  <option value="discount">Remise (-)</option>
-                  <option value="addition">Ajout (+)</option>
+                  <option value="discount">{t('Remise (-)')}</option>
+                  <option value="addition">{t('Ajout (+)')}</option>
                 </select>
-                <input aria-label="Pourcentage d'ajustement" type="number" min={0} max={100} step={0.01} className="input w-20 text-right py-1" value={form.adjustmentPercent}
+                <input aria-label={t("Pourcentage d'ajustement")} type="number" min={0} max={100} step={0.01} className="input w-20 text-right py-1" value={form.adjustmentPercent}
                   onChange={(e) => setForm({ ...form, adjustmentPercent: Number(e.target.value) || 0 })} />
                 <span>%</span>
               </div>
