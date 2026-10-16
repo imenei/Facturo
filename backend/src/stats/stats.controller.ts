@@ -52,7 +52,7 @@ export class StatsController {
       .where(
         `(inv.id IS NULL OR (inv.isDeleted = false AND inv.type != :proformaType AND NOT (inv.type = :factureType AND EXISTS (
           SELECT 1 FROM invoices bl
-          WHERE bl."sourceInvoiceId" = inv.id AND bl.type = :noteType AND bl."isDeleted" = false
+          WHERE bl."sourceInvoiceId" = CAST(inv.id AS text) AND bl.type = :noteType AND bl."isDeleted" = false
         ))))`,
         { proformaType: InvoiceType.PROFORMA, factureType: InvoiceType.FACTURE, noteType: InvoiceType.BON_LIVRAISON },
       );
@@ -282,3 +282,4 @@ export class StatsController {
     return { revenue, invoicesCount, deliveries };
   }
 }
+ 
