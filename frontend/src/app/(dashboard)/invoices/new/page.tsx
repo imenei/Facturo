@@ -257,30 +257,18 @@ export default function NewInvoicePage() {
     setShowProductPicker(null);
   };
 
-  // ── REMISE / AJOUT : appliqué au PRIX D'ACHAT (interne), jamais au prix de vente ──
-  // Le total facturé au client reste donc basé sur les prix de vente tels que saisis.
-  const adjustmentPercentNumber = Number(form.adjustmentPercent) || 0;
-  const adjustedPurchase = (purchasePrice: number) =>
-    adjustedUnitPrice(purchasePrice, form.adjustmentType, adjustmentPercentNumber);
-
-  // Montant total de la remise (ou de l'ajout) sur les prix d'achat
-  const purchaseAdjustmentAmount = roundMoney(items.reduce((sum, item) =>
-    sum + lineAdjustmentAmount(item.purchasePrice, item.quantity, form.adjustmentType, adjustmentPercentNumber), 0));
-
-  // Sous-total de vente : SANS remise
-  const adjustedSubtotal = roundMoney(items.reduce((sum, item) =>
-    sum + roundMoney(item.unitPrice * item.quantity), 0));
+  const adjustmentAmount = roundMoney(items.reduce((sum, item) => sum + lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)), 0));
+  const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
   const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
   const tvaAmount = form.hasTva ? roundMoney((subtotalWithCharges * form.tvaRate) / 100) : 0;
   const total = roundMoney(subtotalWithCharges + tvaAmount);
 
-  // MOD 7: marge interne calculée avec le prix d'achat APRÈS remise
+  // MOD 7: internal margin calculation
   const totalMargin = roundMoney(items.reduce((sum, item) =>
-    sum + lineGrossMargin(item.unitPrice, adjustedPurchase(item.purchasePrice), item.quantity), 0));
+    sum + lineGrossMargin(item.unitPrice, item.purchasePrice, item.quantity), 0));
   const marginRate = total > 0 ? ((totalMargin / total) * 100).toFixed(1) : '0';
-  // La remise est déjà incluse dans la marge : on ne l'ajoute/retire plus ici.
-  const netProfit = totalMargin + otherChargeTotal - Number(form.deliveryPrice || 0);
+  const netProfit = totalMargin + otherChargeTotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount) - Number(form.deliveryPrice || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,15 +293,13 @@ export default function NewInvoicePage() {
         sourceInvoiceId: form.sourceInvoiceId || undefined,
         taskId: form.taskId || undefined,
         clientName: form.clientName.trim(),
-        // La remise est déjà appliquée au prix d'achat envoyé ci-dessous :
-        // on envoie 0 % pour que le serveur ne l'applique PAS au prix de vente.
         adjustmentType: form.adjustmentType,
-        adjustmentPercent: 0,
+        adjustmentPercent: Number(form.adjustmentPercent) || 0,
         items: items.map((item) => ({
           description: item.description.trim(),
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
-          purchasePrice: roundMoney(adjustedPurchase(Number(item.purchasePrice) || 0)),
+          purchasePrice: Number(item.purchasePrice) || 0,
         })),
         hasTva: form.hasTva,
         issuerNameSize: Number(form.issuerNameSize),
@@ -525,10 +511,8 @@ export default function NewInvoicePage() {
 
           <div className="space-y-2">
             {items.map((item, i) => {
-              // Marge par ligne : prix de vente (inchangé) − prix d'achat APRÈS remise
-              const effectivePurchase = adjustedPurchase(item.purchasePrice);
-              const margin = (item.unitPrice - effectivePurchase) * item.quantity;
-              const marginPct = item.unitPrice > 0 ? (((item.unitPrice - effectivePurchase) / item.unitPrice) * 100).toFixed(0) : '0';
+              const margin = (item.unitPrice - item.purchasePrice) * item.quantity;
+              const marginPct = item.unitPrice > 0 ? (((item.unitPrice - item.purchasePrice) / item.unitPrice) * 100).toFixed(0) : '0';
               return (
                 <div key={i} className="bg-slate-50 rounded-lg p-2">
                   <div className={clsx(
@@ -613,11 +597,10 @@ export default function NewInvoicePage() {
                   </div>
 
                   {/* Row total + margin (MOD 7) */}
-                  <div className="flex items-center justify-between mt-1 px-1 flex-wrap gap-x-3">
+                  <div className="flex items-center justify-between mt-1 px-1">
                     {item.quantity > 0 && item.unitPrice > 0 && (
                       <span className="text-xs text-slate-400">
-                        {/* Total de ligne = prix de vente × quantité (sans remise) */}
-                        = {formatMoneyDzd(roundMoney(item.unitPrice * item.quantity))}
+                        = {formatMoneyDzd(roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity))}
                       </span>
                     )}
                     {/* MOD 7: show margin hint when internal costs visible */}
@@ -627,12 +610,7 @@ export default function NewInvoicePage() {
                         margin >= 0 ? 'text-emerald-600' : 'text-red-500',
                       )}>
                         <TrendingUp size={10} />
-                        {adjustmentPercentNumber > 0 && (
-                          <span className="text-slate-400 font-normal">
-                            Achat après {form.adjustmentType === 'discount' ? 'remise' : 'ajout'} : {formatMoneyDzd(roundMoney(effectivePurchase))} ·
-                          </span>
-                        )}
-                        Marge: {formatMoneyDzd(roundMoney(margin))} ({marginPct}%)
+                        Marge: {formatMoneyDzd(margin)} ({marginPct}%)
                       </span>
                     )}
                   </div>
@@ -678,29 +656,19 @@ export default function NewInvoicePage() {
               </div>
             )}
 
-            {/* Remise / ajout sur le PRIX D'ACHAT (interne, n'affecte pas le total client) */}
-            <div className="flex justify-between items-center text-sm text-slate-600 mt-2 flex-wrap gap-2">
-              <span className="flex items-center gap-1.5">
-                <Lock size={12} className="text-amber-500" />
-                Ajustement sur prix d'achat
-                <span className="text-xs text-slate-400">(interne)</span>
-              </span>
+            <div className="flex justify-between text-sm text-slate-600 mt-2">
+              <span>Ajustement</span>
               <div className="flex items-center gap-2">
                 <select className="input w-32 py-1" value={form.adjustmentType}
                   onChange={(e) => setForm({ ...form, adjustmentType: e.target.value })}>
                   <option value="discount">Remise (-)</option>
                   <option value="addition">Ajout (+)</option>
                 </select>
-                <input aria-label="Pourcentage d'ajustement sur le prix d'achat" type="number" min={0} max={100} step={0.01} className="input w-20 text-right py-1" value={form.adjustmentPercent}
+                <input aria-label="Pourcentage d'ajustement" type="number" min={0} max={100} step={0.01} className="input w-20 text-right py-1" value={form.adjustmentPercent}
                   onChange={(e) => setForm({ ...form, adjustmentPercent: Number(e.target.value) || 0 })} />
                 <span>%</span>
               </div>
             </div>
-            {adjustmentPercentNumber > 0 && (
-              <p className="text-right text-xs text-slate-400">
-                {form.adjustmentType === 'discount' ? 'Réduction' : 'Majoration'} totale du coût d'achat : {formatMoneyDzd(purchaseAdjustmentAmount)} — le total client ne change pas.
-              </p>
-            )}
 
             <div className="flex justify-between text-xl font-display font-700 text-slate-900 pt-2 border-t">
               <span>{t('total_incl_tax')}</span>
