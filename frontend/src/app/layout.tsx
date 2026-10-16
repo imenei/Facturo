@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import I18nBootstrap from '@/components/I18nBootstrap';
+import OfflineBootstrap from '@/components/OfflineBootstrap';
 
 export const metadata: Metadata = {
   title: 'HelpDZ — Gestion commerciale & livraisons',
@@ -22,29 +23,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr" dir="ltr" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Le cache PWA (Service Worker) a été désactivé : on s'assure ici
-              // que tout Service Worker précédemment installé est bien supprimé
-              // chez les utilisateurs existants, et que le site ne garde plus
-              // aucune version en cache.
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                  registrations.forEach(function(reg) { reg.unregister(); });
-                });
-              }
-              if (window.caches && window.caches.keys) {
-                window.caches.keys().then(function(names) {
-                  names.forEach(function(name) { window.caches.delete(name); });
-                });
-              }
-            `,
-          }}
-        />
       </head>
       <body suppressHydrationWarning>
         <I18nBootstrap />
+        <OfflineBootstrap />
         {children}
         <Toaster
           position="top-right"
