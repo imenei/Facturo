@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.json',
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'HelpDZ' },
   icons: { icon: '/icons/icon-512.png', apple: '/icons/icon-192.png' },
+  other: { 'mobile-web-app-capable': 'yes' },
 };
 
 export const viewport: Viewport = {
