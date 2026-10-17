@@ -1001,6 +1001,9 @@
     "personnalisee": "Custom",
     "une_couleur_trop_claire_est_automatiquement_assombrie_pour_garder_le_texte_lisible": "A color that is too light is automatically darkened to keep the text readable.",
     "dash_revenue_ht": "Revenue (excl. VAT)",
-    "dash_collected": "Collected: {{n}}"
+    "dash_collected": "Collected: {{n}}",
+    "autres_charges_internes": "Other charges (internal)",
+    "total_des_charges": "Total charges",
+    "non_affichees_sur_la_facture_deduites_du_benefice_net": "Not shown on the invoice: deducted from net profit."
   }
 }

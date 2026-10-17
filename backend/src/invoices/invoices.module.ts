@@ -3,13 +3,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { InvoicesService } from './invoices.service';
 import { InvoicesController } from './invoices.controller';
 import { Invoice } from './invoice.entity';
+import { Product } from '../products/product.entity';
 import { InvoiceDeletionRequest } from './invoice-deletion-request.entity';
 import { GatewayModule } from '../gateway/gateway.module';
 import { UsersModule } from '../users/users.module';
 import { TasksModule } from '../tasks/tasks.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Invoice, InvoiceDeletionRequest]), GatewayModule, UsersModule, TasksModule],
+  imports: [TypeOrmModule.forFeature([Invoice, InvoiceDeletionRequest, Product]), GatewayModule, UsersModule, TasksModule],
   providers: [InvoicesService],
   controllers: [InvoicesController],
   exports: [InvoicesService],

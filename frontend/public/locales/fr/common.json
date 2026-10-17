@@ -998,6 +998,9 @@
     "personnalisee": "Personnalisée",
     "une_couleur_trop_claire_est_automatiquement_assombrie_pour_garder_le_texte_lisible": "Une couleur trop claire est automatiquement assombrie pour garder le texte lisible.",
     "dash_revenue_ht": "Chiffre d'affaires HT",
-    "dash_collected": "Encaissé : {{n}}"
+    "dash_collected": "Encaissé : {{n}}",
+    "autres_charges_internes": "Autres charges (internes)",
+    "total_des_charges": "Total des charges",
+    "non_affichees_sur_la_facture_deduites_du_benefice_net": "Non affichées sur la facture : déduites du bénéfice net."
   }
 }

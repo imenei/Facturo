@@ -1001,6 +1001,9 @@
     "personnalisee": "مخصص",
     "une_couleur_trop_claire_est_automatiquement_assombrie_pour_garder_le_texte_lisible": "يتم تغميق اللون الفاتح جدًا تلقائيًا للحفاظ على وضوح النص.",
     "dash_revenue_ht": "رقم الأعمال (دون ضريبة)",
-    "dash_collected": "المحصّل: {{n}}"
+    "dash_collected": "المحصّل: {{n}}",
+    "autres_charges_internes": "تكاليف أخرى (داخلية)",
+    "total_des_charges": "إجمالي التكاليف",
+    "non_affichees_sur_la_facture_deduites_du_benefice_net": "غير معروضة في الفاتورة: تُخصم من صافي الربح."
   }
 }

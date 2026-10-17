@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
+import { Product } from '../products/product.entity';
 import { Invoice, InvoiceAdjustmentType, InvoiceType, InvoiceStatus, DeliveryStatus, PaymentStatus, WorkflowStep } from './invoice.entity';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
@@ -11,11 +12,18 @@ import { UsersService } from '../users/users.service';
 import { TasksService } from '../tasks/tasks.service';
 import { roundMoney, computeNetProfit, parseDateOnly } from '../common/money';
 
+/** Échappe les caractères spéciaux d'un motif LIKE (% _ \\). */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 @Injectable()
 export class InvoicesService {
   constructor(
     @InjectRepository(Invoice)
     private invoicesRepository: Repository<Invoice>,
+    @InjectRepository(Product)
+    private productsRepository: Repository<Product>,
     @InjectRepository(InvoiceDeletionRequest)
     private deletionRequestsRepository: Repository<InvoiceDeletionRequest>,
     private deliveryGateway: DeliveryGateway,
@@ -27,6 +35,50 @@ export class InvoicesService {
   // Verrou mémoire : empêche deux créations simultanées (double clic) d'un bon de livraison
   // pour la même facture.
   private readonly deliveryNotesBeingCreated = new Set<string>();
+
+  /**
+   * Chaque article saisi dans une facture / proforma est automatiquement ajouté à la liste des produits
+   * (s'il n'existe pas déjà, sans tenir compte des majuscules). Un produit existant n'est jamais écrasé ;
+   * un produit désactivé qui est de nouveau facturé est réactivé. Une erreur ici ne bloque jamais la facture.
+   */
+  private async syncProductsFromItems(
+    items: Array<{ description?: string; unitPrice?: number; purchasePrice?: number }> | undefined,
+  ): Promise<void> {
+    try {
+      const seen = new Set<string>();
+      for (const item of items || []) {
+        const name = String(item?.description || '').trim();
+        if (!name || name.length > 255) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const existing = await this.productsRepository
+          .createQueryBuilder('product')
+          .where('LOWER(product.name) = :key', { key })
+          .orderBy('product.isActive', 'DESC')
+          .getOne();
+
+        if (existing) {
+          if (!existing.isActive) {
+            existing.isActive = true;
+            await this.productsRepository.save(existing);
+          }
+          continue;
+        }
+        await this.productsRepository.save(
+          this.productsRepository.create({
+            name,
+            purchasePrice: roundMoney(item.purchasePrice ?? 0),
+            salePrice: roundMoney(item.unitPrice ?? 0),
+            isActive: true,
+          }),
+        );
+      }
+    } catch (error) {
+      console.error('[invoices] synchronisation des produits impossible :', (error as Error)?.message);
+    }
+  }
 
   private async generateNumber(type: InvoiceType): Promise<string> {
     const prefix = type === InvoiceType.FACTURE ? 'FAC' : type === InvoiceType.PROFORMA ? 'PRO' : 'BL';
@@ -79,7 +131,10 @@ export class InvoicesService {
       0,
     ));
     const adjustedSubtotal = roundMoney(adjustedItems.reduce((sum, item) => sum + item.adjustedTotal, 0));
-    const subtotalWithCharges = roundMoney(adjustedSubtotal + additionalCharges);
+    // Les « autres charges » sont des dépenses INTERNES : elles ne sont ni facturées ni affichées,
+    // donc ni dans le sous-total ni dans la base de TVA (TVA = chiffre d'affaires × taux).
+    void additionalCharges;
+    const subtotalWithCharges = roundMoney(adjustedSubtotal);
     const tvaAmount = hasTva ? roundMoney((subtotalWithCharges * (tvaRate || 19)) / 100) : 0;
     const total = roundMoney(subtotalWithCharges + tvaAmount);
 
@@ -205,7 +260,7 @@ export class InvoicesService {
       });
 
       const totalMargin = roundMoney(items.reduce((sum, item) => sum + (item.margin || 0), 0));
-      const otherCharge = roundMoney(dto.otherCharge ?? 0);
+      const otherCharge = otherCharges.length > 0 ? additionalCharges : roundMoney(dto.otherCharge ?? 0);
       const deliveryPrice = roundMoney(
         dto.deliveryPrice ?? (dto.type === InvoiceType.BON_LIVRAISON ? sourceInvoice?.deliveryPrice : 0) ?? 0,
       );
@@ -246,7 +301,7 @@ export class InvoicesService {
         issuerName: dto.issuerName || (dto.type === InvoiceType.BON_LIVRAISON ? sourceInvoice?.issuerName : undefined) || undefined,
         workflowStep: inheritedDeliveryStatus === DeliveryStatus.EN_ATTENTE ? WorkflowStep.COMMANDE : WorkflowStep.LIVRAISON,
         netProfit: computeNetProfit(
-          totalMargin + additionalCharges + (adjustmentType === InvoiceAdjustmentType.ADDITION ? totals.adjustmentAmount : -totals.adjustmentAmount),
+          totalMargin + (adjustmentType === InvoiceAdjustmentType.ADDITION ? totals.adjustmentAmount : -totals.adjustmentAmount),
           otherCharge,
           deliveryPrice,
         ),
@@ -262,6 +317,9 @@ export class InvoicesService {
       });
 
       const savedInvoice = await this.invoicesRepository.save(invoice);
+      if (savedInvoice.type === InvoiceType.FACTURE || savedInvoice.type === InvoiceType.PROFORMA) {
+        await this.syncProductsFromItems(items);
+      }
       const task = await this.tasksService.syncInvoiceTask(
         savedInvoice, userId, dto.taskId, sourceInvoice?.id, savedInvoice.deliveryStatus,
       );
@@ -316,11 +374,15 @@ export class InvoicesService {
       }
 
       if (filters?.client) {
-        qb.andWhere('LOWER(inv.clientName) LIKE :client', { client: `%${filters.client.toLowerCase()}%` });
+        // Recherche « commence par » : une lettre affiche tous les clients dont le nom commence par cette lettre.
+        qb.andWhere('LOWER(inv.clientName) LIKE :client', { client: `${escapeLike(filters.client.trim().toLowerCase())}%` });
       }
       if (filters?.number) {
-        qb.andWhere('UPPER(inv.number) LIKE :number', {
-          number: `%${filters.number.toUpperCase()}%`,
+        // Numéro : commence par la saisie (« f » → FAC-…) ou l'un de ses segments (« 0029 » → FAC-2026-0029).
+        const numberTerm = escapeLike(filters.number.trim().toUpperCase());
+        qb.andWhere('(UPPER(inv.number) LIKE :numberStart OR UPPER(inv.number) LIKE :numberSegment)', {
+          numberStart: `${numberTerm}%`,
+          numberSegment: `%-${numberTerm}%`,
         });
       }
       if (filters?.date) {
@@ -450,12 +512,11 @@ export class InvoicesService {
   }
 
   private recomputeNetProfit(invoice: Invoice): number {
-    const billedCharges = (invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0);
     const adjustmentImpact = invoice.adjustmentType === InvoiceAdjustmentType.ADDITION
       ? Number(invoice.adjustmentAmount || 0)
       : -Number(invoice.adjustmentAmount || 0);
     return computeNetProfit(
-      Number(invoice.totalMargin || 0) + billedCharges + adjustmentImpact,
+      Number(invoice.totalMargin || 0) + adjustmentImpact,
       Number(invoice.otherCharge || 0),
       Number(invoice.deliveryPrice || 0),
     );
@@ -627,12 +688,15 @@ export class InvoicesService {
     }
 
     invoice.netProfit = computeNetProfit(
-      Number(invoice.totalMargin || 0) + Number((invoice.otherCharges || []).reduce((sum, charge) => sum + Number(charge.amount || 0), 0)) + (invoice.adjustmentType === InvoiceAdjustmentType.ADDITION ? Number(invoice.adjustmentAmount || 0) : -Number(invoice.adjustmentAmount || 0)),
+      Number(invoice.totalMargin || 0) + (invoice.adjustmentType === InvoiceAdjustmentType.ADDITION ? Number(invoice.adjustmentAmount || 0) : -Number(invoice.adjustmentAmount || 0)),
       Number(invoice.otherCharge || 0),
       Number(invoice.deliveryPrice || 0),
     );
 
     const savedInvoice = await this.invoicesRepository.save(invoice);
+    if (dto.items !== undefined && (savedInvoice.type === InvoiceType.FACTURE || savedInvoice.type === InvoiceType.PROFORMA)) {
+      await this.syncProductsFromItems(savedInvoice.items);
+    }
     const task = await this.tasksService.syncInvoiceTask(savedInvoice, user.id, undefined, savedInvoice.sourceInvoiceId);
     if (task && savedInvoice.type === InvoiceType.BON_LIVRAISON && savedInvoice.deliveryPersonId) {
       this.deliveryGateway.emitTaskAssigned(

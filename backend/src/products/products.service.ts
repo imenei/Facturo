@@ -21,7 +21,10 @@ export class ProductsService {
 
   async findAll(search?: string): Promise<Product[]> {
     if (search?.trim()) {
-      const query = `%${search.trim()}%`;
+      // Recherche « commence par » : une lettre affiche les produits dont le nom (ou la référence)
+      // commence par cette lettre, et ainsi de suite à chaque lettre saisie.
+      const escaped = search.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+      const query = `${escaped}%`;
       return this.productsRepo.find({
         where: [
           { name: ILike(query), isActive: true },

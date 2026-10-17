@@ -20,7 +20,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { DELIVERY_UPDATED_EVENT } from '@/hooks/useRealtimeDelivery';
 import Link from 'next/link';
-import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, lineGrossMargin, resolveInvoiceAdjustment, roundMoney } from '@/lib/formatMoney';
+import { adjustedUnitPrice, computeNetProfit, formatMoney, formatMoneyDzd, getBilledCharges, lineGrossMargin, resolveInvoiceAdjustment, roundMoney } from '@/lib/formatMoney';
 
 const generateInvoiceWord = async (invoice: any, company: any) => {
   const { generateInvoiceWord: fn } = await import('@/lib/wordGenerator');
@@ -372,8 +372,12 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
     return sum + lineGrossMargin(Number(item.unitPrice), Number(item.purchasePrice), Number(item.quantity));
   }, 0) || Number(invoice.totalMargin) || 0);
   const adjustmentImpact = adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount;
-  const billedCharges = charges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0);
-  const netProfit = computeNetProfit(grossMargin + adjustmentImpact + billedCharges, Number(invoice.otherCharge) || 0, Number(invoice.deliveryPrice) || 0);
+  // Autres charges internes : total des lignes (ou ancien champ unique), déduites du bénéfice net.
+  const chargesTotal = charges.length ? charges.reduce((sum: number, charge: any) => sum + Number(charge.amount || 0), 0) : Number(invoice.otherCharge) || 0;
+  const storedNetProfit = Number(invoice.netProfit);
+  const netProfit = Number.isFinite(storedNetProfit) && storedNetProfit !== 0
+    ? storedNetProfit
+    : computeNetProfit(grossMargin + adjustmentImpact, chargesTotal, Number(invoice.deliveryPrice) || 0);
   const marginRate = totalRevenue > 0 ? ((grossMargin / totalRevenue) * 100).toFixed(1) : '0';
 
   return (
@@ -389,7 +393,7 @@ function InternalMarginSection({ invoice, t }: { invoice: any; t: (k: string) =>
       <div className="flex flex-wrap gap-x-6 gap-y-1 px-5 py-3 bg-white border-b border-slate-100 text-sm text-slate-600">
         <span>Marge brute : <strong>{formatMoneyDzd(grossMargin)}</strong></span>
         {adjustmentAmount > 0 && <span>{adjustmentType === 'addition' ? 'Ajout' : 'Remise'} ({Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0)}%) : <strong>{adjustmentType === 'addition' ? '+' : '-'}{formatMoneyDzd(adjustmentAmount)}</strong></span>}
-        <span>Autre charge : <strong>{formatMoneyDzd(invoice.otherCharge || 0)}</strong></span>
+        <span>{t('Autres charges (internes)')} : <strong>{formatMoneyDzd(chargesTotal)}</strong></span>
         <span>{t('Prix de livraison')} : <strong>{formatMoneyDzd(invoice.deliveryPrice || 0)}</strong></span>
         {invoice.deliveryPersonName && <span>{t('Livreur')} : <strong>{invoice.deliveryPersonName}</strong></span>}
         <span className="text-xs text-slate-400">Marge brute / chiffre d'affaires : {marginRate}%</span>
@@ -564,7 +568,7 @@ export default function InvoiceDetailPage() {
   const canManage = isManager(user?.role);
   const isUnpaid = invoice.type === 'facture' && invoice.paymentStatus !== 'paid';
   const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
-  const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const invoiceCharges = getBilledCharges(invoice);
   const adjustedSubtotal = roundMoney((invoice.items || []).reduce((sum: number, item: any) => sum + roundMoney(adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent) * Number(item.quantity || 0)), 0));
 
   return (

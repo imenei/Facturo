@@ -61,7 +61,8 @@ export default function EditInvoicePage() {
 
   const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
-  const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
+  // Les autres charges sont internes : jamais ajoutées au total de la facture ni à la base de TVA.
+  const subtotalWithCharges = adjustedSubtotal;
   const tvaAmount = form.hasTva ? roundMoney((subtotalWithCharges * form.tvaRate) / 100) : 0;
   const total = roundMoney(subtotalWithCharges + tvaAmount);
 
@@ -186,7 +187,7 @@ export default function EditInvoicePage() {
             </div>
             <div className="md:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">{t('Frais supplémentaires facturés')}</label>
+                <label className="label mb-0">{t('Autres charges (internes)')}</label>
                 <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
                   <Plus size={13} /> {t('Ajouter un frais')}
                 </button>
@@ -201,7 +202,8 @@ export default function EditInvoicePage() {
                     onClick={() => setOtherCharges((current) => current.filter((_, i) => i !== index))} className="btn-secondary text-red-600 px-2"><Trash2 size={15} /></button>
                 </div>
               ))}
-              <p className="text-right text-xs text-slate-500">Total des frais : {formatMoneyDzd(otherChargeTotal)}</p>
+              <p className="text-right text-xs text-slate-500">{t('Total des charges')} : {formatMoneyDzd(otherChargeTotal)}</p>
+              <p className="text-right text-xs text-slate-400">{t('Non affichées sur la facture : déduites du bénéfice net.')}</p>
             </div>
           </div>
         </div>
@@ -289,9 +291,6 @@ export default function EditInvoicePage() {
           </div>
           <div className="mt-4 border-t pt-4 space-y-1.5 text-right">
             <div className="text-sm text-slate-600">{t('excl_tax')}: <span className="font-medium">{formatMoneyDzd(adjustedSubtotal)}</span></div>
-            {otherChargeTotal > 0 && (
-              <div className="text-sm text-slate-600">{t('Frais supplémentaires')} : <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span></div>
-            )}
             {form.hasTva && <div className="text-sm text-slate-600">TVA: <span className="font-medium">{formatMoneyDzd(tvaAmount)}</span></div>}
             <div className="text-lg font-display font-700 text-brand-600">{t('total')}: {formatMoneyDzd(total)}</div>
           </div>

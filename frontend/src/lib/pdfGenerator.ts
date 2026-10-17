@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { adjustedUnitPrice, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, getBilledCharges, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
 import { breakLongWords, hexToRgb } from './textUtils';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') || 'https://api.helpdz.com';
@@ -248,7 +248,7 @@ function totalsBlock(doc: jsPDF, invoice: any, y: number) {
   const valX = boxR - PAD;               // valeurs
 
   let ty = y + 8;
-  const invoiceCharges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const invoiceCharges = getBilledCharges(invoice); // vide pour les documents actuels : charges internes
   const { type: adjustmentType, percent: adjustmentPercent } = resolveInvoiceAdjustment(invoice);
   const subtotalAfterAdjustment = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
     const unitPrice = invoice.type === 'bon_livraison'

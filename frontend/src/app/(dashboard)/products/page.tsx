@@ -20,6 +20,9 @@ export default function ProductsPage() {
   const [search, setSearch] = useState('');
   const [priceError, setPriceError] = useState('');
 
+  // Recherche « commence par » (sans tenir compte des accents ni des majuscules) :
+  // « a » affiche les produits commençant par A, « ab » ceux commençant par AB, etc.
+  const fold = (value: any) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const load = async (q?: string) => {
     try {
       const { data } = await api.get('/products', { params: q ? { search: q } : {} });
@@ -31,6 +34,11 @@ export default function ProductsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  const visibleProducts = products.filter((p) => {
+    const term = fold(search);
+    return !term || fold(p.name).startsWith(term) || fold(p.reference).startsWith(term);
+  });
 
   const openNew = () => { setEditProduct(null); setForm({ ...emptyForm }); setPriceError(''); setShowForm(true); };
   const openEdit = (p: any) => {
@@ -82,16 +90,16 @@ export default function ProductsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-display font-700 text-slate-900">{t('products')}</h1>
-          <p className="text-slate-500 text-sm mt-1">{products.length} {t('products_count')}</p>
+          <p className="text-slate-500 text-sm mt-1">{visibleProducts.length} {t('products_count')}</p>
         </div>
         <button onClick={openNew} className="btn-primary"><Plus size={18} /> {t('new_product')}</button>
       </div>
 
       <div className="card p-4 mb-6">
         <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input className="input pl-9" placeholder={t('search_products')} value={search}
-            onChange={(e) => { setSearch(e.target.value); load(e.target.value); }} />
+          <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input className="input ps-9" placeholder={t('search_products')} value={search}
+            onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
 
@@ -165,10 +173,10 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {products.length === 0 && (
+              {visibleProducts.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-12 text-slate-400">{t('no_products')}</td></tr>
               )}
-              {products.map((p) => {
+              {visibleProducts.map((p) => {
                 const { m, pct } = margin(p);
                 return (
                   <tr key={p.id} className="hover:bg-slate-50 transition-colors">

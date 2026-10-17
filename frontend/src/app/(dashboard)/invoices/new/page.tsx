@@ -267,7 +267,8 @@ export default function NewInvoicePage() {
   const adjustmentAmount = roundMoney(items.reduce((sum, item) => sum + lineAdjustmentAmount(item.unitPrice, item.quantity, form.adjustmentType, Number(form.adjustmentPercent)), 0));
   const adjustedSubtotal = roundMoney(items.reduce((sum, item) => sum + roundMoney(adjustedUnitPrice(item.unitPrice, form.adjustmentType, Number(form.adjustmentPercent)) * item.quantity), 0));
   const otherChargeTotal = roundMoney(otherCharges.reduce((sum, charge) => sum + (Number(charge.amount) || 0), 0));
-  const subtotalWithCharges = roundMoney(adjustedSubtotal + otherChargeTotal);
+  // Les autres charges sont internes : jamais ajoutées au total de la facture ni à la base de TVA.
+  const subtotalWithCharges = adjustedSubtotal;
   const tvaAmount = form.hasTva ? roundMoney((subtotalWithCharges * form.tvaRate) / 100) : 0;
   const total = roundMoney(subtotalWithCharges + tvaAmount);
 
@@ -275,7 +276,7 @@ export default function NewInvoicePage() {
   const totalMargin = roundMoney(items.reduce((sum, item) =>
     sum + lineGrossMargin(item.unitPrice, item.purchasePrice, item.quantity), 0));
   const marginRate = total > 0 ? ((totalMargin / total) * 100).toFixed(1) : '0';
-  const netProfit = totalMargin + otherChargeTotal + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount) - Number(form.deliveryPrice || 0);
+  const netProfit = totalMargin + (form.adjustmentType === 'addition' ? adjustmentAmount : -adjustmentAmount) - otherChargeTotal - Number(form.deliveryPrice || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -545,7 +546,11 @@ export default function NewInvoicePage() {
                                 onChange={(e) => setProductSearch(e.target.value)} placeholder={t('Rechercher nom ou référence')} />
                             </div>
                           </div>
-                          {products.filter((product) => `${product.name} ${product.reference || ''}`.toLowerCase().includes(productSearch.trim().toLowerCase())).map((p) => (
+                          {products.filter((product) => {
+                              const fold = (value: any) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+                              const term = fold(productSearch);
+                              return !term || fold(product.name).startsWith(term) || fold(product.reference).startsWith(term);
+                            }).map((p) => (
                             <button key={p.id} type="button" onClick={() => pickProduct(i, p)}
                               className="w-full text-left px-3 py-2 hover:bg-brand-50 text-sm flex items-center justify-between">
                               <div>
@@ -649,13 +654,6 @@ export default function NewInvoicePage() {
               )}
             </div>
 
-            {otherChargeTotal > 0 && (
-              <div className="flex justify-between text-sm text-slate-600">
-                <span>{t('Frais supplémentaires')}</span>
-                <span className="font-medium">+{formatMoneyDzd(otherChargeTotal)}</span>
-              </div>
-            )}
-
             {form.hasTva && (
               <div className="flex justify-between text-sm text-slate-600">
                 <span>TVA ({form.tvaRate}%)</span>
@@ -713,7 +711,7 @@ export default function NewInvoicePage() {
             </div>
             <div className="md:col-span-3">
               <div className="flex items-center justify-between mb-2">
-                <label className="label mb-0">{t('Frais supplémentaires facturés')}</label>
+                <label className="label mb-0">{t('Autres charges (internes)')}</label>
                 <button type="button" className="btn-secondary text-xs py-1" onClick={() => setOtherCharges((current) => [...current, { description: '', amount: 0 }])}>
                   <Plus size={13} /> {t('Ajouter un frais')}
                 </button>
@@ -728,7 +726,8 @@ export default function NewInvoicePage() {
                     onClick={() => setOtherCharges((current) => current.filter((_, i) => i !== index))} className="btn-secondary text-red-600 px-2"><Trash2 size={15} /></button>
                 </div>
               ))}
-              <p className="text-right text-xs text-slate-500">Total des frais : {formatMoneyDzd(otherChargeTotal)}</p>
+              <p className="text-right text-xs text-slate-500">{t('Total des charges')} : {formatMoneyDzd(otherChargeTotal)}</p>
+              <p className="text-right text-xs text-slate-400">{t('Non affichées sur la facture : déduites du bénéfice net.')}</p>
             </div>
           </div>
           <div className="mt-4 border-t pt-3 flex justify-between text-sm">

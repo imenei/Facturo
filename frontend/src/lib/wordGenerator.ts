@@ -1,4 +1,4 @@
-import { adjustedUnitPrice, formatMoney, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
+import { adjustedUnitPrice, formatMoney, getBilledCharges, resolveInvoiceAdjustment, roundMoney } from './formatMoney';
 import { breakLongWords, hexToRgb, readableTextOn } from './textUtils';
 
 function amountInWords(n: number): string {
@@ -217,7 +217,7 @@ export async function generateInvoiceWord(invoice: any, company: any) {
     ]));
 
     // Totaux : tableau aligné à droite
-    const charges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+    const charges = getBilledCharges(invoice);
     const subtotal = roundMoney((invoice.items || []).reduce((sum: number, item: any) => {
       const unitPrice = adjustedUnitPrice(Number(item.unitPrice), adjustmentType, adjustmentPercent);
       return sum + roundMoney(unitPrice * Number(item.quantity || 0));

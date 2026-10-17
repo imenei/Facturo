@@ -39,6 +39,14 @@ export function lineAdjustmentAmount(unitPrice: number, quantity: number, adjust
 }
 
 export function resolveInvoiceAdjustment(invoice: any): { type: string; percent: number; amount: number } {
+  // Ajustement enregistré avec le document : on le lit tel quel, sans le déduire du sous-total.
+  if (invoice?.adjustmentType === 'addition' || invoice?.adjustmentType === 'discount') {
+    return {
+      type: invoice.adjustmentType,
+      percent: Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0) || 0,
+      amount: Number(invoice.adjustmentAmount ?? invoice.discountAmount ?? 0) || 0,
+    };
+  }
   const items = Array.isArray(invoice?.items) ? invoice.items : [];
   const baseSubtotal = roundMoney(items.reduce(
     (sum: number, item: any) => sum + roundMoney(Number(item.quantity || 0) * Number(item.unitPrice || 0)),
@@ -73,4 +81,25 @@ export function computeNetProfit(
   deliveryPrice = 0,
 ): number {
   return roundMoney(roundMoney(grossMargin) - roundMoney(otherCharge) - roundMoney(deliveryPrice));
+}
+
+/**
+ * Frais réellement FACTURÉS au client.
+ * Les « autres charges » sont désormais internes (jamais affichées). Seules les anciennes factures,
+ * dont le sous-total enregistré incluait ces frais, les affichent encore pour que le document
+ * émis reste identique et que Sous-total + TVA = Total.
+ */
+export function getBilledCharges(invoice: any): Array<{ description?: string; amount: number }> {
+  if (!invoice || invoice.type === 'bon_livraison') return [];
+  const charges = Array.isArray(invoice.otherCharges) ? invoice.otherCharges : [];
+  const chargesTotal = roundMoney(charges.reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0));
+  if (!charges.length || chargesTotal <= 0) return [];
+  const type = invoice.adjustmentType === 'addition' ? 'addition' : 'discount';
+  const percent = Number(invoice.adjustmentPercent ?? invoice.discountPercent ?? 0) || 0;
+  const items = Array.isArray(invoice.items) ? invoice.items : [];
+  const adjustedBase = roundMoney(items.reduce(
+    (sum: number, item: any) => sum + roundMoney(adjustedUnitPrice(Number(item.unitPrice), type, percent) * Number(item.quantity || 0)),
+    0,
+  ));
+  return Math.abs(Number(invoice.subtotal || 0) - (adjustedBase + chargesTotal)) <= 0.05 ? charges : [];
 }
