@@ -16,6 +16,9 @@ import { UserRole } from '../users/user.entity';
 const SALES_HT = '(inv.total - COALESCE(inv.tvaAmount, 0))';
 const NET_PROFIT = 'COALESCE(NULLIF(inv.netProfit, 0), COALESCE(inv.totalMargin, 0) - COALESCE(inv.otherCharge, 0) - COALESCE(inv.deliveryPrice, 0))';
 
+// ✅ MODIF : taux de TVA (19 %) -> TVA = prix HT * 0.19
+const TVA_RATE = 0.19;
+
 @Controller('stats')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
@@ -74,8 +77,12 @@ export class StatsController {
       .andWhere('inv.paymentStatus = :unpaid', { unpaid: PaymentStatus.UNPAID })
       .getRawOne();
 
+    // ✅ MODIF : TVA = HT * 0.19, arrondie à 2 décimales par facture
     const vat = await this.issuedFactures()
-      .select('COALESCE(SUM(inv.tvaAmount), 0)', 'totalVat')
+      .select(
+        `COALESCE(SUM(ROUND(CAST(${SALES_HT} * ${TVA_RATE} AS numeric), 2)), 0)`,
+        'totalVat',
+      )
       .andWhere('inv.hasTva = true')
       .getRawOne();
 
@@ -282,4 +289,3 @@ export class StatsController {
     return { revenue, invoicesCount, deliveries };
   }
 }
- 
