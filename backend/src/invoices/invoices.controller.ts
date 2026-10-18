@@ -102,6 +102,13 @@ export class InvoicesController {
     return this.invoicesService.requestDeletion(id, reason, req.user);
   }
 
+  // ✅ CONVERT : proforma -> nouvelle facture (la proforma est conservée)
+  @Post(':id/convert-to-facture')
+  @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
+  convertToFacture(@Param('id') id: string, @Request() req) {
+    return this.invoicesService.convertProformaToFacture(id, req.user);
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.COMMERCIAL)
   findOne(@Param('id') id: string, @Request() req) {
