@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common'; // ✅ CONVERT : ConflictException
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Product } from '../products/product.entity';
@@ -567,6 +567,98 @@ export class InvoicesService {
     }
   }
 
+  // ✅ CONVERT : méthode ajoutée
+  /**
+   * Convertit une proforma en facture : la proforma est conservée, une NOUVELLE facture
+   * (nouveau numéro FAC-…) est créée avec les mêmes client, articles, remises et TVA.
+   */
+  async convertProformaToFacture(id: string, user: { id: string; role: UserRole }): Promise<Invoice> {
+    if (user.role !== UserRole.ADMIN && user.role !== UserRole.COMMERCIAL) {
+      throw new ForbiddenException('Accès refusé');
+    }
+
+    // Verrou anti double-clic (même principe que pour les bons de livraison)
+    const lockKey = `convert-${id}`;
+    if (this.deliveryNotesBeingCreated.has(lockKey)) {
+      throw new BadRequestException('La conversion de cette proforma est déjà en cours.');
+    }
+    this.deliveryNotesBeingCreated.add(lockKey);
+
+    try {
+      const proforma = await this.findOne(id, user); // 404 si supprimée / introuvable
+      if (proforma.type !== InvoiceType.PROFORMA) {
+        throw new BadRequestException("Ce document n'est pas une proforma.");
+      }
+
+      const existing = await this.invoicesRepository.findOne({
+        where: { sourceInvoiceId: proforma.id, type: InvoiceType.FACTURE, isDeleted: false },
+      });
+      if (existing) {
+        throw new ConflictException(`Cette proforma est déjà convertie en facture ${existing.number}.`);
+      }
+
+      // Une date de livraison passée bloquerait la future modification de la facture.
+      const today = new Date().toISOString().slice(0, 10);
+      const deliveryDate = proforma.deliveryDate && new Date(proforma.deliveryDate).toISOString().slice(0, 10) >= today
+        ? proforma.deliveryDate
+        : null;
+
+      const facture = this.invoicesRepository.create({
+        type: InvoiceType.FACTURE,
+        status: InvoiceStatus.BROUILLON, // ← mets InvoiceStatus.EMISE pour qu'elle compte tout de suite dans le dashboard
+        number: await this.generateNumber(InvoiceType.FACTURE),
+        sourceInvoiceId: proforma.id,
+
+        clientName: proforma.clientName,
+        clientEmail: proforma.clientEmail || null,
+        clientPhone: proforma.clientPhone || null,
+        clientAddress: proforma.clientAddress || null,
+        clientNif: proforma.clientNif || null,
+        clientNis: proforma.clientNis || null,
+        clientLogoUrl: proforma.clientLogoUrl || null,
+        clientId: proforma.clientId,
+
+        items: (proforma.items || []).map((item: any) => ({ ...item })),
+        subtotal: proforma.subtotal,
+        discountPercent: proforma.discountPercent,
+        discountAmount: proforma.discountAmount,
+        adjustmentType: proforma.adjustmentType,
+        adjustmentPercent: proforma.adjustmentPercent,
+        adjustmentAmount: proforma.adjustmentAmount,
+        hasTva: proforma.hasTva,
+        tvaRate: proforma.tvaRate,
+        tvaAmount: proforma.tvaAmount,
+        total: proforma.total,
+
+        totalMargin: proforma.totalMargin,
+        otherCharge: proforma.otherCharge,
+        otherCharges: proforma.otherCharges,
+        deliveryPrice: proforma.deliveryPrice,
+        deliveryPersonId: proforma.deliveryPersonId,
+        deliveryPersonName: proforma.deliveryPersonName,
+        netProfit: proforma.netProfit,
+
+        issuerName: proforma.issuerName,
+        issuerNameSize: proforma.issuerNameSize,
+        templateType: proforma.templateType,
+        notes: proforma.notes,
+        dueDate: proforma.dueDate,
+        deliveryDate,
+
+        paymentStatus: PaymentStatus.UNPAID,
+        deliveryStatus: DeliveryStatus.EN_ATTENTE,
+        workflowStep: WorkflowStep.COMMANDE,
+        createdBy: { id: user.id } as any,
+      });
+
+      const saved = await this.invoicesRepository.save(facture);
+      await this.tasksService.syncInvoiceTask(saved, user.id, undefined, undefined, saved.deliveryStatus);
+      return saved;
+    } finally {
+      this.deliveryNotesBeingCreated.delete(lockKey);
+    }
+  }
+
   async update(id: string, dto: UpdateInvoiceDto, user: { id: string; role: UserRole }): Promise<Invoice> {
     const invoice = await this.findOne(id, user);
     invoice.lastModifiedBy = { id: user.id } as any;
@@ -578,7 +670,11 @@ export class InvoicesService {
     const effectiveReferenceDate = invoice.createdAt ?? new Date();
     this.validateDeliveryDate(effectiveReferenceDate, dto.deliveryDate ?? invoice.deliveryDate ?? null);
 
-    if (dto.type !== undefined) invoice.type = dto.type;
+    // ✅ CONVERT : le type ne peut plus être changé par l'édition : une proforma devient facture
+    // uniquement via la conversion (nouveau numéro FAC-…).
+    if (dto.type !== undefined && dto.type !== invoice.type) {
+      throw new BadRequestException('Le type du document ne peut pas être modifié. Utilisez « Convertir en facture ».');
+    }
     if (dto.status !== undefined) invoice.status = dto.status;
     if (dto.clientName !== undefined) invoice.clientName = dto.clientName;
     if (dto.clientEmail !== undefined) invoice.clientEmail = dto.clientEmail || null;
