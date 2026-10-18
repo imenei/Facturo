@@ -12,10 +12,11 @@
 
 * { box-sizing: border-box; }
 
+/* ✅ MODIF : overflow-x: hidden retiré (il cassait le sticky/fixe de la sidebar).
+   Le débordement horizontal est géré par .app-main (overflow-x-hidden) dans le layout. */
 html,
 body {
   max-width: 100%;
-  overflow-x: hidden;
 }
 
 body {
@@ -87,6 +88,15 @@ html[dir="rtl"] table td {
 @media print {
   .no-print { display: none !important; }
   body { background: white; }
+
+  /* ✅ MODIF : le layout a une hauteur fixe + scroll interne ; à l'impression on le libère
+     pour que tout le document s'imprime (sinon il est coupé à la 1re page). */
+  .app-shell,
+  .app-main {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
 }
 
 @media (max-width: 767px) {
