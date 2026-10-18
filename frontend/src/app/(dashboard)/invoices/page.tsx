@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation'; // ✅ CONVERT
 import api from '@/lib/api';
 import { generateInvoicePDF, printInvoicePDF } from '@/lib/pdfGenerator';
 import { useAuthStore } from '@/store/authStore';
@@ -13,7 +14,7 @@ import clsx from 'clsx';
 import {
   Plus, Search, Eye, Edit, Trash2, FileDown, Loader2,
   FileText, CheckCircle, XCircle, Bell, ArrowUpDown, Hash,
-  ShieldCheck, Briefcase, Printer,
+  ShieldCheck, Briefcase, Printer, FileCheck, // ✅ CONVERT : FileCheck
 } from 'lucide-react';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -97,6 +98,7 @@ function CreatorBadge({ invoice }: { invoice: any }) {
 export default function InvoicesPage() {
   const { user } = useAuthStore();
   const { t } = useI18nStore();
+  const router = useRouter(); // ✅ CONVERT
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [company, setCompany] = useState<any>(null);
@@ -112,6 +114,9 @@ export default function InvoicesPage() {
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
+  // ✅ CONVERT : états de la conversion proforma -> facture
+  const [convertTarget, setConvertTarget] = useState<any>(null);
+  const [converting, setConverting] = useState(false);
 
   const typeLabels: Record<string, string> = {
     facture: t('invoice'),
@@ -167,6 +172,22 @@ export default function InvoicesPage() {
       load();
     } catch { toast.error(user?.role === 'commercial' ? t('Impossible d’envoyer la demande de suppression') : t('error_deleting')); }
     setDeleting(false);
+  };
+
+  // ✅ CONVERT : crée une facture à partir de la proforma puis ouvre la facture
+  const handleConvert = async () => {
+    if (!convertTarget) return;
+    setConverting(true);
+    try {
+      const { data } = await api.post(`/invoices/${convertTarget.id}/convert-to-facture`);
+      toast.success(t('Proforma convertie en facture'));
+      setConvertTarget(null);
+      router.push(`/invoices/${data.id}`);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join(', ') : msg || t('Erreur lors de la conversion'));
+    }
+    setConverting(false);
   };
 
   const sendReminder = async (inv: any) => {
@@ -260,7 +281,6 @@ export default function InvoicesPage() {
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
         <div className="card overflow-hidden">
-          {/* ✅ Plus de overflow-x-auto : le tableau s'adapte à la largeur de la page */}
           <div>
             <table className="w-full table-auto">
               <thead>
@@ -283,7 +303,6 @@ export default function InvoicesPage() {
                   <tr key={inv.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="px-3 py-3">
                       <div className="font-mono text-sm font-semibold text-slate-900 break-all">{inv.number}</div>
-                      {/* MOD 3: creator badge */}
                       <CreatorBadge invoice={inv} />
                     </td>
                     <td className="px-3 py-3">
@@ -333,6 +352,14 @@ export default function InvoicesPage() {
                         <button onClick={async () => { await printInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900" title={t('Imprimer')}>
                           <Printer size={15} />
                         </button>
+                        {/* ✅ CONVERT : bouton visible uniquement sur les proformas */}
+                        {inv.type === 'proforma' && isManager(user?.role) && (
+                          <button onClick={() => setConvertTarget(inv)}
+                            className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600"
+                            title={t('Convertir en facture')}>
+                            <FileCheck size={15} />
+                          </button>
+                        )}
                         {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
                           <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
                             className="p-1 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
@@ -367,6 +394,7 @@ export default function InvoicesPage() {
           )}
         </div>
       )}
+
       <ConfirmDialog
         open={Boolean(reminderTarget)}
         title={t("Confirmer l'envoi du rappel")}
@@ -379,6 +407,20 @@ export default function InvoicesPage() {
         <p><strong>{reminderTarget?.clientEmail}</strong></p>
         <p>{t('Un email de rappel sera envoyé au client')} {reminderTarget?.clientName}.</p>
       </ConfirmDialog>
+
+      {/* ✅ CONVERT : confirmation de conversion */}
+      <ConfirmDialog
+        open={Boolean(convertTarget)}
+        title={t('Convertir en facture')}
+        confirmLabel={t('Convertir')}
+        loading={converting}
+        onCancel={() => setConvertTarget(null)}
+        onConfirm={handleConvert}
+      >
+        <p>{t('Une nouvelle facture sera créée à partir de la proforma')} <strong>{convertTarget?.number}</strong>.</p>
+        <p>{t('La proforma est conservée.')}</p>
+      </ConfirmDialog>
+
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title={user?.role === 'commercial' ? t('Demande de suppression') : t('Supprimer la facture')}
