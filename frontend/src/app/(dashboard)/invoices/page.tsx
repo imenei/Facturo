@@ -62,7 +62,7 @@ function PaymentBadge({ status, invoiceId, onUpdate, t }: {
   return (
     <button onClick={toggle}
       className={clsx(
-        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80',
+        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80 whitespace-nowrap',
         status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600',
       )}>
       {status === 'paid' ? <CheckCircle size={11} /> : <XCircle size={11} />}
@@ -208,11 +208,70 @@ export default function InvoicesPage() {
 
   const activeFiltersCount = [typeFilter, paymentFilter, dateFilter, statusFilter, numberSearch].filter(Boolean).length;
 
+  // ── Blocs réutilisés par le tableau (desktop) et les cartes (mobile) ──────────
+  const renderWorkflow = (inv: any) =>
+    inv.type !== 'proforma' && inv.workflowStep ? (
+      <div className="relative">
+        <WorkflowBar step={inv.workflowStep} t={t} />
+        {isManager(user?.role) && (
+          <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={inv.workflowStep}
+            onChange={(e) => { e.stopPropagation(); updateWorkflow(inv.id, e.target.value); }}>
+            {WORKFLOW_STEPS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+      </div>
+    ) : <span className="text-xs text-slate-400">—</span>;
+
+  const renderPayment = (inv: any) =>
+    inv.type === 'facture' ? (
+      <PaymentBadge status={inv.paymentStatus || 'unpaid'} invoiceId={inv.id} onUpdate={load} t={t} />
+    ) : (
+      <span className="text-xs text-slate-400">—</span>
+    );
+
+  const renderActions = (inv: any, btn: string) => (
+    <>
+      <Link href={`/invoices/${inv.id}`} className={clsx(btn, 'hover:bg-slate-100 text-slate-500 hover:text-brand-600')} title={t('view')}>
+        <Eye size={16} />
+      </Link>
+      <Link href={`/invoices/${inv.id}/edit`} className={clsx(btn, 'hover:bg-slate-100 text-slate-500 hover:text-amber-600')} title={t('edit')}>
+        <Edit size={16} />
+      </Link>
+      <button onClick={async () => { await generateInvoicePDF(inv, company); }} className={clsx(btn, 'hover:bg-slate-100 text-slate-500 hover:text-red-600')} title={t('export_pdf')}>
+        <FileDown size={16} />
+      </button>
+      <button onClick={async () => { await printInvoicePDF(inv, company); }} className={clsx(btn, 'hover:bg-slate-100 text-slate-500 hover:text-slate-900')} title={t('Imprimer')}>
+        <Printer size={16} />
+      </button>
+      {/* ✅ CONVERT : bouton visible uniquement sur les proformas */}
+      {inv.type === 'proforma' && isManager(user?.role) && (
+        <button onClick={() => setConvertTarget(inv)}
+          className={clsx(btn, 'hover:bg-emerald-50 text-slate-400 hover:text-emerald-600')}
+          title={t('Convertir en facture')}>
+          <FileCheck size={16} />
+        </button>
+      )}
+      {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
+        <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
+          className={clsx(btn, 'hover:bg-amber-50 text-slate-400 hover:text-amber-500')} title={t('send_reminder')}>
+          {reminding === inv.id ? <Loader2 size={15} className="animate-spin" /> : <Bell size={15} />}
+        </button>
+      )}
+      {isManager(user?.role) && (
+        <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }}
+          className={clsx(btn, 'hover:bg-red-50 text-slate-400 hover:text-red-500')}
+          title={user?.role === 'commercial' ? t('Demander la suppression') : t('delete')}>
+          <Trash2 size={16} />
+        </button>
+      )}
+    </>
+  );
+
   return (
-    <div className="p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto animate-fade-in">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-display font-700 text-slate-900">{t('invoices_documents')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-700 text-slate-900">{t('invoices_documents')}</h1>
           <p className="text-slate-500 text-sm mt-1">{invoices.length} {t('documents_count')}</p>
         </div>
         <Link href="/invoices/new" className="btn-primary"><Plus size={18} /> {t('new_invoice')}</Link>
@@ -226,18 +285,18 @@ export default function InvoicesPage() {
             <input className="input pl-9" placeholder={t('search_by_client')} value={search}
               onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <div className="relative min-w-44">
+          <div className="relative flex-1 sm:flex-none min-w-44">
             <Hash size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input className="input pl-9" placeholder={t('N° facture (ex: FAC-2025)')} value={numberSearch}
               onChange={(e) => setNumberSearch(e.target.value)} />
           </div>
-          <select className="input w-auto min-w-36" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+          <select className="input w-full sm:w-auto sm:min-w-36" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">{t('all_types')}</option>
             <option value="facture">{t('invoices')}</option>
             <option value="proforma">{t('proformas')}</option>
             <option value="bon_livraison">{t('delivery_notes')}</option>
           </select>
-          <select className="input w-auto min-w-36" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
+          <select className="input w-full sm:w-auto sm:min-w-36" value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)}>
             <option value="">{t('all_payments')}</option>
             <option value="paid">{t('paid')}</option>
             <option value="unpaid">{t('unpaid')}</option>
@@ -281,12 +340,68 @@ export default function InvoicesPage() {
         <div className="flex justify-center py-16"><Loader2 size={32} className="animate-spin text-brand-500" /></div>
       ) : (
         <div className="card overflow-hidden">
-          <div>
+
+          {/* ══ MOBILE : liste de cartes (aucune colonne coupée) ═══════════════ */}
+          <div className="md:hidden">
+            {invoices.length === 0 ? (
+              <div className="text-center py-16 text-slate-400">
+                <FileText size={36} className="mx-auto mb-3 opacity-30" />
+                {t('no_documents_found')}
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {invoices.map((inv) => (
+                  <div key={inv.id} className="p-4 space-y-3">
+                    {/* Numéro + type */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-mono text-sm font-semibold text-slate-900 break-all">{inv.number}</div>
+                        <CreatorBadge invoice={inv} />
+                      </div>
+                      <span className={clsx('badge shrink-0', TYPE_COLORS[inv.type])}>
+                        {typeLabels[inv.type]}
+                      </span>
+                    </div>
+
+                    {/* Client */}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-900 break-words">{inv.clientName}</div>
+                      {inv.clientEmail && <div className="text-xs text-slate-400 break-all">{inv.clientEmail}</div>}
+                    </div>
+
+                    {/* Montant + paiement */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div dir="ltr" className="text-base font-display font-700 text-slate-900 whitespace-nowrap">
+                        {formatMoneyDzd(inv.total)}
+                      </div>
+                      {renderPayment(inv)}
+                    </div>
+
+                    {/* Workflow + date */}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="min-w-0">{renderWorkflow(inv)}</div>
+                      <span className="text-xs text-slate-500 whitespace-nowrap">
+                        {new Date(inv.createdAt).toLocaleDateString('fr-DZ')}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap items-center gap-1 pt-2 border-t border-slate-100">
+                      {renderActions(inv, 'p-2 rounded-lg')}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ══ DESKTOP / TABLETTE : tableau (défilement horizontal si besoin) ═ */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full table-auto">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
                   {[t('number'), t('type'), t('client'), t('amount'), t('payment'), t('workflow'), t('date'), t('actions')].map((h) => (
-                    <th key={h} className="text-left text-xs font-600 text-slate-500 px-3 py-3 uppercase tracking-wide">{h}</th>
+                    <th key={h} className="text-left text-xs font-600 text-slate-500 px-3 py-3 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -317,60 +432,12 @@ export default function InvoicesPage() {
                     <td className="px-3 py-3 text-sm font-semibold text-slate-900 text-right whitespace-nowrap">
                       {formatMoneyDzd(inv.total)}
                     </td>
-                    <td className="px-3 py-3">
-                      {inv.type === 'facture' ? (
-                        <PaymentBadge status={inv.paymentStatus || 'unpaid'} invoiceId={inv.id} onUpdate={load} t={t} />
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {inv.type !== 'proforma' && inv.workflowStep ? (
-                        <div className="relative">
-                          <WorkflowBar step={inv.workflowStep} t={t} />
-                          {isManager(user?.role) && (
-                            <select className="absolute inset-0 opacity-0 cursor-pointer w-full" value={inv.workflowStep}
-                              onChange={(e) => { e.stopPropagation(); updateWorkflow(inv.id, e.target.value); }}>
-                              {WORKFLOW_STEPS.map((s) => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                          )}
-                        </div>
-                      ) : <span className="text-xs text-slate-400">—</span>}
-                    </td>
-                    <td className="px-3 py-3 text-sm text-slate-500">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</td>
+                    <td className="px-3 py-3">{renderPayment(inv)}</td>
+                    <td className="px-3 py-3">{renderWorkflow(inv)}</td>
+                    <td className="px-3 py-3 text-sm text-slate-500 whitespace-nowrap">{new Date(inv.createdAt).toLocaleDateString('fr-DZ')}</td>
                     <td className="px-3 py-3">
                       <div className="flex flex-wrap items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <Link href={`/invoices/${inv.id}`} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-brand-600" title={t('view')}>
-                          <Eye size={15} />
-                        </Link>
-                        <Link href={`/invoices/${inv.id}/edit`} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-amber-600" title={t('edit')}>
-                          <Edit size={15} />
-                        </Link>
-                        <button onClick={async () => { await generateInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-red-600" title={t('export_pdf')}>
-                          <FileDown size={15} />
-                        </button>
-                        <button onClick={async () => { await printInvoicePDF(inv, company); }} className="p-1 hover:bg-slate-100 rounded text-slate-500 hover:text-slate-900" title={t('Imprimer')}>
-                          <Printer size={15} />
-                        </button>
-                        {/* ✅ CONVERT : bouton visible uniquement sur les proformas */}
-                        {inv.type === 'proforma' && isManager(user?.role) && (
-                          <button onClick={() => setConvertTarget(inv)}
-                            className="p-1 hover:bg-emerald-50 rounded text-slate-400 hover:text-emerald-600"
-                            title={t('Convertir en facture')}>
-                            <FileCheck size={15} />
-                          </button>
-                        )}
-                        {inv.type === 'facture' && inv.paymentStatus !== 'paid' && (
-                          <button onClick={() => setReminderTarget(inv)} disabled={reminding === inv.id}
-                            className="p-1 hover:bg-amber-50 rounded text-slate-400 hover:text-amber-500" title={t('send_reminder')}>
-                            {reminding === inv.id ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />}
-                          </button>
-                        )}
-                        {isManager(user?.role) && (
-                          <button onClick={() => { setDeleteTarget(inv); setDeleteReason(''); }} className="p-1 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title={user?.role === 'commercial' ? t('Demander la suppression') : t('delete')}>
-                            <Trash2 size={15} />
-                          </button>
-                        )}
+                        {renderActions(inv, 'p-1 rounded')}
                       </div>
                     </td>
                   </tr>
@@ -380,14 +447,14 @@ export default function InvoicesPage() {
           </div>
 
           {invoices.length > 0 && (
-            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-4 text-xs text-slate-500">
-              <span>{t('total_amount')} : <strong className="text-slate-900">
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+              <span>{t('total_amount')} : <strong className="text-slate-900 whitespace-nowrap">
                 {formatMoneyDzd(invoices.reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
-              <span>{t('paid_amount')} : <strong className="text-emerald-700">
+              <span>{t('paid_amount')} : <strong className="text-emerald-700 whitespace-nowrap">
                 {formatMoneyDzd(invoices.filter((i) => i.paymentStatus === 'paid').reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
-              <span>{t('unpaid_amount')} : <strong className="text-red-600">
+              <span>{t('unpaid_amount')} : <strong className="text-red-600 whitespace-nowrap">
                 {formatMoneyDzd(invoices.filter((i) => i.paymentStatus !== 'paid' && i.type === 'facture').reduce((s, i) => s + Number(i.total), 0))}
               </strong></span>
             </div>
