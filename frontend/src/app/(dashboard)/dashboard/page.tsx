@@ -14,25 +14,29 @@ import Link from 'next/link';
 import clsx from 'clsx';
 import { formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
 
-// FIX: les valeurs restent sur une seule ligne (nowrap) et sont tronquées proprement
-// si elles dépassent réellement; la valeur complète est visible au survol (title).
+// FIX: l'icône et le libellé sont en haut, le chiffre prend TOUTE la largeur de la carte
+// en dessous. Aucune troncature : la taille de police s'adapte à la longueur du montant.
 function StatCard({ icon: Icon, label, value, color, sub }: any) {
+  const text = String(value ?? '');
+  const size =
+    text.length > 22 ? 'text-sm' :
+    text.length > 18 ? 'text-base' :
+    text.length > 14 ? 'text-lg' : 'text-xl';
   return (
-    <div className="card p-4 xl:p-5 flex items-start gap-3 hover:shadow-md transition-shadow min-w-0">
-      <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-        <Icon size={20} className="text-white" />
+    <div className="card p-4 hover:shadow-md transition-shadow min-w-0">
+      <div className="flex items-center gap-3">
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+          <Icon size={20} className="text-white" />
+        </div>
+        <p className="text-sm text-slate-500 leading-tight min-w-0">{label}</p>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-slate-500 truncate" title={label}>{label}</p>
-        <p
-          dir="ltr"
-          title={String(value)}
-          className="text-base xl:text-lg 2xl:text-xl font-display font-700 text-slate-900 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis rtl:text-right"
-        >
-          {value}
-        </p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5 truncate" title={sub}>{sub}</p>}
-      </div>
+      <p
+        dir="ltr"
+        className={`${size} font-display font-700 text-slate-900 mt-3 whitespace-nowrap tabular-nums rtl:text-right`}
+      >
+        {value}
+      </p>
+      {sub && <p className="text-xs text-slate-400 mt-1 leading-snug">{sub}</p>}
     </div>
   );
 }
