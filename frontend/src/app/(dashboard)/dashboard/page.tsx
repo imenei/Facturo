@@ -14,16 +14,24 @@ import Link from 'next/link';
 import clsx from 'clsx';
 import { formatMoney, formatMoneyDzd } from '@/lib/formatMoney';
 
+// FIX: les valeurs restent sur une seule ligne (nowrap) et sont tronquées proprement
+// si elles dépassent réellement; la valeur complète est visible au survol (title).
 function StatCard({ icon: Icon, label, value, color, sub }: any) {
   return (
-    <div className="card p-6 flex items-start gap-4 hover:shadow-md transition-shadow">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
-        <Icon size={22} className="text-white" />
+    <div className="card p-4 xl:p-5 flex items-start gap-3 hover:shadow-md transition-shadow min-w-0">
+      <div className={`w-10 h-10 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+        <Icon size={20} className="text-white" />
       </div>
-      <div className="min-w-0">
-        <p className="text-sm text-slate-500">{label}</p>
-        <p dir="ltr" className="text-xl xl:text-2xl font-display font-700 text-slate-900 mt-0.5 break-words rtl:text-right">{value}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-slate-500 truncate" title={label}>{label}</p>
+        <p
+          dir="ltr"
+          title={String(value)}
+          className="text-base xl:text-lg 2xl:text-xl font-display font-700 text-slate-900 mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis rtl:text-right"
+        >
+          {value}
+        </p>
+        {sub && <p className="text-xs text-slate-400 mt-0.5 truncate" title={sub}>{sub}</p>}
       </div>
     </div>
   );
@@ -61,10 +69,10 @@ function MiniBarChart({ data, labelKey, valueKey, color = 'bg-brand-500' }: {
         return (
           <div key={i} className="flex items-center gap-3">
             <span className="text-xs text-slate-500 w-20 shrink-0 truncate">{item[labelKey]}</span>
-            <div className="flex-1 bg-slate-100 rounded-full h-2">
+            <div className="flex-1 min-w-0 bg-slate-100 rounded-full h-2">
               <div className={clsx('h-2 rounded-full transition-all', color)} style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-xs font-medium text-slate-900 w-28 text-right shrink-0">
+            <span dir="ltr" className="text-xs font-medium text-slate-900 min-w-28 text-right shrink-0 whitespace-nowrap">
               {formatMoneyDzd(val)}
             </span>
           </div>
@@ -88,17 +96,17 @@ function UnpaidByClientWidget({ data }: { data: any[] }) {
         const urgencyColor = daysSince > 60 ? 'bg-red-500' : daysSince > 30 ? 'bg-orange-400' : 'bg-amber-400';
         return (
           <div key={item.clientId || item.clientName}>
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between mb-1 gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="text-sm font-medium text-slate-900 truncate max-w-40">{item.clientName}</span>
                 {daysSince > 30 && (
-                  <span className={clsx('text-xs px-1.5 py-0.5 rounded-full text-white font-medium', daysSince > 60 ? 'bg-red-500' : 'bg-orange-400')}>
+                  <span className={clsx('text-xs px-1.5 py-0.5 rounded-full text-white font-medium shrink-0', daysSince > 60 ? 'bg-red-500' : 'bg-orange-400')}>
                     {daysSince}j
                   </span>
                 )}
               </div>
               <div className="text-right shrink-0">
-                <span className="text-sm font-700 text-red-600">{formatMoneyDzd(amount)}</span>
+                <span dir="ltr" className="text-sm font-700 text-red-600 whitespace-nowrap">{formatMoneyDzd(amount)}</span>
                 <div className="text-xs text-slate-400">{item.unpaidCount} facture(s)</div>
               </div>
             </div>
@@ -240,8 +248,8 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          {/* KPI Cards — ligne 1 (5 cartes) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4 mb-8">
             <StatCard
               icon={TrendingUp} label={t('dash_revenue_ht')} color="bg-brand-500"
               value={formatMoneyDzd(overview.revenue?.totalRevenue || 0)}
@@ -270,8 +278,8 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* MOD 4: row 2 — margin + delivery perf */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* MOD 4: ligne 2 — marge + performance livraison (4 cartes) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
             <StatCard
               icon={DollarSign} label={t('dash_net_profit')} color="bg-purple-500"
               value={marginStats ? formatMoneyDzd(marginStats.totalMargin) : '—'}
@@ -341,9 +349,9 @@ export default function DashboardPage() {
                       <span className="w-5 h-5 rounded-full bg-amber-100 text-amber-700 text-xs font-700 flex items-center justify-center shrink-0">
                         {i + 1}
                       </span>
-                      <span className="flex-1 text-sm text-slate-700 truncate">{p.name}</span>
-                      <span className="text-xs text-slate-400">×{p.qty}</span>
-                      <span className="text-sm font-600 text-amber-700">{formatMoney(p.revenue)}</span>
+                      <span className="flex-1 min-w-0 text-sm text-slate-700 truncate">{p.name}</span>
+                      <span className="text-xs text-slate-400 shrink-0">×{p.qty}</span>
+                      <span dir="ltr" className="text-sm font-600 text-amber-700 shrink-0 whitespace-nowrap">{formatMoney(p.revenue)}</span>
                     </div>
                   ))}
                 </div>
@@ -361,9 +369,11 @@ export default function DashboardPage() {
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {topClients.map((c: any) => (
-                  <div key={c.clientId || c.clientName} className="bg-slate-50 rounded-lg p-3">
+                  <div key={c.clientId || c.clientName} className="bg-slate-50 rounded-lg p-3 min-w-0">
                     <div className="font-medium text-slate-900 text-sm truncate">{c.clientName}</div>
-                    <div className="text-brand-600 font-700 mt-1">{formatMoney(c.totalRevenue || 0)}</div>
+                    <div dir="ltr" className="text-brand-600 font-700 mt-1 whitespace-nowrap overflow-hidden text-ellipsis" title={formatMoney(c.totalRevenue || 0)}>
+                      {formatMoney(c.totalRevenue || 0)}
+                    </div>
                     <div className="text-xs text-slate-400">DZD · {c.invoiceCount} docs</div>
                   </div>
                 ))}
@@ -421,7 +431,7 @@ export default function DashboardPage() {
                 <div className="text-right">
                   <div className="text-xs text-slate-400">{t('Démarré le')}</div>
                   <div className="text-sm">{iv.startedAt ? new Date(iv.startedAt).toLocaleDateString('fr-FR') : '—'}</div>
-                  <div className="text-brand-600 font-700 text-sm mt-1">{formatMoneyDzd(iv.totalPrice)}</div>
+                  <div dir="ltr" className="text-brand-600 font-700 text-sm mt-1 whitespace-nowrap">{formatMoneyDzd(iv.totalPrice)}</div>
                 </div>
               </Link>
             ))}
@@ -453,7 +463,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-3">
                   {inv.type !== 'proforma' && inv.workflowStep && <WorkflowBadge step={inv.workflowStep} />}
                   <div className="text-right">
-                    <div className="font-medium text-sm">{formatMoneyDzd(inv.total)}</div>
+                    <div dir="ltr" className="font-medium text-sm whitespace-nowrap">{formatMoneyDzd(inv.total)}</div>
                     <span className={clsx('text-xs font-medium', inv.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-red-500')}>
                       {inv.paymentStatus === 'paid' ? `✓ ${t('paid_status')}` : `○ ${t('unpaid_status_short')}`}
                     </span>
